@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, Settings, Locate, X, Navigation } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,12 @@ import PassengerSearch from '@/components/PassengerSearch';
 import DriverSettings from '@/components/DriverSettings';
 import MatchPopup from '@/components/MatchPopup';
 import SettingsMenu from '@/components/SettingsMenu';
+import ProfileSection from '@/components/ProfileSection';
+import TripHistory from '@/components/TripHistory';
+import WalletSection from '@/components/WalletSection';
+import HelpSection from '@/components/HelpSection';
+import ActiveTripView from '@/components/ActiveTripView';
+import RatingModal from '@/components/RatingModal';
 
 const Index = () => {
   const { toast } = useToast();
@@ -24,6 +30,15 @@ const Index = () => {
   const [destination, setDestination] = useState('');
   const [isNavigating, setIsNavigating] = useState(false);
   const [hasActivePassengerSearch, setHasActivePassengerSearch] = useState(false);
+  
+  // New states for sections
+  const [showProfile, setShowProfile] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [showWallet, setShowWallet] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
+  const [showActiveTrip, setShowActiveTrip] = useState(false);
+  const [showRating, setShowRating] = useState(false);
+  const [activeTripRole, setActiveTripRole] = useState<'driver' | 'passenger'>('passenger');
 
   const handleDriverToggle = () => {
     setIsDriverMode(!isDriverMode);
@@ -60,10 +75,18 @@ const Index = () => {
       title: "Buscando conductores...",
       description: `Hacia ${data.destination} por máx. ${data.budget}€`,
     });
+    // Simulate finding a match
+    setTimeout(() => {
+      setActiveTripRole('passenger');
+      setShowActiveTrip(true);
+      setHasActivePassengerSearch(false);
+    }, 2000);
   };
 
   const handleMatchAccept = () => {
     setShowMatchPopup(false);
+    setActiveTripRole('driver');
+    setShowActiveTrip(true);
     toast({
       title: "¡Viaje aceptado!",
       description: "Redirigiendo hacia el punto de recogida",
@@ -76,6 +99,31 @@ const Index = () => {
       title: "Solicitud rechazada",
       description: "Seguirás recibiendo nuevas solicitudes",
     });
+  };
+
+  const handleTripEnd = () => {
+    setShowActiveTrip(false);
+    setShowRating(true);
+  };
+
+  const handleMenuNavigate = (section: string) => {
+    switch (section) {
+      case 'profile':
+        setShowProfile(true);
+        break;
+      case 'history':
+        setShowHistory(true);
+        break;
+      case 'wallet':
+        setShowWallet(true);
+        break;
+      case 'help':
+        setShowHelp(true);
+        break;
+      case 'security':
+        setShowProfile(true);
+        break;
+    }
   };
 
   return (
@@ -137,9 +185,9 @@ const Index = () => {
           </Button>
         </motion.div>
 
-        {/* Logo - only show when not navigating */}
+        {/* Logo - only show when not navigating and no active trip */}
         <AnimatePresence>
-          {!isNavigating && (
+          {!isNavigating && !showActiveTrip && (
             <motion.div 
               className="absolute top-24 left-1/2 -translate-x-1/2"
               initial={{ opacity: 0, scale: 0.9 }}
@@ -160,7 +208,7 @@ const Index = () => {
 
         {/* Navigation Info Panel - shows when navigating */}
         <AnimatePresence>
-          {isNavigating && (
+          {isNavigating && !showActiveTrip && (
             <motion.div
               initial={{ y: -100, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
@@ -186,48 +234,59 @@ const Index = () => {
           )}
         </AnimatePresence>
 
-        {/* Bottom Controls */}
-        <motion.div 
-          className="absolute bottom-0 left-0 right-0 p-4 pb-8 safe-area-inset-bottom"
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.3 }}
-        >
-          <div className="flex flex-col gap-4">
-            {/* Passenger Card - Separate section for finding drivers */}
-            <PassengerCard 
-              onClick={() => setShowPassengerSearch(true)}
-              hasActiveSearch={hasActivePassengerSearch}
-            />
+        {/* Bottom Controls - hide when active trip */}
+        {!showActiveTrip && (
+          <motion.div 
+            className="absolute bottom-0 left-0 right-0 p-4 pb-8 safe-area-inset-bottom"
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.3 }}
+          >
+            <div className="flex flex-col gap-4">
+              {/* Passenger Card - Separate section for finding drivers */}
+              <PassengerCard 
+                onClick={() => setShowPassengerSearch(true)}
+                hasActiveSearch={hasActivePassengerSearch}
+              />
 
-            {/* Driver Toggle & Settings */}
-            <div className="flex items-center gap-3">
-              <div className="flex-1">
-                <DriverToggle 
-                  isDriver={isDriverMode} 
-                  onToggle={handleDriverToggle} 
-                />
-              </div>
-              
-              {isDriverMode && (
-                <motion.div
-                  initial={{ scale: 0, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0, opacity: 0 }}
-                >
-                  <Button 
-                    variant="glass" 
-                    size="icon"
-                    onClick={() => setShowDriverSettings(true)}
+              {/* Driver Toggle & Settings */}
+              <div className="flex items-center gap-3">
+                <div className="flex-1">
+                  <DriverToggle 
+                    isDriver={isDriverMode} 
+                    onToggle={handleDriverToggle} 
+                  />
+                </div>
+                
+                {isDriverMode && (
+                  <motion.div
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0, opacity: 0 }}
                   >
-                    <Settings className="w-5 h-5" />
-                  </Button>
-                </motion.div>
-              )}
+                    <Button 
+                      variant="glass" 
+                      size="icon"
+                      onClick={() => setShowDriverSettings(true)}
+                    >
+                      <Settings className="w-5 h-5" />
+                    </Button>
+                  </motion.div>
+                )}
+              </div>
             </div>
-          </div>
-        </motion.div>
+          </motion.div>
+        )}
       </MapView>
+
+      {/* Active Trip View */}
+      <AnimatePresence>
+        <ActiveTripView
+          isOpen={showActiveTrip}
+          onClose={handleTripEnd}
+          userRole={activeTripRole}
+        />
+      </AnimatePresence>
 
       {/* Modals */}
       <NavigationSearch 
@@ -262,6 +321,41 @@ const Index = () => {
       <SettingsMenu 
         isOpen={showSettingsMenu}
         onClose={() => setShowSettingsMenu(false)}
+        onNavigate={handleMenuNavigate}
+      />
+
+      {/* Section Modals */}
+      <ProfileSection 
+        isOpen={showProfile}
+        onClose={() => setShowProfile(false)}
+      />
+
+      <TripHistory 
+        isOpen={showHistory}
+        onClose={() => setShowHistory(false)}
+      />
+
+      <WalletSection 
+        isOpen={showWallet}
+        onClose={() => setShowWallet(false)}
+      />
+
+      <HelpSection 
+        isOpen={showHelp}
+        onClose={() => setShowHelp(false)}
+      />
+
+      <RatingModal
+        isOpen={showRating}
+        onClose={() => setShowRating(false)}
+        onSubmit={(rating) => {
+          toast({
+            title: "¡Gracias por tu valoración!",
+            description: "Has obtenido un 10% de descuento en tu próximo viaje",
+          });
+        }}
+        userName="Ana M."
+        tripInfo="Huesca → Zaragoza"
       />
     </div>
   );
