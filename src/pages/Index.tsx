@@ -28,6 +28,7 @@ const Index = () => {
   const [showMatchPopup, setShowMatchPopup] = useState(false);
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   const [destination, setDestination] = useState('');
+  const [destinationCoords, setDestinationCoords] = useState<{ lng: number; lat: number; name: string } | null>(null);
   const [isNavigating, setIsNavigating] = useState(false);
   const [hasActivePassengerSearch, setHasActivePassengerSearch] = useState(false);
   
@@ -52,8 +53,9 @@ const Index = () => {
     }
   };
 
-  const handleNavigate = (dest: string) => {
+  const handleNavigate = (dest: string, coords: { lng: number; lat: number }) => {
     setDestination(dest);
+    setDestinationCoords({ ...coords, name: dest });
     setIsNavigating(true);
     toast({
       title: "Navegación iniciada",
@@ -64,6 +66,7 @@ const Index = () => {
   const handleStopNavigation = () => {
     setIsNavigating(false);
     setDestination('');
+    setDestinationCoords(null);
     toast({
       title: "Navegación detenida",
     });
@@ -128,7 +131,7 @@ const Index = () => {
 
   return (
     <div className="h-screen w-screen overflow-hidden">
-      <MapView>
+      <MapView destination={destinationCoords} showRoute={isNavigating}>
         {/* Top Bar */}
         <div className="absolute top-0 left-0 right-0 p-4 safe-area-inset-top">
           <motion.div 
