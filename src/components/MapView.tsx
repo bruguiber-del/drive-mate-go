@@ -39,16 +39,17 @@ const MapView = ({ children, destination, showRoute }: MapViewProps) => {
       center: initialCenter,
       zoom: 14,
       zoomControl: false,
+      attributionControl: false,
     });
 
     // Dark OpenStreetMap tiles
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
+      attribution: '&copy; OpenStreetMap &copy; CARTO',
       maxZoom: 19,
     }).addTo(map.current);
 
-    // Add zoom control to bottom-right
-    L.control.zoom({ position: 'bottomright' }).addTo(map.current);
+    // Attribution in corner that doesn't interfere
+    L.control.attribution({ position: 'bottomleft', prefix: false }).addTo(map.current);
 
     setMapReady(true);
 
@@ -180,13 +181,16 @@ const MapView = ({ children, destination, showRoute }: MapViewProps) => {
 
   return (
     <div className="relative w-full h-full overflow-hidden bg-background">
-      <div ref={mapContainer} className="absolute inset-0" />
+      {/* Map container - fully interactive */}
+      <div ref={mapContainer} className="absolute inset-0 z-0" />
       
-      {/* Gradient overlays */}
-      <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-background/60 via-transparent to-background/40" />
+      {/* Gradient overlays - pointer-events-none ensures map remains interactive */}
+      <div className="absolute inset-0 pointer-events-none z-10 bg-gradient-to-t from-background/60 via-transparent to-background/40" />
       
-      {/* UI Layer */}
-      {children}
+      {/* UI Layer - elements inside have their own pointer-events */}
+      <div className="absolute inset-0 z-20">
+        {children}
+      </div>
     </div>
   );
 };
