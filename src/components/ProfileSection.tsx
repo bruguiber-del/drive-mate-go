@@ -1,13 +1,19 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { User, CheckCircle, AlertCircle, Star, Car, Users, X, Camera } from 'lucide-react';
+import { User, CheckCircle, AlertCircle, Star, Car, Users, X, Camera, Shield, Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 interface ProfileSectionProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+type GenderPreference = 'none' | 'same-gender';
+
 const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
+  const [pickupPreference, setPickupPreference] = useState<GenderPreference>('none');
+
   if (!isOpen) return null;
 
   return (
@@ -73,6 +79,71 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">Como pasajero</p>
               </div>
+            </div>
+
+            {/* Pickup Comfort Preferences */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Heart className="w-5 h-5 text-secondary" />
+                <h4 className="font-semibold text-foreground">Preferencias de comodidad</h4>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Configura tus preferencias personales para sentirte más cómodo/a durante los viajes.
+              </p>
+              
+              <div className="space-y-2">
+                <button
+                  onClick={() => setPickupPreference('none')}
+                  className={cn(
+                    "w-full flex items-center justify-between p-4 rounded-xl transition-all",
+                    pickupPreference === 'none' 
+                      ? "bg-primary/20 border-2 border-primary" 
+                      : "glass border-2 border-transparent"
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <Shield className={cn("w-5 h-5", pickupPreference === 'none' ? "text-primary" : "text-muted-foreground")} />
+                    <div className="text-left">
+                      <p className="font-medium text-foreground">Sin preferencia</p>
+                      <p className="text-sm text-muted-foreground">Acepto cualquier conductor/pasajero</p>
+                    </div>
+                  </div>
+                  <div className={cn(
+                    "w-5 h-5 rounded-full border-2 flex items-center justify-center",
+                    pickupPreference === 'none' ? "border-primary bg-primary" : "border-muted-foreground"
+                  )}>
+                    {pickupPreference === 'none' && <div className="w-2.5 h-2.5 bg-primary-foreground rounded-full" />}
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => setPickupPreference('same-gender')}
+                  className={cn(
+                    "w-full flex items-center justify-between p-4 rounded-xl transition-all",
+                    pickupPreference === 'same-gender' 
+                      ? "bg-secondary/20 border-2 border-secondary" 
+                      : "glass border-2 border-transparent"
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <Heart className={cn("w-5 h-5", pickupPreference === 'same-gender' ? "text-secondary" : "text-muted-foreground")} />
+                    <div className="text-left">
+                      <p className="font-medium text-foreground">Preferir mismo género</p>
+                      <p className="text-sm text-muted-foreground">Priorizar coincidencias del mismo género</p>
+                    </div>
+                  </div>
+                  <div className={cn(
+                    "w-5 h-5 rounded-full border-2 flex items-center justify-center",
+                    pickupPreference === 'same-gender' ? "border-secondary bg-secondary" : "border-muted-foreground"
+                  )}>
+                    {pickupPreference === 'same-gender' && <div className="w-2.5 h-2.5 bg-secondary-foreground rounded-full" />}
+                  </div>
+                </button>
+              </div>
+
+              <p className="text-xs text-muted-foreground px-2">
+                Esta es una preferencia de comodidad personal. No garantiza coincidencias exclusivas.
+              </p>
             </div>
 
             {/* Verification Status */}

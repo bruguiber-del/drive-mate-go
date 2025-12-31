@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Clock, Route, Euro, X, Check, Star } from 'lucide-react';
+import { User, Clock, Route, Euro, X, Check, Star, PawPrint, Baby } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface MatchPopupProps {
@@ -12,6 +12,8 @@ interface MatchPopupProps {
     detourMinutes: number;
     earnings: number;
     pickupDistance: string;
+    acceptsPets?: boolean;
+    hasChildSeat?: boolean;
   };
 }
 
@@ -21,7 +23,9 @@ const MatchPopup = ({ isOpen, onAccept, onReject, matchData }: MatchPopupProps) 
     rating: 4.8,
     detourMinutes: 3,
     earnings: 4.50,
-    pickupDistance: '200m'
+    pickupDistance: '200m',
+    acceptsPets: true,
+    hasChildSeat: false,
   };
 
   const data = matchData || defaultData;
@@ -60,7 +64,7 @@ const MatchPopup = ({ isOpen, onAccept, onReject, matchData }: MatchPopupProps) 
               </div>
 
               {/* Passenger Info */}
-              <div className="flex items-center gap-4 mb-6">
+              <div className="flex items-center gap-4 mb-4">
                 <div className="w-14 h-14 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
                   <User className="w-7 h-7 text-primary-foreground" />
                 </div>
@@ -71,6 +75,22 @@ const MatchPopup = ({ isOpen, onAccept, onReject, matchData }: MatchPopupProps) 
                     <span className="text-sm font-medium">{data.rating}</span>
                   </div>
                 </div>
+              </div>
+
+              {/* Driver Features Badges */}
+              <div className="flex flex-wrap gap-2 mb-4">
+                {data.acceptsPets && (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/20 rounded-full">
+                    <PawPrint className="w-4 h-4 text-primary" />
+                    <span className="text-xs font-medium text-primary">Acepta mascotas</span>
+                  </div>
+                )}
+                {data.hasChildSeat && (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-secondary/20 rounded-full">
+                    <Baby className="w-4 h-4 text-secondary" />
+                    <span className="text-xs font-medium text-secondary">Silla infantil</span>
+                  </div>
+                )}
               </div>
 
               {/* Stats */}
