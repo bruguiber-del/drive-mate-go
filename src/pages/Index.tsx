@@ -133,7 +133,7 @@ const Index = () => {
     <div className="h-screen w-screen overflow-hidden">
       <MapView destination={destinationCoords} showRoute={isNavigating}>
         {/* Top Bar */}
-        <div className="absolute top-0 left-0 right-0 p-4 safe-area-inset-top">
+        <div className="absolute top-0 left-0 right-0 p-4 safe-area-inset-top pointer-events-none">
           <motion.div 
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -143,14 +143,14 @@ const Index = () => {
             <Button 
               variant="glass" 
               size="icon" 
-              className="shrink-0"
+              className="shrink-0 pointer-events-auto"
               onClick={() => setShowSettingsMenu(true)}
             >
               <Menu className="w-5 h-5" />
             </Button>
 
             {/* Navigation Search Bar */}
-            <div className="flex-1">
+            <div className="flex-1 pointer-events-auto">
               <SearchBar 
                 onClick={() => !isNavigating && setShowNavigationSearch(true)} 
                 destination={destination}
@@ -163,6 +163,7 @@ const Index = () => {
               <motion.div
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
+                className="pointer-events-auto"
               >
                 <Button 
                   variant="destructive" 
@@ -178,7 +179,7 @@ const Index = () => {
 
         {/* Center - Location Button */}
         <motion.div 
-          className="absolute right-4 top-1/2 -translate-y-1/2"
+          className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-auto"
           initial={{ x: 20, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           transition={{ delay: 0.2 }}
@@ -192,7 +193,7 @@ const Index = () => {
         <AnimatePresence>
           {!isNavigating && !showActiveTrip && (
             <motion.div 
-              className="absolute top-24 left-1/2 -translate-x-1/2"
+              className="absolute top-24 left-1/2 -translate-x-1/2 pointer-events-none"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
@@ -216,7 +217,7 @@ const Index = () => {
               initial={{ y: -100, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: -100, opacity: 0 }}
-              className="absolute top-24 left-4 right-4"
+              className="absolute top-24 left-4 right-4 pointer-events-auto"
             >
               <div className="glass-strong rounded-2xl p-4">
                 <div className="flex items-center gap-3">
@@ -240,12 +241,12 @@ const Index = () => {
         {/* Bottom Controls - hide when active trip */}
         {!showActiveTrip && (
           <motion.div 
-            className="absolute bottom-0 left-0 right-0 p-4 pb-8 safe-area-inset-bottom"
+            className="absolute bottom-0 left-0 right-0 p-4 pb-8 safe-area-inset-bottom pointer-events-none"
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.3 }}
           >
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-4 pointer-events-auto">
               {/* Passenger Card - Separate section for finding drivers */}
               <PassengerCard 
                 onClick={() => setShowPassengerSearch(true)}
