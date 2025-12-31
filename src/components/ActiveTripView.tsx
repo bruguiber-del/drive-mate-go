@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Phone, MessageCircle, X, MapPin, Clock, Star, Navigation, User } from 'lucide-react';
+import { Phone, MessageCircle, X, MapPin, Clock, Star, Navigation, User, PawPrint, Baby, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface ActiveTripViewProps {
@@ -14,6 +14,8 @@ interface ActiveTripViewProps {
     pickupPoint: string;
     eta: number;
     price: number;
+    acceptsPets?: boolean;
+    hasChildSeat?: boolean;
   };
 }
 
@@ -26,6 +28,8 @@ const ActiveTripView = ({ isOpen, onClose, userRole, tripData }: ActiveTripViewP
     pickupPoint: 'Estación de autobuses, Huesca',
     eta: 5,
     price: 6.50,
+    acceptsPets: true,
+    hasChildSeat: true,
   };
 
   const data = tripData || defaultData;
@@ -67,10 +71,38 @@ const ActiveTripView = ({ isOpen, onClose, userRole, tripData }: ActiveTripViewP
               </Button>
             </div>
           </div>
+
+          {/* Driver Features - Only show for passenger view */}
+          {userRole === 'passenger' && (data.acceptsPets || data.hasChildSeat) && (
+            <div className="flex flex-wrap gap-2 mt-3">
+              {data.acceptsPets && (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/30 rounded-full">
+                  <PawPrint className="w-4 h-4 text-primary" />
+                  <span className="text-xs font-medium text-primary">Acepta mascotas</span>
+                </div>
+              )}
+              {data.hasChildSeat && (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-secondary/30 rounded-full">
+                  <Baby className="w-4 h-4 text-secondary" />
+                  <span className="text-xs font-medium text-secondary">Silla infantil</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Trip Details */}
         <div className="p-4 space-y-4">
+          {/* Child Seat Disclaimer */}
+          {userRole === 'passenger' && data.hasChildSeat && (
+            <div className="flex items-start gap-2 p-3 bg-warning/10 border border-warning/30 rounded-xl">
+              <AlertTriangle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
+              <p className="text-xs text-muted-foreground">
+                El conductor dispone de silla infantil. La responsabilidad del cumplimiento normativo y uso correcto corresponde al conductor.
+              </p>
+            </div>
+          )}
+
           {/* ETA */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">

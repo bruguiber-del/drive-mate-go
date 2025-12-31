@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, Timer, MapPin, Wallet, X, Save } from 'lucide-react';
+import { Users, Timer, MapPin, Wallet, X, Save, PawPrint, Baby } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -10,11 +10,13 @@ interface DriverSettingsProps {
   onSave: (settings: DriverSettingsData) => void;
 }
 
-interface DriverSettingsData {
+export interface DriverSettingsData {
   seats: number;
   maxDetour: number;
   doorToDoor: boolean;
   doorToDoorFee: number;
+  acceptsPets: boolean;
+  hasChildSeat: boolean;
 }
 
 const DriverSettings = ({ isOpen, onClose, onSave }: DriverSettingsProps) => {
@@ -22,9 +24,11 @@ const DriverSettings = ({ isOpen, onClose, onSave }: DriverSettingsProps) => {
   const [maxDetour, setMaxDetour] = useState(5);
   const [doorToDoor, setDoorToDoor] = useState(true);
   const [doorToDoorFee, setDoorToDoorFee] = useState(2);
+  const [acceptsPets, setAcceptsPets] = useState(false);
+  const [hasChildSeat, setHasChildSeat] = useState(false);
 
   const handleSave = () => {
-    onSave({ seats, maxDetour, doorToDoor, doorToDoorFee });
+    onSave({ seats, maxDetour, doorToDoor, doorToDoorFee, acceptsPets, hasChildSeat });
     onClose();
   };
 
@@ -36,7 +40,7 @@ const DriverSettings = ({ isOpen, onClose, onSave }: DriverSettingsProps) => {
           animate={{ y: 0 }}
           exit={{ y: '100%' }}
           transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-          className="fixed inset-x-0 bottom-0 z-50"
+          className="fixed inset-x-0 bottom-0 z-50 max-h-[90vh] overflow-y-auto"
         >
           <div className="glass-strong rounded-t-3xl p-6 pb-8 shadow-float">
             {/* Handle */}
@@ -95,6 +99,68 @@ const DriverSettings = ({ isOpen, onClose, onSave }: DriverSettingsProps) => {
                 <span>15 min</span>
               </div>
             </div>
+
+            {/* Pet Acceptance Toggle */}
+            <button
+              onClick={() => setAcceptsPets(!acceptsPets)}
+              className={cn(
+                "w-full flex items-center justify-between p-4 rounded-xl mb-4 transition-all",
+                acceptsPets 
+                  ? "bg-primary/20 border-2 border-primary" 
+                  : "bg-muted border-2 border-transparent"
+              )}
+            >
+              <div className="flex items-center gap-3">
+                <PawPrint className={cn("w-5 h-5", acceptsPets ? "text-primary" : "text-muted-foreground")} />
+                <div className="text-left">
+                  <p className="font-semibold text-foreground">Acepto mascotas</p>
+                  <p className="text-sm text-muted-foreground">Permitir viajes con mascotas</p>
+                </div>
+              </div>
+              <div className={cn(
+                "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all",
+                acceptsPets ? "border-primary bg-primary" : "border-muted-foreground"
+              )}>
+                {acceptsPets && <div className="w-3 h-3 bg-primary-foreground rounded-full" />}
+              </div>
+            </button>
+
+            {/* Child Seat Toggle */}
+            <button
+              onClick={() => setHasChildSeat(!hasChildSeat)}
+              className={cn(
+                "w-full flex items-center justify-between p-4 rounded-xl mb-2 transition-all",
+                hasChildSeat 
+                  ? "bg-secondary/20 border-2 border-secondary" 
+                  : "bg-muted border-2 border-transparent"
+              )}
+            >
+              <div className="flex items-center gap-3">
+                <Baby className={cn("w-5 h-5", hasChildSeat ? "text-secondary" : "text-muted-foreground")} />
+                <div className="text-left">
+                  <p className="font-semibold text-foreground">Silla infantil homologada</p>
+                  <p className="text-sm text-muted-foreground">Dispongo de silla para niños</p>
+                </div>
+              </div>
+              <div className={cn(
+                "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all",
+                hasChildSeat ? "border-secondary bg-secondary" : "border-muted-foreground"
+              )}>
+                {hasChildSeat && <div className="w-3 h-3 bg-secondary-foreground rounded-full" />}
+              </div>
+            </button>
+
+            {/* Child Seat Disclaimer */}
+            {hasChildSeat && (
+              <motion.p
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="text-xs text-muted-foreground mb-4 px-2"
+              >
+                ⚠️ El conductor es responsable del cumplimiento normativo y del uso correcto de la silla infantil.
+              </motion.p>
+            )}
 
             {/* Door to Door */}
             <button
