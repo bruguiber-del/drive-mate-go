@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, Timer, MapPin, Wallet, X, Save, PawPrint, Baby } from 'lucide-react';
+import { Users, Timer, MapPin, Wallet, X, Save, PawPrint, Baby, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -17,6 +17,7 @@ export interface DriverSettingsData {
   doorToDoorFee: number;
   acceptsPets: boolean;
   hasChildSeat: boolean;
+  genderPreference: 'none' | 'women' | 'men';
 }
 
 const DriverSettings = ({ isOpen, onClose, onSave }: DriverSettingsProps) => {
@@ -26,9 +27,10 @@ const DriverSettings = ({ isOpen, onClose, onSave }: DriverSettingsProps) => {
   const [doorToDoorFee, setDoorToDoorFee] = useState(2);
   const [acceptsPets, setAcceptsPets] = useState(false);
   const [hasChildSeat, setHasChildSeat] = useState(false);
+  const [genderPreference, setGenderPreference] = useState<'none' | 'women' | 'men'>('none');
 
   const handleSave = () => {
-    onSave({ seats, maxDetour, doorToDoor, doorToDoorFee, acceptsPets, hasChildSeat });
+    onSave({ seats, maxDetour, doorToDoor, doorToDoorFee, acceptsPets, hasChildSeat, genderPreference });
     onClose();
   };
 
@@ -187,6 +189,34 @@ const DriverSettings = ({ isOpen, onClose, onSave }: DriverSettingsProps) => {
               </div>
             </button>
 
+            {/* Gender Preference */}
+            <div className="mb-4">
+              <label className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-3">
+                <User className="w-4 h-4" />
+                Preferencia de recogida
+              </label>
+              <div className="flex gap-2">
+                {[
+                  { value: 'none', label: 'Sin preferencia' },
+                  { value: 'women', label: 'Solo mujeres' },
+                  { value: 'men', label: 'Solo hombres' },
+                ].map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => setGenderPreference(option.value as 'none' | 'women' | 'men')}
+                    className={cn(
+                      "flex-1 py-3 px-2 rounded-xl text-sm font-medium transition-all",
+                      genderPreference === option.value 
+                        ? "bg-primary text-primary-foreground" 
+                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    )}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Door to Door Fee */}
             {doorToDoor && (
               <motion.div 
@@ -214,10 +244,10 @@ const DriverSettings = ({ isOpen, onClose, onSave }: DriverSettingsProps) => {
               </motion.div>
             )}
 
-            {/* Estimated earnings */}
+            {/* Estimated compensation */}
             <div className="bg-gradient-to-r from-success/20 to-primary/20 rounded-xl p-4 mb-6">
-              <p className="text-sm text-muted-foreground mb-1">Ingresos estimados hoy</p>
-              <p className="text-2xl font-bold text-foreground">12 - 25€</p>
+              <p className="text-sm text-muted-foreground mb-1">Compensación por compartir gastos hoy (por persona)</p>
+              <p className="text-2xl font-bold text-foreground">4 - 8€</p>
             </div>
 
             {/* Save Button */}

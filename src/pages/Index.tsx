@@ -40,6 +40,7 @@ const Index = () => {
   const [showActiveTrip, setShowActiveTrip] = useState(false);
   const [showRating, setShowRating] = useState(false);
   const [activeTripRole, setActiveTripRole] = useState<'driver' | 'passenger'>('passenger');
+  const [tripStatus, setTripStatus] = useState<'waiting' | 'picked_up' | 'in_progress'>('waiting');
 
   const handleDriverToggle = () => {
     setIsDriverMode(!isDriverMode);
@@ -76,23 +77,47 @@ const Index = () => {
     setHasActivePassengerSearch(true);
     toast({
       title: "Buscando conductores...",
-      description: `Hacia ${data.destination} por máx. ${data.budget}€`,
+      description: `Hacia ${data.destination}`,
     });
-    // Simulate finding a match
+    // Simulate finding a match - shows driver notification for passenger to accept
     setTimeout(() => {
-      setActiveTripRole('passenger');
-      setShowActiveTrip(true);
+      setShowMatchPopup(true);
       setHasActivePassengerSearch(false);
     }, 2000);
   };
 
+  const handlePassengerAcceptDriver = () => {
+    setShowMatchPopup(false);
+    setActiveTripRole('passenger');
+    setTripStatus('waiting');
+    setShowActiveTrip(true);
+    toast({
+      title: "¡Viaje confirmado!",
+      description: "Tu conductor está en camino",
+    });
+  };
+
   const handleMatchAccept = () => {
     setShowMatchPopup(false);
-    setActiveTripRole('driver');
+    // Check if we came from driver mode or passenger mode
+    if (isDriverMode) {
+      setActiveTripRole('driver');
+    } else {
+      setActiveTripRole('passenger');
+    }
+    setTripStatus('waiting');
     setShowActiveTrip(true);
     toast({
       title: "¡Viaje aceptado!",
-      description: "Redirigiendo hacia el punto de recogida",
+      description: isDriverMode ? "Redirigiendo hacia el punto de recogida" : "Tu conductor está en camino",
+    });
+  };
+
+  const handlePickup = () => {
+    setTripStatus('picked_up');
+    toast({
+      title: "¡Pasajero recogido!",
+      description: "Continuando hacia el destino",
     });
   };
 
@@ -106,6 +131,7 @@ const Index = () => {
 
   const handleTripEnd = () => {
     setShowActiveTrip(false);
+    setTripStatus('waiting');
     setShowRating(true);
   };
 
@@ -289,6 +315,8 @@ const Index = () => {
           isOpen={showActiveTrip}
           onClose={handleTripEnd}
           userRole={activeTripRole}
+          tripStatus={tripStatus}
+          onPickup={handlePickup}
         />
       </AnimatePresence>
 

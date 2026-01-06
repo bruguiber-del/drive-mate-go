@@ -6,6 +6,8 @@ interface ActiveTripViewProps {
   isOpen: boolean;
   onClose: () => void;
   userRole: 'driver' | 'passenger';
+  tripStatus?: 'waiting' | 'picked_up' | 'in_progress';
+  onPickup?: () => void;
   tripData?: {
     otherUser: string;
     otherUserRating: number;
@@ -19,7 +21,7 @@ interface ActiveTripViewProps {
   };
 }
 
-const ActiveTripView = ({ isOpen, onClose, userRole, tripData }: ActiveTripViewProps) => {
+const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onPickup, tripData }: ActiveTripViewProps) => {
   const defaultData = {
     otherUser: userRole === 'driver' ? 'Ana M.' : 'Carlos G.',
     otherUserRating: 4.8,
@@ -103,15 +105,21 @@ const ActiveTripView = ({ isOpen, onClose, userRole, tripData }: ActiveTripViewP
             </div>
           )}
 
-          {/* ETA */}
+          {/* ETA / Status */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Clock className="w-5 h-5 text-primary" />
               <span className="text-muted-foreground">
-                {userRole === 'passenger' ? 'Tu conductor llega en' : 'Llegada al punto de recogida'}
+                {tripStatus === 'picked_up' || tripStatus === 'in_progress'
+                  ? 'En camino al destino'
+                  : userRole === 'passenger' 
+                    ? 'Tu conductor llega en' 
+                    : 'Llegada al punto de recogida'}
               </span>
             </div>
-            <span className="text-2xl font-bold text-foreground">{data.eta} min</span>
+            <span className="text-2xl font-bold text-foreground">
+              {tripStatus === 'picked_up' || tripStatus === 'in_progress' ? '35 min' : `${data.eta} min`}
+            </span>
           </div>
 
           {/* Pickup Point */}
@@ -151,9 +159,14 @@ const ActiveTripView = ({ isOpen, onClose, userRole, tripData }: ActiveTripViewP
             <Button variant="destructive" className="flex-1" onClick={onClose}>
               Cancelar viaje
             </Button>
-            {userRole === 'driver' && (
-              <Button variant="driver" className="flex-1">
+            {userRole === 'driver' && tripStatus === 'waiting' && (
+              <Button variant="driver" className="flex-1" onClick={onPickup}>
                 He recogido
+              </Button>
+            )}
+            {tripStatus === 'picked_up' && (
+              <Button variant="driver" className="flex-1" onClick={onClose}>
+                Finalizar viaje
               </Button>
             )}
           </div>
