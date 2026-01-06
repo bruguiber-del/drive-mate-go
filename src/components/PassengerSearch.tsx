@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Clock, Wallet, Navigation, X, ChevronRight } from 'lucide-react';
+import { MapPin, Clock, Navigation, X, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -14,7 +14,6 @@ interface SearchData {
   origin: string;
   destination: string;
   time: string;
-  budget: number;
   doorToDoor: boolean;
 }
 
@@ -22,11 +21,10 @@ const PassengerSearch = ({ isOpen, onClose, onSearch }: PassengerSearchProps) =>
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
   const [time, setTime] = useState('');
-  const [budget, setBudget] = useState(10);
   const [doorToDoor, setDoorToDoor] = useState(false);
 
   const handleSubmit = () => {
-    onSearch({ origin, destination, time, budget, doorToDoor });
+    onSearch({ origin, destination, time, doorToDoor });
     onClose();
   };
 
@@ -82,8 +80,8 @@ const PassengerSearch = ({ isOpen, onClose, onSearch }: PassengerSearchProps) =>
               </div>
             </div>
 
-            {/* Time & Budget */}
-            <div className="grid grid-cols-2 gap-3 mb-6">
+            {/* Time */}
+            <div className="mb-6">
               <div className="relative">
                 <Clock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <input
@@ -91,19 +89,8 @@ const PassengerSearch = ({ isOpen, onClose, onSearch }: PassengerSearchProps) =>
                   value={time}
                   onChange={(e) => setTime(e.target.value)}
                   className="w-full pl-10 pr-4 py-4 bg-muted rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="Hora de salida"
                 />
-              </div>
-              <div className="relative">
-                <Wallet className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <input
-                  type="number"
-                  min={1}
-                  max={50}
-                  value={budget}
-                  onChange={(e) => setBudget(Number(e.target.value))}
-                  className="w-full pl-10 pr-4 py-4 bg-muted rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
               </div>
             </div>
 
