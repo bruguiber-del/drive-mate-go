@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { User, CheckCircle, AlertCircle, Star, Car, Users, X, Camera, Shield, Heart } from 'lucide-react';
+import { User, CheckCircle, AlertCircle, Star, Car, Users, X, Camera, Armchair } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -9,10 +9,10 @@ interface ProfileSectionProps {
   onClose: () => void;
 }
 
-type GenderPreference = 'none' | 'same-gender';
+export type SpacePreference = 'none' | 'spacious-car' | 'spacious-front';
 
 const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
-  const [pickupPreference, setPickupPreference] = useState<GenderPreference>('none');
+  const [spacePreference, setSpacePreference] = useState<SpacePreference>('none');
 
   if (!isOpen) return null;
 
@@ -81,68 +81,101 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
               </div>
             </div>
 
-            {/* Pickup Comfort Preferences */}
+            {/* Passenger Comfort Preferences - Space */}
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <Heart className="w-5 h-5 text-secondary" />
+                <Armchair className="w-5 h-5 text-secondary" />
                 <h4 className="font-semibold text-foreground">Preferencias de comodidad</h4>
               </div>
               <p className="text-sm text-muted-foreground">
-                Configura tus preferencias personales para sentirte más cómodo/a durante los viajes.
+                Selecciona tu preferencia de espacio. Solo puedes elegir una opción.
               </p>
               
               <div className="space-y-2">
                 <button
-                  onClick={() => setPickupPreference('none')}
+                  onClick={() => setSpacePreference('none')}
                   className={cn(
                     "w-full flex items-center justify-between p-4 rounded-xl transition-all",
-                    pickupPreference === 'none' 
+                    spacePreference === 'none' 
                       ? "bg-primary/20 border-2 border-primary" 
                       : "glass border-2 border-transparent"
                   )}
                 >
                   <div className="flex items-center gap-3">
-                    <Shield className={cn("w-5 h-5", pickupPreference === 'none' ? "text-primary" : "text-muted-foreground")} />
+                    <Armchair className={cn("w-5 h-5", spacePreference === 'none' ? "text-primary" : "text-muted-foreground")} />
                     <div className="text-left">
-                      <p className="font-medium text-foreground">Sin preferencia</p>
-                      <p className="text-sm text-muted-foreground">Acepto cualquier conductor/pasajero</p>
+                      <p className="font-medium text-foreground">Me da igual el espacio</p>
+                      <p className="text-sm text-muted-foreground">Sin coste adicional</p>
                     </div>
                   </div>
-                  <div className={cn(
-                    "w-5 h-5 rounded-full border-2 flex items-center justify-center",
-                    pickupPreference === 'none' ? "border-primary bg-primary" : "border-muted-foreground"
-                  )}>
-                    {pickupPreference === 'none' && <div className="w-2.5 h-2.5 bg-primary-foreground rounded-full" />}
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-success">+0€</span>
+                    <div className={cn(
+                      "w-5 h-5 rounded-full border-2 flex items-center justify-center",
+                      spacePreference === 'none' ? "border-primary bg-primary" : "border-muted-foreground"
+                    )}>
+                      {spacePreference === 'none' && <div className="w-2.5 h-2.5 bg-primary-foreground rounded-full" />}
+                    </div>
                   </div>
                 </button>
 
                 <button
-                  onClick={() => setPickupPreference('same-gender')}
+                  onClick={() => setSpacePreference('spacious-car')}
                   className={cn(
                     "w-full flex items-center justify-between p-4 rounded-xl transition-all",
-                    pickupPreference === 'same-gender' 
+                    spacePreference === 'spacious-car' 
                       ? "bg-secondary/20 border-2 border-secondary" 
                       : "glass border-2 border-transparent"
                   )}
                 >
                   <div className="flex items-center gap-3">
-                    <Heart className={cn("w-5 h-5", pickupPreference === 'same-gender' ? "text-secondary" : "text-muted-foreground")} />
+                    <Car className={cn("w-5 h-5", spacePreference === 'spacious-car' ? "text-secondary" : "text-muted-foreground")} />
                     <div className="text-left">
-                      <p className="font-medium text-foreground">Preferir mismo género</p>
-                      <p className="text-sm text-muted-foreground">Priorizar coincidencias del mismo género</p>
+                      <p className="font-medium text-foreground">Coche amplio</p>
+                      <p className="text-sm text-muted-foreground">SUV, monovolumen o similar</p>
                     </div>
                   </div>
-                  <div className={cn(
-                    "w-5 h-5 rounded-full border-2 flex items-center justify-center",
-                    pickupPreference === 'same-gender' ? "border-secondary bg-secondary" : "border-muted-foreground"
-                  )}>
-                    {pickupPreference === 'same-gender' && <div className="w-2.5 h-2.5 bg-secondary-foreground rounded-full" />}
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-warning">+0,50€</span>
+                    <div className={cn(
+                      "w-5 h-5 rounded-full border-2 flex items-center justify-center",
+                      spacePreference === 'spacious-car' ? "border-secondary bg-secondary" : "border-muted-foreground"
+                    )}>
+                      {spacePreference === 'spacious-car' && <div className="w-2.5 h-2.5 bg-secondary-foreground rounded-full" />}
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => setSpacePreference('spacious-front')}
+                  className={cn(
+                    "w-full flex items-center justify-between p-4 rounded-xl transition-all",
+                    spacePreference === 'spacious-front' 
+                      ? "bg-success/20 border-2 border-success" 
+                      : "glass border-2 border-transparent"
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <Armchair className={cn("w-5 h-5", spacePreference === 'spacious-front' ? "text-success" : "text-muted-foreground")} />
+                    <div className="text-left">
+                      <p className="font-medium text-foreground">Asiento delantero amplio</p>
+                      <p className="text-sm text-muted-foreground">Reservar plaza delantera</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-warning">+1€</span>
+                    <div className={cn(
+                      "w-5 h-5 rounded-full border-2 flex items-center justify-center",
+                      spacePreference === 'spacious-front' ? "border-success bg-success" : "border-muted-foreground"
+                    )}>
+                      {spacePreference === 'spacious-front' && <div className="w-2.5 h-2.5 bg-success-foreground rounded-full" />}
+                    </div>
                   </div>
                 </button>
               </div>
 
               <p className="text-xs text-muted-foreground px-2">
-                Esta es una preferencia de comodidad personal. No garantiza coincidencias exclusivas.
+                El recargo se aplica automáticamente al precio final del viaje.
               </p>
             </div>
 
