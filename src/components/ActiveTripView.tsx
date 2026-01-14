@@ -147,7 +147,7 @@ const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onP
           {/* Price */}
           <div className="flex items-center justify-between pt-2 border-t border-border">
             <span className="text-muted-foreground">
-              {userRole === 'driver' ? 'Ganarás' : 'Coste del viaje'}
+              {userRole === 'driver' ? 'Compensación por compartir gastos' : 'Coste del viaje'}
             </span>
             <span className={`text-xl font-bold ${userRole === 'driver' ? 'text-success' : 'text-foreground'}`}>
               {userRole === 'driver' ? '+' : ''}€{data.price.toFixed(2)}

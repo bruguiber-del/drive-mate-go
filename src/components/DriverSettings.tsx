@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, Timer, MapPin, Wallet, X, Save, PawPrint, Baby, User } from 'lucide-react';
+import { Users, Timer, MapPin, X, Save, PawPrint, Baby, User, Euro, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -14,23 +14,32 @@ export interface DriverSettingsData {
   seats: number;
   maxDetour: number;
   doorToDoor: boolean;
-  doorToDoorFee: number;
   acceptsPets: boolean;
   hasChildSeat: boolean;
   genderPreference: 'none' | 'women' | 'men';
 }
 
+// Fixed surcharges
+const PET_SURCHARGE = 2.00;
+const CHILD_SEAT_SURCHARGE = 1.00;
+
 const DriverSettings = ({ isOpen, onClose, onSave }: DriverSettingsProps) => {
   const [seats, setSeats] = useState(3);
   const [maxDetour, setMaxDetour] = useState(5);
   const [doorToDoor, setDoorToDoor] = useState(true);
-  const [doorToDoorFee, setDoorToDoorFee] = useState(2);
   const [acceptsPets, setAcceptsPets] = useState(false);
   const [hasChildSeat, setHasChildSeat] = useState(false);
   const [genderPreference, setGenderPreference] = useState<'none' | 'women' | 'men'>('none');
 
+  // Calculate estimated door-to-door surcharge based on max detour
+  const estimatedDoorToDoorSurcharge = useMemo(() => {
+    // Estimate ~2km per 5min detour, ~0.50€ per km extra
+    const estimatedExtraKm = (maxDetour / 5) * 2;
+    return Math.max(0.50, estimatedExtraKm * 0.50);
+  }, [maxDetour]);
+
   const handleSave = () => {
-    onSave({ seats, maxDetour, doorToDoor, doorToDoorFee, acceptsPets, hasChildSeat, genderPreference });
+    onSave({ seats, maxDetour, doorToDoor, acceptsPets, hasChildSeat, genderPreference });
     onClose();
   };
 
@@ -102,11 +111,17 @@ const DriverSettings = ({ isOpen, onClose, onSave }: DriverSettingsProps) => {
               </div>
             </div>
 
+            {/* Preferences Section Title */}
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold text-foreground mb-1">Preferencias</h3>
+              <p className="text-sm text-muted-foreground">Configura tus opciones de viaje</p>
+            </div>
+
             {/* Pet Acceptance Toggle */}
             <button
               onClick={() => setAcceptsPets(!acceptsPets)}
               className={cn(
-                "w-full flex items-center justify-between p-4 rounded-xl mb-4 transition-all",
+                "w-full flex items-center justify-between p-4 rounded-xl mb-3 transition-all",
                 acceptsPets 
                   ? "bg-primary/20 border-2 border-primary" 
                   : "bg-muted border-2 border-transparent"
@@ -116,14 +131,17 @@ const DriverSettings = ({ isOpen, onClose, onSave }: DriverSettingsProps) => {
                 <PawPrint className={cn("w-5 h-5", acceptsPets ? "text-primary" : "text-muted-foreground")} />
                 <div className="text-left">
                   <p className="font-semibold text-foreground">Acepto mascotas</p>
-                  <p className="text-sm text-muted-foreground">Permitir viajes con mascotas</p>
+                  <p className="text-sm text-muted-foreground">Recargo automático +{PET_SURCHARGE.toFixed(0)}€</p>
                 </div>
               </div>
-              <div className={cn(
-                "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all",
-                acceptsPets ? "border-primary bg-primary" : "border-muted-foreground"
-              )}>
-                {acceptsPets && <div className="w-3 h-3 bg-primary-foreground rounded-full" />}
+              <div className="flex items-center gap-2">
+                {acceptsPets && <span className="text-sm font-medium text-success">+{PET_SURCHARGE}€</span>}
+                <div className={cn(
+                  "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all",
+                  acceptsPets ? "border-primary bg-primary" : "border-muted-foreground"
+                )}>
+                  {acceptsPets && <div className="w-3 h-3 bg-primary-foreground rounded-full" />}
+                </div>
               </div>
             </button>
 
@@ -140,15 +158,18 @@ const DriverSettings = ({ isOpen, onClose, onSave }: DriverSettingsProps) => {
               <div className="flex items-center gap-3">
                 <Baby className={cn("w-5 h-5", hasChildSeat ? "text-secondary" : "text-muted-foreground")} />
                 <div className="text-left">
-                  <p className="font-semibold text-foreground">Silla infantil homologada</p>
-                  <p className="text-sm text-muted-foreground">Dispongo de silla para niños</p>
+                  <p className="font-semibold text-foreground">Sistema de retención infantil</p>
+                  <p className="text-sm text-muted-foreground">Recargo automático +{CHILD_SEAT_SURCHARGE.toFixed(0)}€</p>
                 </div>
               </div>
-              <div className={cn(
-                "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all",
-                hasChildSeat ? "border-secondary bg-secondary" : "border-muted-foreground"
-              )}>
-                {hasChildSeat && <div className="w-3 h-3 bg-secondary-foreground rounded-full" />}
+              <div className="flex items-center gap-2">
+                {hasChildSeat && <span className="text-sm font-medium text-success">+{CHILD_SEAT_SURCHARGE}€</span>}
+                <div className={cn(
+                  "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all",
+                  hasChildSeat ? "border-secondary bg-secondary" : "border-muted-foreground"
+                )}>
+                  {hasChildSeat && <div className="w-3 h-3 bg-secondary-foreground rounded-full" />}
+                </div>
               </div>
             </button>
 
@@ -158,9 +179,9 @@ const DriverSettings = ({ isOpen, onClose, onSave }: DriverSettingsProps) => {
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="text-xs text-muted-foreground mb-4 px-2"
+                className="text-xs text-muted-foreground mb-3 px-2"
               >
-                ⚠️ El conductor es responsable del cumplimiento normativo y del uso correcto de la silla infantil.
+                ⚠️ El conductor es responsable del cumplimiento normativo y del uso correcto del sistema de retención infantil.
               </motion.p>
             )}
 
@@ -168,7 +189,7 @@ const DriverSettings = ({ isOpen, onClose, onSave }: DriverSettingsProps) => {
             <button
               onClick={() => setDoorToDoor(!doorToDoor)}
               className={cn(
-                "w-full flex items-center justify-between p-4 rounded-xl mb-4 transition-all",
+                "w-full flex items-center justify-between p-4 rounded-xl mb-3 transition-all",
                 doorToDoor 
                   ? "bg-success/20 border-2 border-success" 
                   : "bg-muted border-2 border-transparent"
@@ -178,7 +199,7 @@ const DriverSettings = ({ isOpen, onClose, onSave }: DriverSettingsProps) => {
                 <MapPin className={cn("w-5 h-5", doorToDoor ? "text-success" : "text-muted-foreground")} />
                 <div className="text-left">
                   <p className="font-semibold text-foreground">Puerta a puerta</p>
-                  <p className="text-sm text-muted-foreground">Ofrecer recogida en origen</p>
+                  <p className="text-sm text-muted-foreground">Recogida en origen del pasajero</p>
                 </div>
               </div>
               <div className={cn(
@@ -189,6 +210,28 @@ const DriverSettings = ({ isOpen, onClose, onSave }: DriverSettingsProps) => {
               </div>
             </button>
 
+            {/* Door to Door Info */}
+            {doorToDoor && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mb-4 p-3 bg-muted/50 rounded-xl"
+              >
+                <div className="flex items-start gap-2">
+                  <Info className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm text-muted-foreground">
+                      El recargo puerta a puerta se calcula automáticamente según los km extra y tiempo de desvío.
+                    </p>
+                    <p className="text-sm font-medium text-foreground mt-1">
+                      Estimado actual: +{estimatedDoorToDoorSurcharge.toFixed(2)}€
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
             {/* Gender Preference */}
             <div className="mb-4">
               <label className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-3">
@@ -197,7 +240,7 @@ const DriverSettings = ({ isOpen, onClose, onSave }: DriverSettingsProps) => {
               </label>
               <div className="flex gap-2">
                 {[
-                  { value: 'none', label: 'Sin preferencia' },
+                  { value: 'none', label: 'Indiferente' },
                   { value: 'women', label: 'Solo mujeres' },
                   { value: 'men', label: 'Solo hombres' },
                 ].map((option) => (
@@ -215,39 +258,19 @@ const DriverSettings = ({ isOpen, onClose, onSave }: DriverSettingsProps) => {
                   </button>
                 ))}
               </div>
+              <p className="text-xs text-muted-foreground mt-2 px-1">
+                Esta preferencia filtra coincidencias pero no es obligatoria.
+              </p>
             </div>
-
-            {/* Door to Door Fee */}
-            {doorToDoor && (
-              <motion.div 
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="mb-6"
-              >
-                <label className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-3">
-                  <Wallet className="w-4 h-4" />
-                  Recargo puerta a puerta
-                </label>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="range"
-                    min={1}
-                    max={5}
-                    step={0.5}
-                    value={doorToDoorFee}
-                    onChange={(e) => setDoorToDoorFee(Number(e.target.value))}
-                    className="flex-1 h-2 bg-muted rounded-full appearance-none cursor-pointer accent-success"
-                  />
-                  <span className="text-lg font-bold text-foreground w-16 text-right">+{doorToDoorFee}€</span>
-                </div>
-              </motion.div>
-            )}
 
             {/* Estimated compensation */}
             <div className="bg-gradient-to-r from-success/20 to-primary/20 rounded-xl p-4 mb-6">
-              <p className="text-sm text-muted-foreground mb-1">Compensación por compartir gastos hoy (por persona)</p>
-              <p className="text-2xl font-bold text-foreground">4 - 8€</p>
+              <div className="flex items-center gap-2 mb-1">
+                <Euro className="w-4 h-4 text-success" />
+                <p className="text-sm text-muted-foreground">Compensación estimada por compartir gastos hoy</p>
+              </div>
+              <p className="text-2xl font-bold text-foreground">4 - 8€ <span className="text-sm font-normal text-muted-foreground">por persona</span></p>
+              <p className="text-xs text-muted-foreground mt-1">Después de la comisión del 15% de la app</p>
             </div>
 
             {/* Save Button */}

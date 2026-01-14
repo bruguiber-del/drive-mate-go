@@ -348,6 +348,7 @@ const Index = () => {
         isOpen={showMatchPopup}
         onAccept={handleMatchAccept}
         onReject={handleMatchReject}
+        isDriverView={isDriverMode}
       />
 
       <SettingsMenu 
