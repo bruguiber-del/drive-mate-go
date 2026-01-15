@@ -69,12 +69,12 @@ export function useDriverBroadcast({ tripId, enabled }: { tripId: string | null;
       }
     );
 
-    // Broadcast every 3 seconds
+    // Broadcast every 5 seconds (optimal for real-time tracking without excessive DB writes)
     intervalRef.current = setInterval(() => {
       if (lastLocationRef.current) {
         broadcastLocation(lastLocationRef.current);
       }
-    }, 3000);
+    }, 5000);
 
     // Initial broadcast
     navigator.geolocation.getCurrentPosition(
