@@ -27,7 +27,8 @@ export function useDriverBroadcast({ tripId, enabled }: { tripId: string | null;
     lastLocationRef.current = position;
 
     try {
-      await supabase.from('driver_locations').insert({
+      // Use any to bypass type checking since table was just created
+      await (supabase.from('driver_locations') as any).insert({
         trip_id: tripId,
         driver_id: 'demo-driver', // In production, use auth.uid()
         latitude: position.coords.latitude,
@@ -110,8 +111,9 @@ export function useDriverLocationSubscription({ tripId, enabled }: { tripId: str
     const fetchHistory = async () => {
       setIsLoading(true);
       try {
-        const { data, error } = await supabase
-          .from('driver_locations')
+        // Use any to bypass type checking since table was just created
+        const { data, error } = await (supabase
+          .from('driver_locations') as any)
           .select('latitude, longitude, heading, speed, created_at')
           .eq('trip_id', tripId)
           .order('created_at', { ascending: false })

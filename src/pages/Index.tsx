@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, Settings, Locate, X, Navigation } from 'lucide-react';
 import { Button } from '@/components/ui/button';
