@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { supabase } from '@/integrations/supabase/client';
 
 interface MapViewProps {
   children?: React.ReactNode;
   destination?: { lng: number; lat: number; name: string } | null;
   showRoute?: boolean;
+  driverLocation?: { latitude: number; longitude: number } | null;
+  driverLocationHistory?: [number, number][];
+  showDriverMarker?: boolean;
 }
 
 // Fix for default markers in Leaflet with bundlers
@@ -17,13 +19,15 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 });
 
-const MapView = ({ children, destination, showRoute }: MapViewProps) => {
+const MapView = ({ children, destination, showRoute, driverLocation, driverLocationHistory, showDriverMarker }: MapViewProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const userMarker = useRef<L.Marker | null>(null);
   const destMarker = useRef<L.Marker | null>(null);
+  const driverMarker = useRef<L.Marker | null>(null);
   const routeLine = useRef<L.Polyline | null>(null);
   const trailLine = useRef<L.Polyline | null>(null);
+  const driverTrailLine = useRef<L.Polyline | null>(null);
 
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [positionHistory, setPositionHistory] = useState<[number, number][]>([]);
@@ -178,6 +182,76 @@ const MapView = ({ children, destination, showRoute }: MapViewProps) => {
     const bounds = L.latLngBounds([userLocation, [destination.lat, destination.lng]]);
     map.current.fitBounds(bounds, { padding: [80, 80] });
   }, [destination, userLocation, mapReady, showRoute]);
+
+  // Handle real-time driver location (for passenger view)
+  useEffect(() => {
+    if (!map.current || !mapReady || !showDriverMarker || !driverLocation) return;
+
+    const driverCoords: [number, number] = [driverLocation.latitude, driverLocation.longitude];
+
+    // Create or update driver marker
+    if (!driverMarker.current) {
+      const driverIcon = L.divIcon({
+        className: 'driver-location-marker',
+        html: `
+          <div class="relative">
+            <div class="w-10 h-10 rounded-full bg-[hsl(142,71%,45%)] border-3 border-white shadow-xl flex items-center justify-center">
+              <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/>
+              </svg>
+              <div class="absolute inset-0 rounded-full bg-[hsl(142,71%,45%)] animate-ping opacity-30"></div>
+            </div>
+          </div>
+        `,
+        iconSize: [40, 40],
+        iconAnchor: [20, 20],
+      });
+
+      driverMarker.current = L.marker(driverCoords, { icon: driverIcon })
+        .addTo(map.current)
+        .bindPopup('Conductor en camino');
+    } else {
+      // Smooth animation to new position
+      driverMarker.current.setLatLng(driverCoords);
+    }
+
+    // Draw driver trail if we have history
+    if (driverLocationHistory && driverLocationHistory.length > 1) {
+      if (driverTrailLine.current) {
+        driverTrailLine.current.setLatLngs(driverLocationHistory);
+      } else {
+        driverTrailLine.current = L.polyline(driverLocationHistory, {
+          color: 'hsl(142, 71%, 45%)',
+          weight: 4,
+          opacity: 0.7,
+          dashArray: '8, 12',
+        }).addTo(map.current);
+      }
+    }
+
+    // Optionally fit bounds to include driver
+    if (userLocation) {
+      const bounds = L.latLngBounds([userLocation, driverCoords]);
+      if (destination) {
+        bounds.extend([destination.lat, destination.lng]);
+      }
+      map.current.fitBounds(bounds, { padding: [60, 60], maxZoom: 16 });
+    }
+  }, [driverLocation, driverLocationHistory, showDriverMarker, mapReady, userLocation, destination]);
+
+  // Cleanup driver marker when not needed
+  useEffect(() => {
+    if (!showDriverMarker) {
+      if (driverMarker.current) {
+        driverMarker.current.remove();
+        driverMarker.current = null;
+      }
+      if (driverTrailLine.current) {
+        driverTrailLine.current.remove();
+        driverTrailLine.current = null;
+      }
+    }
+  }, [showDriverMarker]);
 
   return (
     <div className="relative w-full h-full overflow-hidden bg-background">
