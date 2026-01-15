@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Phone, MessageCircle, X, MapPin, Clock, Star, Navigation, User, PawPrint, Baby, AlertTriangle } from 'lucide-react';
+import { Phone, MessageCircle, X, MapPin, Clock, Star, Navigation, User, PawPrint, Baby, AlertTriangle, Radio } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface ActiveTripViewProps {
@@ -8,6 +8,7 @@ interface ActiveTripViewProps {
   userRole: 'driver' | 'passenger';
   tripStatus?: 'waiting' | 'picked_up' | 'in_progress';
   onPickup?: () => void;
+  isTrackingActive?: boolean;
   tripData?: {
     otherUser: string;
     otherUserRating: number;
@@ -21,7 +22,7 @@ interface ActiveTripViewProps {
   };
 }
 
-const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onPickup, tripData }: ActiveTripViewProps) => {
+const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onPickup, isTrackingActive = true, tripData }: ActiveTripViewProps) => {
   const defaultData = {
     otherUser: userRole === 'driver' ? 'Ana M.' : 'Carlos G.',
     otherUserRating: 4.8,
@@ -95,6 +96,28 @@ const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onP
 
         {/* Trip Details */}
         <div className="p-4 space-y-4">
+          {/* Real-time tracking indicator */}
+          {userRole === 'passenger' && tripStatus === 'waiting' && (
+            <div className="flex items-center gap-2 p-3 bg-success/10 border border-success/30 rounded-xl">
+              <Radio className="w-4 h-4 text-success animate-pulse" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-success">Seguimiento en tiempo real activo</p>
+                <p className="text-xs text-muted-foreground">Puedes ver la ubicación del conductor en el mapa</p>
+              </div>
+            </div>
+          )}
+
+          {/* Driver broadcasting indicator */}
+          {userRole === 'driver' && (
+            <div className="flex items-center gap-2 p-3 bg-primary/10 border border-primary/30 rounded-xl">
+              <Radio className="w-4 h-4 text-primary animate-pulse" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-primary">Compartiendo tu ubicación</p>
+                <p className="text-xs text-muted-foreground">El pasajero puede ver dónde estás</p>
+              </div>
+            </div>
+          )}
+
           {/* Child Seat Disclaimer */}
           {userRole === 'passenger' && data.hasChildSeat && (
             <div className="flex items-start gap-2 p-3 bg-warning/10 border border-warning/30 rounded-xl">

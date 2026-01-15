@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, Settings, Locate, X, Navigation } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,7 @@ import WalletSection from '@/components/WalletSection';
 import HelpSection from '@/components/HelpSection';
 import ActiveTripView from '@/components/ActiveTripView';
 import RatingModal from '@/components/RatingModal';
+import { useDriverTracking } from '@/hooks/useDriverTracking';
 
 const Index = () => {
   const { toast } = useToast();
@@ -41,6 +42,16 @@ const Index = () => {
   const [showRating, setShowRating] = useState(false);
   const [activeTripRole, setActiveTripRole] = useState<'driver' | 'passenger'>('passenger');
   const [tripStatus, setTripStatus] = useState<'waiting' | 'picked_up' | 'in_progress'>('waiting');
+  
+  // Trip ID for real-time tracking (in production, this would come from the database)
+  const [activeTripId, setActiveTripId] = useState<string | null>(null);
+
+  // Real-time driver tracking
+  const { driverLocation, locationHistory } = useDriverTracking({
+    tripId: activeTripId,
+    isDriver: activeTripRole === 'driver',
+    enabled: showActiveTrip,
+  });
 
   const handleDriverToggle = () => {
     setIsDriverMode(!isDriverMode);
@@ -90,27 +101,38 @@ const Index = () => {
     setShowMatchPopup(false);
     setActiveTripRole('passenger');
     setTripStatus('waiting');
+    // Generate a trip ID for tracking
+    const newTripId = crypto.randomUUID();
+    setActiveTripId(newTripId);
     setShowActiveTrip(true);
     toast({
       title: "¡Viaje confirmado!",
-      description: "Tu conductor está en camino",
+      description: "Tu conductor está en camino. Puedes ver su ubicación en tiempo real.",
     });
   };
 
   const handleMatchAccept = () => {
     setShowMatchPopup(false);
+    // Generate a trip ID for tracking
+    const newTripId = crypto.randomUUID();
+    setActiveTripId(newTripId);
+    
     // Check if we came from driver mode or passenger mode
     if (isDriverMode) {
       setActiveTripRole('driver');
+      toast({
+        title: "¡Viaje aceptado!",
+        description: "Tu ubicación se compartirá con el pasajero en tiempo real.",
+      });
     } else {
       setActiveTripRole('passenger');
+      toast({
+        title: "¡Viaje aceptado!",
+        description: "Puedes ver la ubicación del conductor en tiempo real.",
+      });
     }
     setTripStatus('waiting');
     setShowActiveTrip(true);
-    toast({
-      title: "¡Viaje aceptado!",
-      description: isDriverMode ? "Redirigiendo hacia el punto de recogida" : "Tu conductor está en camino",
-    });
   };
 
   const handlePickup = () => {
@@ -132,6 +154,7 @@ const Index = () => {
   const handleTripEnd = () => {
     setShowActiveTrip(false);
     setTripStatus('waiting');
+    setActiveTripId(null); // Clear trip ID to stop tracking
     setShowRating(true);
   };
 
@@ -155,9 +178,18 @@ const Index = () => {
     }
   };
 
+  // Show driver marker on map for passengers during active trip
+  const showDriverOnMap = showActiveTrip && activeTripRole === 'passenger';
+
   return (
     <div className="h-screen w-screen overflow-hidden">
-      <MapView destination={destinationCoords} showRoute={isNavigating}>
+      <MapView 
+        destination={destinationCoords} 
+        showRoute={isNavigating}
+        driverLocation={driverLocation}
+        driverLocationHistory={locationHistory}
+        showDriverMarker={showDriverOnMap}
+      >
         {/* Top Bar */}
         <div className="absolute top-0 left-0 right-0 p-4 safe-area-inset-top pointer-events-none">
           <motion.div 

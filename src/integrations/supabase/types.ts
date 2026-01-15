@@ -14,13 +14,65 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      driver_locations: {
+        Row: {
+          accuracy: number | null
+          created_at: string
+          driver_id: string
+          heading: number | null
+          id: string
+          latitude: number
+          longitude: number
+          speed: number | null
+          trip_id: string
+        }
+        Insert: {
+          accuracy?: number | null
+          created_at?: string
+          driver_id: string
+          heading?: number | null
+          id?: string
+          latitude: number
+          longitude: number
+          speed?: number | null
+          trip_id: string
+        }
+        Update: {
+          accuracy?: number | null
+          created_at?: string
+          driver_id?: string
+          heading?: number | null
+          id?: string
+          latitude?: number
+          longitude?: number
+          speed?: number | null
+          trip_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_driver_position_history: {
+        Args: { p_limit?: number; p_trip_id: string }
+        Returns: {
+          created_at: string
+          latitude: number
+          longitude: number
+        }[]
+      }
+      get_latest_driver_location: {
+        Args: { p_trip_id: string }
+        Returns: {
+          created_at: string
+          heading: number
+          latitude: number
+          longitude: number
+          speed: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
