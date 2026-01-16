@@ -21,7 +21,7 @@ const faqs = [
     category: 'Conductores',
     icon: Car,
     questions: [
-      { q: '¿Cuánto puedo ganar?', a: 'Tus ganancias dependen de la distancia y el número de pasajeros. Tú estableces tus preferencias y ves los ingresos estimados antes de aceptar.' },
+      { q: '¿Cuánta compensación puedo recibir?', a: 'La compensación por compartir gastos depende de la distancia y el número de pasajeros. Tú estableces tus preferencias y ves la compensación estimada antes de aceptar.' },
       { q: '¿Qué desvío máximo puedo configurar?', a: 'Puedes ajustar el desvío entre 2 y 15 minutos según tu disponibilidad.' },
     ]
   },
