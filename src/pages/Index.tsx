@@ -235,15 +235,25 @@ const Index = () => {
           </motion.div>
         </div>
 
-        {/* Center - Location Button */}
+        {/* Center - Location Button - Separated for easy tapping */}
         <motion.div 
-          className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-auto"
+          className="absolute right-4 bottom-56 pointer-events-auto"
           initial={{ x: 20, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           transition={{ delay: 0.2 }}
         >
-          <Button variant="glass" size="icon" className="shadow-lg">
-            <Locate className="w-5 h-5 text-primary" />
+          <Button 
+            variant="glass" 
+            size="icon" 
+            className="shadow-lg w-12 h-12"
+            onClick={() => {
+              // Call the map's center function
+              if ((window as any).__mapCenterOnUser) {
+                (window as any).__mapCenterOnUser();
+              }
+            }}
+          >
+            <Locate className="w-6 h-6 text-primary" />
           </Button>
         </motion.div>
 
