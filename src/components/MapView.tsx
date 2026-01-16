@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { useRouting } from '@/hooks/useRouting';
 
 interface MapViewProps {
   children?: React.ReactNode;
@@ -9,6 +10,7 @@ interface MapViewProps {
   driverLocation?: { latitude: number; longitude: number } | null;
   driverLocationHistory?: [number, number][];
   showDriverMarker?: boolean;
+  onCenterLocation?: () => void;
 }
 
 // Fix for default markers in Leaflet with bundlers
@@ -19,7 +21,15 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 });
 
-const MapView = ({ children, destination, showRoute, driverLocation, driverLocationHistory, showDriverMarker }: MapViewProps) => {
+const MapView = ({ 
+  children, 
+  destination, 
+  showRoute, 
+  driverLocation, 
+  driverLocationHistory, 
+  showDriverMarker,
+  onCenterLocation 
+}: MapViewProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const userMarker = useRef<L.Marker | null>(null);
@@ -28,10 +38,32 @@ const MapView = ({ children, destination, showRoute, driverLocation, driverLocat
   const routeLine = useRef<L.Polyline | null>(null);
   const trailLine = useRef<L.Polyline | null>(null);
   const driverTrailLine = useRef<L.Polyline | null>(null);
+  const watchIdRef = useRef<number | null>(null);
 
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [positionHistory, setPositionHistory] = useState<[number, number][]>([]);
   const [mapReady, setMapReady] = useState(false);
+
+  // Use routing hook for real driving routes
+  const { route } = useRouting({
+    origin: userLocation,
+    destination: destination,
+    enabled: showRoute ?? false,
+  });
+
+  // Center map on user location
+  const centerOnUser = useCallback(() => {
+    if (map.current && userLocation) {
+      map.current.setView(userLocation, 16, { animate: true });
+    }
+  }, [userLocation]);
+
+  // Expose center function
+  useEffect(() => {
+    if (onCenterLocation) {
+      // This is handled via the button in Index.tsx
+    }
+  }, [onCenterLocation]);
 
   // Initialize map
   useEffect(() => {
@@ -63,11 +95,16 @@ const MapView = ({ children, destination, showRoute, driverLocation, driverLocat
     };
   }, []);
 
-  // Watch user location via browser geolocation
+  // Watch user location via browser geolocation with optimized settings
   useEffect(() => {
     if (!mapReady) return;
 
-    const watchId = navigator.geolocation.watchPosition(
+    // Clear any existing watch
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+    }
+
+    watchIdRef.current = navigator.geolocation.watchPosition(
       (position) => {
         const coords: [number, number] = [position.coords.latitude, position.coords.longitude];
         setUserLocation(coords);
@@ -80,18 +117,21 @@ const MapView = ({ children, destination, showRoute, driverLocation, driverLocat
       },
       (error) => {
         console.error('Geolocation error:', error);
-        // Use default location if geolocation fails
-        setUserLocation([42.1401, -0.4087]);
+        // Keep last known position if available, otherwise use default
+        setUserLocation(prev => prev ?? [42.1401, -0.4087]);
       },
       {
         enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 2000,
+        timeout: 5000,
+        maximumAge: 2000, // Cache for 2 seconds for smoother updates
       }
     );
 
     return () => {
-      navigator.geolocation.clearWatch(watchId);
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
     };
   }, [mapReady]);
 
@@ -138,9 +178,20 @@ const MapView = ({ children, destination, showRoute, driverLocation, driverLocat
     }
   }, [userLocation, positionHistory, mapReady]);
 
-  // Handle destination marker and route
+  // Handle destination marker - only show when destination is selected
   useEffect(() => {
-    if (!map.current || !mapReady || !destination || !userLocation) return;
+    if (!map.current || !mapReady) return;
+
+    // Remove existing destination marker if no destination
+    if (!destination) {
+      if (destMarker.current) {
+        destMarker.current.remove();
+        destMarker.current = null;
+      }
+      return;
+    }
+
+    if (!userLocation) return;
 
     // Remove existing destination marker
     if (destMarker.current) {
@@ -165,23 +216,59 @@ const MapView = ({ children, destination, showRoute, driverLocation, driverLocat
     destMarker.current = L.marker([destination.lat, destination.lng], { icon: destIcon })
       .addTo(map.current);
 
-    // Draw route line if enabled
-    if (showRoute) {
-      if (routeLine.current) {
-        routeLine.current.remove();
-      }
-      
-      routeLine.current = L.polyline([userLocation, [destination.lat, destination.lng]], {
-        color: 'hsl(199, 89%, 48%)',
-        weight: 4,
-        opacity: 1,
-      }).addTo(map.current);
-    }
-
     // Fit bounds to show both points
     const bounds = L.latLngBounds([userLocation, [destination.lat, destination.lng]]);
     map.current.fitBounds(bounds, { padding: [80, 80] });
-  }, [destination, userLocation, mapReady, showRoute]);
+  }, [destination, userLocation, mapReady]);
+
+  // Handle route drawing - using real driving route
+  useEffect(() => {
+    if (!map.current || !mapReady) return;
+
+    // Clear existing route line immediately when not showing route
+    if (!showRoute || !route) {
+      if (routeLine.current) {
+        routeLine.current.remove();
+        routeLine.current = null;
+      }
+      return;
+    }
+
+    // Draw the real driving route
+    if (route.coordinates.length > 0) {
+      if (routeLine.current) {
+        routeLine.current.setLatLngs(route.coordinates);
+      } else {
+        routeLine.current = L.polyline(route.coordinates, {
+          color: 'hsl(199, 89%, 48%)',
+          weight: 5,
+          opacity: 1,
+          lineCap: 'round',
+          lineJoin: 'round',
+        }).addTo(map.current);
+      }
+    }
+  }, [route, showRoute, mapReady]);
+
+  // Clear route and destination marker when showRoute becomes false
+  useEffect(() => {
+    if (!showRoute) {
+      // Immediately clear route line
+      if (routeLine.current && map.current) {
+        routeLine.current.remove();
+        routeLine.current = null;
+      }
+      // Clear destination marker
+      if (destMarker.current && map.current) {
+        destMarker.current.remove();
+        destMarker.current = null;
+      }
+      // Center on user location
+      if (map.current && userLocation) {
+        map.current.setView(userLocation, 15, { animate: true });
+      }
+    }
+  }, [showRoute, userLocation]);
 
   // Handle real-time driver location (for passenger view)
   useEffect(() => {
@@ -252,6 +339,14 @@ const MapView = ({ children, destination, showRoute, driverLocation, driverLocat
       }
     }
   }, [showDriverMarker]);
+
+  // Expose center function through a global method for the parent
+  useEffect(() => {
+    (window as any).__mapCenterOnUser = centerOnUser;
+    return () => {
+      delete (window as any).__mapCenterOnUser;
+    };
+  }, [centerOnUser]);
 
   return (
     <div className="relative w-full h-full overflow-hidden bg-background">
