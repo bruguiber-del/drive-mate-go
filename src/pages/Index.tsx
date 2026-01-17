@@ -72,6 +72,7 @@ const Index = () => {
     toast({
       title: "Navegación iniciada",
       description: `Ruta hacia ${dest}`,
+      duration: 2000,
     });
   };
 
@@ -81,6 +82,7 @@ const Index = () => {
     setDestinationCoords(null);
     toast({
       title: "Navegación detenida",
+      duration: 2000,
     });
   };
 
@@ -235,9 +237,9 @@ const Index = () => {
           </motion.div>
         </div>
 
-        {/* Center - Location Button - Separated for easy tapping */}
+        {/* Map Controls - Zoom + Center - Small and grouped in bottom right */}
         <motion.div 
-          className="absolute right-4 bottom-56 pointer-events-auto"
+          className="absolute right-4 bottom-64 pointer-events-auto flex flex-col gap-2"
           initial={{ x: 20, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           transition={{ delay: 0.2 }}
@@ -245,15 +247,38 @@ const Index = () => {
           <Button 
             variant="glass" 
             size="icon" 
-            className="shadow-lg w-12 h-12"
+            className="shadow-lg w-10 h-10"
             onClick={() => {
-              // Call the map's center function
+              if ((window as any).__mapZoomIn) {
+                (window as any).__mapZoomIn();
+              }
+            }}
+          >
+            <span className="text-lg font-bold text-foreground">+</span>
+          </Button>
+          <Button 
+            variant="glass" 
+            size="icon" 
+            className="shadow-lg w-10 h-10"
+            onClick={() => {
+              if ((window as any).__mapZoomOut) {
+                (window as any).__mapZoomOut();
+              }
+            }}
+          >
+            <span className="text-lg font-bold text-foreground">−</span>
+          </Button>
+          <Button 
+            variant="glass" 
+            size="icon" 
+            className="shadow-lg w-10 h-10"
+            onClick={() => {
               if ((window as any).__mapCenterOnUser) {
                 (window as any).__mapCenterOnUser();
               }
             }}
           >
-            <Locate className="w-6 h-6 text-primary" />
+            <Locate className="w-5 h-5 text-primary" />
           </Button>
         </motion.div>
 
@@ -278,27 +303,26 @@ const Index = () => {
           )}
         </AnimatePresence>
 
-        {/* Navigation Info Panel - shows when navigating */}
+        {/* Navigation Info Panel - Compact version */}
         <AnimatePresence>
           {isNavigating && !showActiveTrip && (
             <motion.div
-              initial={{ y: -100, opacity: 0 }}
+              initial={{ y: -50, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              exit={{ y: -100, opacity: 0 }}
-              className="absolute top-24 left-4 right-4 pointer-events-auto"
+              exit={{ y: -50, opacity: 0 }}
+              className="absolute top-20 left-4 right-4 pointer-events-auto"
             >
-              <div className="glass-strong rounded-2xl p-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center">
-                    <Navigation className="w-6 h-6 text-primary-foreground" />
+              <div className="glass-strong rounded-xl px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
+                    <Navigation className="w-4 h-4 text-primary-foreground" />
                   </div>
-                  <div className="flex-1">
-                    <p className="text-sm text-muted-foreground">Navegando hacia</p>
-                    <p className="font-bold text-foreground truncate">{destination}</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-foreground text-sm truncate">{destination}</p>
                   </div>
-                  <div className="text-right">
-                    <p className="text-2xl font-bold text-primary">12</p>
-                    <p className="text-xs text-muted-foreground">min</p>
+                  <div className="flex items-baseline gap-1 shrink-0">
+                    <span className="text-lg font-bold text-primary">12</span>
+                    <span className="text-xs text-muted-foreground">min</span>
                   </div>
                 </div>
               </div>
@@ -306,7 +330,22 @@ const Index = () => {
           )}
         </AnimatePresence>
 
-        {/* Bottom Controls - hide when active trip */}
+        {/* Passenger Card - Below search bar, left aligned */}
+        {!showActiveTrip && (
+          <motion.div 
+            className="absolute top-20 left-4 pointer-events-auto"
+            initial={{ x: -20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ delay: 0.25 }}
+          >
+            <PassengerCard 
+              onClick={() => setShowPassengerSearch(true)}
+              hasActiveSearch={hasActivePassengerSearch}
+            />
+          </motion.div>
+        )}
+
+        {/* Bottom Controls - Driver toggle only */}
         {!showActiveTrip && (
           <motion.div 
             className="absolute bottom-0 left-0 right-0 p-4 pb-8 safe-area-inset-bottom pointer-events-none"
@@ -314,38 +353,29 @@ const Index = () => {
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.3 }}
           >
-            <div className="flex flex-col gap-4 pointer-events-auto">
-              {/* Passenger Card - Separate section for finding drivers */}
-              <PassengerCard 
-                onClick={() => setShowPassengerSearch(true)}
-                hasActiveSearch={hasActivePassengerSearch}
-              />
-
-              {/* Driver Toggle & Settings */}
-              <div className="flex items-center gap-3">
-                <div className="flex-1">
-                  <DriverToggle 
-                    isDriver={isDriverMode} 
-                    onToggle={handleDriverToggle} 
-                  />
-                </div>
-                
-                {isDriverMode && (
-                  <motion.div
-                    initial={{ scale: 0, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0, opacity: 0 }}
-                  >
-                    <Button 
-                      variant="glass" 
-                      size="icon"
-                      onClick={() => setShowDriverSettings(true)}
-                    >
-                      <Settings className="w-5 h-5" />
-                    </Button>
-                  </motion.div>
-                )}
+            <div className="flex items-center gap-3 pointer-events-auto">
+              <div className="flex-1">
+                <DriverToggle 
+                  isDriver={isDriverMode} 
+                  onToggle={handleDriverToggle} 
+                />
               </div>
+              
+              {isDriverMode && (
+                <motion.div
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0, opacity: 0 }}
+                >
+                  <Button 
+                    variant="glass" 
+                    size="icon"
+                    onClick={() => setShowDriverSettings(true)}
+                  >
+                    <Settings className="w-5 h-5" />
+                  </Button>
+                </motion.div>
+              )}
             </div>
           </motion.div>
         )}

@@ -58,6 +58,19 @@ const MapView = ({
     }
   }, [userLocation]);
 
+  // Zoom controls
+  const zoomIn = useCallback(() => {
+    if (map.current) {
+      map.current.zoomIn();
+    }
+  }, []);
+
+  const zoomOut = useCallback(() => {
+    if (map.current) {
+      map.current.zoomOut();
+    }
+  }, []);
+
   // Expose center function
   useEffect(() => {
     if (onCenterLocation) {
@@ -340,13 +353,17 @@ const MapView = ({
     }
   }, [showDriverMarker]);
 
-  // Expose center function through a global method for the parent
+  // Expose map control functions through global methods for the parent
   useEffect(() => {
     (window as any).__mapCenterOnUser = centerOnUser;
+    (window as any).__mapZoomIn = zoomIn;
+    (window as any).__mapZoomOut = zoomOut;
     return () => {
       delete (window as any).__mapCenterOnUser;
+      delete (window as any).__mapZoomIn;
+      delete (window as any).__mapZoomOut;
     };
-  }, [centerOnUser]);
+  }, [centerOnUser, zoomIn, zoomOut]);
 
   return (
     <div className="relative w-full h-full overflow-hidden bg-background">
