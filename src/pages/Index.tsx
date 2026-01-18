@@ -72,7 +72,7 @@ const Index = () => {
     toast({
       title: "Navegación iniciada",
       description: `Ruta hacia ${dest}`,
-      duration: 2000,
+      duration: 500,
     });
   };
 
@@ -82,7 +82,7 @@ const Index = () => {
     setDestinationCoords(null);
     toast({
       title: "Navegación detenida",
-      duration: 2000,
+      duration: 500,
     });
   };
 
@@ -237,51 +237,6 @@ const Index = () => {
           </motion.div>
         </div>
 
-        {/* Map Controls - Zoom + Center - Small and grouped in bottom right */}
-        <motion.div 
-          className="absolute right-4 bottom-64 pointer-events-auto flex flex-col gap-2"
-          initial={{ x: 20, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          transition={{ delay: 0.2 }}
-        >
-          <Button 
-            variant="glass" 
-            size="icon" 
-            className="shadow-lg w-10 h-10"
-            onClick={() => {
-              if ((window as any).__mapZoomIn) {
-                (window as any).__mapZoomIn();
-              }
-            }}
-          >
-            <span className="text-lg font-bold text-foreground">+</span>
-          </Button>
-          <Button 
-            variant="glass" 
-            size="icon" 
-            className="shadow-lg w-10 h-10"
-            onClick={() => {
-              if ((window as any).__mapZoomOut) {
-                (window as any).__mapZoomOut();
-              }
-            }}
-          >
-            <span className="text-lg font-bold text-foreground">−</span>
-          </Button>
-          <Button 
-            variant="glass" 
-            size="icon" 
-            className="shadow-lg w-10 h-10"
-            onClick={() => {
-              if ((window as any).__mapCenterOnUser) {
-                (window as any).__mapCenterOnUser();
-              }
-            }}
-          >
-            <Locate className="w-5 h-5 text-primary" />
-          </Button>
-        </motion.div>
-
         {/* Logo - only show when not navigating and no active trip */}
         <AnimatePresence>
           {!isNavigating && !showActiveTrip && (
@@ -303,33 +258,6 @@ const Index = () => {
           )}
         </AnimatePresence>
 
-        {/* Navigation Info Panel - Compact version */}
-        <AnimatePresence>
-          {isNavigating && !showActiveTrip && (
-            <motion.div
-              initial={{ y: -50, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: -50, opacity: 0 }}
-              className="absolute top-20 left-4 right-4 pointer-events-auto"
-            >
-              <div className="glass-strong rounded-xl px-3 py-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
-                    <Navigation className="w-4 h-4 text-primary-foreground" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-foreground text-sm truncate">{destination}</p>
-                  </div>
-                  <div className="flex items-baseline gap-1 shrink-0">
-                    <span className="text-lg font-bold text-primary">12</span>
-                    <span className="text-xs text-muted-foreground">min</span>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
         {/* Passenger Card - Below search bar, left aligned */}
         {!showActiveTrip && (
           <motion.div 
@@ -345,22 +273,22 @@ const Index = () => {
           </motion.div>
         )}
 
-        {/* Bottom Controls - Driver toggle only */}
+        {/* Unified Bottom Bar */}
         {!showActiveTrip && (
           <motion.div 
-            className="absolute bottom-0 left-0 right-0 p-4 pb-8 safe-area-inset-bottom pointer-events-none"
+            className="absolute bottom-0 left-0 right-0 p-3 pb-6 safe-area-inset-bottom pointer-events-none"
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.3 }}
           >
-            <div className="flex items-center gap-3 pointer-events-auto">
-              <div className="flex-1">
-                <DriverToggle 
-                  isDriver={isDriverMode} 
-                  onToggle={handleDriverToggle} 
-                />
-              </div>
+            <div className="flex items-center gap-2 pointer-events-auto">
+              {/* Driver Toggle - Compact */}
+              <DriverToggle 
+                isDriver={isDriverMode} 
+                onToggle={handleDriverToggle} 
+              />
               
+              {/* Driver Settings - Next to toggle */}
               {isDriverMode && (
                 <motion.div
                   initial={{ scale: 0, opacity: 0 }}
@@ -370,12 +298,71 @@ const Index = () => {
                   <Button 
                     variant="glass" 
                     size="icon"
+                    className="w-9 h-9"
                     onClick={() => setShowDriverSettings(true)}
                   >
-                    <Settings className="w-5 h-5" />
+                    <Settings className="w-4 h-4" />
                   </Button>
                 </motion.div>
               )}
+
+              {/* Navigation Info - In the middle */}
+              {isNavigating && (
+                <motion.div
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="flex-1 min-w-0"
+                >
+                  <div className="glass-strong rounded-lg px-2 py-1.5 flex items-center gap-2">
+                    <Navigation className="w-3 h-3 text-primary shrink-0" />
+                    <span className="text-xs text-foreground truncate">{destination}</span>
+                    <span className="text-xs font-bold text-primary shrink-0">· 12 min</span>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Spacer */}
+              {!isNavigating && <div className="flex-1" />}
+
+              {/* Map Controls - Vertical stack on right */}
+              <div className="flex flex-col gap-1">
+                <Button 
+                  variant="glass" 
+                  size="icon" 
+                  className="w-8 h-8"
+                  onClick={() => {
+                    if ((window as any).__mapZoomIn) {
+                      (window as any).__mapZoomIn();
+                    }
+                  }}
+                >
+                  <span className="text-sm font-bold text-foreground">+</span>
+                </Button>
+                <Button 
+                  variant="glass" 
+                  size="icon" 
+                  className="w-8 h-8"
+                  onClick={() => {
+                    if ((window as any).__mapZoomOut) {
+                      (window as any).__mapZoomOut();
+                    }
+                  }}
+                >
+                  <span className="text-sm font-bold text-foreground">−</span>
+                </Button>
+                <Button 
+                  variant="glass" 
+                  size="icon" 
+                  className="w-8 h-8"
+                  onClick={() => {
+                    if ((window as any).__mapCenterOnUser) {
+                      (window as any).__mapCenterOnUser();
+                    }
+                  }}
+                >
+                  <Locate className="w-4 h-4 text-primary" />
+                </Button>
+              </div>
             </div>
           </motion.div>
         )}

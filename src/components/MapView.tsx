@@ -11,6 +11,7 @@ interface MapViewProps {
   driverLocationHistory?: [number, number][];
   showDriverMarker?: boolean;
   onCenterLocation?: () => void;
+  isNavigating?: boolean;
 }
 
 // Fix for default markers in Leaflet with bundlers
@@ -28,7 +29,8 @@ const MapView = ({
   driverLocation, 
   driverLocationHistory, 
   showDriverMarker,
-  onCenterLocation 
+  onCenterLocation,
+  isNavigating = false,
 }: MapViewProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
@@ -41,6 +43,7 @@ const MapView = ({
   const watchIdRef = useRef<number | null>(null);
 
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
+  const [userHeading, setUserHeading] = useState<number | null>(null);
   const [positionHistory, setPositionHistory] = useState<[number, number][]>([]);
   const [mapReady, setMapReady] = useState(false);
 
@@ -122,6 +125,11 @@ const MapView = ({
         const coords: [number, number] = [position.coords.latitude, position.coords.longitude];
         setUserLocation(coords);
         
+        // Store heading for orientation
+        if (position.coords.heading !== null && !isNaN(position.coords.heading)) {
+          setUserHeading(position.coords.heading);
+        }
+        
         // Add to history (keep last 50 positions for trail)
         setPositionHistory(prev => {
           const newHistory = [...prev, coords];
@@ -148,23 +156,49 @@ const MapView = ({
     };
   }, [mapReady]);
 
-  // Update user location marker and trail
+  // Update user location marker with heading orientation
   useEffect(() => {
     if (!map.current || !mapReady || !userLocation) return;
 
-    // Create or update user marker
+    // Calculate rotation based on heading or route direction
+    let rotation = 0;
+    if (userHeading !== null) {
+      rotation = userHeading;
+    } else if (positionHistory.length >= 2) {
+      // Calculate heading from last two positions
+      const prev = positionHistory[positionHistory.length - 2];
+      const curr = positionHistory[positionHistory.length - 1];
+      const dLng = curr[1] - prev[1];
+      const dLat = curr[0] - prev[0];
+      rotation = (Math.atan2(dLng, dLat) * 180) / Math.PI;
+    }
+
+    // Create or update user marker with directional indicator
+    const markerHtml = showRoute 
+      ? `
+        <div class="relative" style="transform: rotate(${rotation}deg);">
+          <div class="w-6 h-6 rounded-full bg-primary border-2 border-white shadow-lg flex items-center justify-center">
+            <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/>
+            </svg>
+            <div class="absolute inset-0 rounded-full bg-primary animate-ping opacity-40"></div>
+          </div>
+        </div>
+      `
+      : `
+        <div class="relative">
+          <div class="w-5 h-5 rounded-full bg-[hsl(199,89%,48%)] border-2 border-white shadow-lg">
+            <div class="absolute inset-0 rounded-full bg-[hsl(199,89%,48%)] animate-ping opacity-50"></div>
+          </div>
+        </div>
+      `;
+
     if (!userMarker.current) {
       const userIcon = L.divIcon({
         className: 'user-location-marker',
-        html: `
-          <div class="relative">
-            <div class="w-5 h-5 rounded-full bg-[hsl(199,89%,48%)] border-2 border-white shadow-lg">
-              <div class="absolute inset-0 rounded-full bg-[hsl(199,89%,48%)] animate-ping opacity-50"></div>
-            </div>
-          </div>
-        `,
-        iconSize: [20, 20],
-        iconAnchor: [10, 10],
+        html: markerHtml,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
       });
 
       userMarker.current = L.marker(userLocation, { icon: userIcon })
@@ -174,10 +208,19 @@ const MapView = ({
       map.current.setView(userLocation, 15, { animate: true });
     } else {
       userMarker.current.setLatLng(userLocation);
+      
+      // Update icon with new rotation
+      const userIcon = L.divIcon({
+        className: 'user-location-marker',
+        html: markerHtml,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+      });
+      userMarker.current.setIcon(userIcon);
     }
 
-    // Draw trail polyline
-    if (positionHistory.length > 1) {
+    // Draw trail polyline (only when navigating)
+    if (showRoute && positionHistory.length > 1) {
       if (trailLine.current) {
         trailLine.current.setLatLngs(positionHistory);
       } else {
@@ -188,8 +231,11 @@ const MapView = ({
           dashArray: '5, 10',
         }).addTo(map.current);
       }
+    } else if (!showRoute && trailLine.current) {
+      trailLine.current.remove();
+      trailLine.current = null;
     }
-  }, [userLocation, positionHistory, mapReady]);
+  }, [userLocation, userHeading, positionHistory, mapReady, showRoute]);
 
   // Handle destination marker - only show when destination is selected
   useEffect(() => {
