@@ -392,7 +392,7 @@ const Index = () => {
         onSearch={handlePassengerSearch}
       />
       
-      <DriverSettings 
+      <DriverSettingsSheet 
         isOpen={showDriverSettings} 
         onClose={() => setShowDriverSettings(false)}
         onSave={(settings) => {
