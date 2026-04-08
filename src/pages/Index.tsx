@@ -10,6 +10,7 @@ import NavigationSearch from '@/components/NavigationSearch';
 import PassengerCard from '@/components/PassengerCard';
 import PassengerSearch from '@/components/PassengerSearch';
 import DriverSettingsSheet from '@/components/DriverSettingsSheet';
+import PassengerSettingsSheet from '@/components/PassengerSettingsSheet';
 import MatchPopup from '@/components/MatchPopup';
 import SettingsMenu from '@/components/SettingsMenu';
 import ProfileSection from '@/components/ProfileSection';
@@ -26,6 +27,7 @@ const Index = () => {
   const [showNavigationSearch, setShowNavigationSearch] = useState(false);
   const [showPassengerSearch, setShowPassengerSearch] = useState(false);
   const [showDriverSettings, setShowDriverSettings] = useState(false);
+  const [showPassengerSettings, setShowPassengerSettings] = useState(false);
   const [showMatchPopup, setShowMatchPopup] = useState(false);
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   const [destination, setDestination] = useState('');
@@ -405,6 +407,21 @@ const Index = () => {
         isOpen={showPassengerSearch} 
         onClose={() => setShowPassengerSearch(false)}
         onSearch={handlePassengerSearch}
+        onOpenSettings={() => {
+          setShowPassengerSearch(false);
+          setShowPassengerSettings(true);
+        }}
+      />
+
+      <PassengerSettingsSheet
+        isOpen={showPassengerSettings}
+        onClose={() => setShowPassengerSettings(false)}
+        onSave={(settings) => {
+          toast({
+            title: "Preferencias aplicadas",
+            description: "Tus preferencias se usarán en la búsqueda",
+          });
+        }}
       />
       
       <DriverSettingsSheet 
