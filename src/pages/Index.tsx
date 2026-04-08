@@ -9,7 +9,7 @@ import SearchBar from '@/components/SearchBar';
 import NavigationSearch from '@/components/NavigationSearch';
 import PassengerCard from '@/components/PassengerCard';
 import PassengerSearch from '@/components/PassengerSearch';
-import DriverSettings from '@/components/DriverSettings';
+import DriverSettingsSheet from '@/components/DriverSettingsSheet';
 import MatchPopup from '@/components/MatchPopup';
 import SettingsMenu from '@/components/SettingsMenu';
 import ProfileSection from '@/components/ProfileSection';

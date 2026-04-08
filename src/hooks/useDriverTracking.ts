@@ -18,7 +18,7 @@ interface UseDriverTrackingOptions {
 // Hook for driver to broadcast their location
 export function useDriverBroadcast({ tripId, enabled }: { tripId: string | null; enabled: boolean }) {
   const watchIdRef = useRef<number | null>(null);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastLocationRef = useRef<GeolocationPosition | null>(null);
 
   const broadcastLocation = useCallback(async (position: GeolocationPosition) => {
