@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Clock, Navigation, X, ChevronRight } from 'lucide-react';
+import { MapPin, Clock, Navigation, X, ChevronRight, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -8,6 +8,7 @@ interface PassengerSearchProps {
   isOpen: boolean;
   onClose: () => void;
   onSearch: (data: SearchData) => void;
+  onOpenSettings?: () => void;
 }
 
 interface SearchData {
@@ -17,7 +18,7 @@ interface SearchData {
   doorToDoor: boolean;
 }
 
-const PassengerSearch = ({ isOpen, onClose, onSearch }: PassengerSearchProps) => {
+const PassengerSearch = ({ isOpen, onClose, onSearch, onOpenSettings }: PassengerSearchProps) => {
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
   const [time, setTime] = useState('');
@@ -119,16 +120,26 @@ const PassengerSearch = ({ isOpen, onClose, onSearch }: PassengerSearchProps) =>
               </div>
             </button>
 
-            {/* Search Button */}
-            <Button 
-              variant="passenger" 
-              size="xl" 
-              className="w-full"
-              onClick={handleSubmit}
-            >
-              Buscar conductores
-              <ChevronRight className="w-5 h-5" />
-            </Button>
+            {/* Preferences + Search */}
+            <div className="flex gap-2">
+              <Button
+                variant="glass"
+                size="lg"
+                className="shrink-0"
+                onClick={() => onOpenSettings?.()}
+              >
+                <SlidersHorizontal className="w-4 h-4" />
+              </Button>
+              <Button 
+                variant="passenger" 
+                size="xl" 
+                className="flex-1"
+                onClick={handleSubmit}
+              >
+                Buscar conductores
+                <ChevronRight className="w-5 h-5" />
+              </Button>
+            </div>
           </div>
         </motion.div>
       )}
