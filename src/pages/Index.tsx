@@ -258,6 +258,21 @@ const Index = () => {
           )}
         </AnimatePresence>
 
+        {/* Driver Status Chip - Always visible on map when driver mode active */}
+        {isDriverMode && !showActiveTrip && (
+          <motion.div
+            className="absolute top-20 right-4 pointer-events-none z-10"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+          >
+            <div className="glass-strong rounded-full px-3 py-1.5 flex items-center gap-1.5 border border-success/30">
+              <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
+              <span className="text-[11px] font-medium text-foreground">Conductor activo</span>
+              <span className="text-[11px] text-muted-foreground">· 3 plazas · +{5} min</span>
+            </div>
+          </motion.div>
+        )}
+
         {/* Passenger Card - Below search bar, left aligned */}
         {!showActiveTrip && (
           <motion.div 
