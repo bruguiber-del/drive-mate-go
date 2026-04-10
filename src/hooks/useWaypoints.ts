@@ -107,6 +107,15 @@ export function useWaypoints({ finalDestination }: UseWaypointsOptions = {}) {
     });
   }, []);
 
+  // Confirm arrival at meeting point → advance to pickup (same spot, passenger walks)
+  const confirmMeetingPointArrival = useCallback(() => {
+    setWaypoints(prev =>
+      prev.map(w => w.type === 'meeting_point' ? { ...w, completed: true } : w)
+    );
+    // Meeting point IS the pickup, so go to dropoff
+    setCurrentLeg('to_dropoff');
+  }, []);
+
   // Mark passenger as picked up → advance to dropoff leg
   const confirmPickup = useCallback(() => {
     setWaypoints(prev => 
@@ -143,6 +152,8 @@ export function useWaypoints({ finalDestination }: UseWaypointsOptions = {}) {
     const pendingWaypoints = waypoints.filter(w => !w.completed);
     
     switch (currentLeg) {
+      case 'to_meeting_point':
+        return pendingWaypoints.find(w => w.type === 'meeting_point') || null;
       case 'to_pickup':
         return pendingWaypoints.find(w => w.type === 'pickup') || null;
       case 'to_dropoff':
