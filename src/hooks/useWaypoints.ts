@@ -20,7 +20,41 @@ export function useWaypoints({ finalDestination }: UseWaypointsOptions = {}) {
   const [currentLeg, setCurrentLeg] = useState<TripLeg>('to_destination');
   const [hasPassenger, setHasPassenger] = useState(false);
 
-  // Add pickup and dropoff points when accepting a passenger
+  // Add meeting point + dropoff (no door-to-door)
+  const addMeetingPointWaypoints = useCallback((
+    meetingPoint: { lat: number; lng: number; name: string },
+    dropoff: { lat: number; lng: number; name: string }
+  ) => {
+    const mpWaypoint: Waypoint = {
+      id: `meeting-${Date.now()}`,
+      type: 'meeting_point',
+      lat: meetingPoint.lat,
+      lng: meetingPoint.lng,
+      name: meetingPoint.name,
+      completed: false,
+    };
+    const dropoffWaypoint: Waypoint = {
+      id: `dropoff-${Date.now()}`,
+      type: 'dropoff',
+      lat: dropoff.lat,
+      lng: dropoff.lng,
+      name: dropoff.name,
+      completed: false,
+    };
+
+    setWaypoints(prev => {
+      const withoutFinal = prev.filter(w => w.type !== 'final_destination');
+      const finalDest = prev.find(w => w.type === 'final_destination');
+      return finalDest
+        ? [...withoutFinal, mpWaypoint, dropoffWaypoint, finalDest]
+        : [...withoutFinal, mpWaypoint, dropoffWaypoint];
+    });
+
+    setCurrentLeg('to_meeting_point');
+    setHasPassenger(true);
+  }, []);
+
+  // Add pickup and dropoff points when accepting a passenger (door-to-door)
   const addPassengerWaypoints = useCallback((
     pickup: { lat: number; lng: number; name: string },
     dropoff: { lat: number; lng: number; name: string }
@@ -44,7 +78,6 @@ export function useWaypoints({ finalDestination }: UseWaypointsOptions = {}) {
     };
 
     setWaypoints(prev => {
-      // Insert pickup and dropoff before final destination
       const withoutFinal = prev.filter(w => w.type !== 'final_destination');
       const finalDest = prev.find(w => w.type === 'final_destination');
       
