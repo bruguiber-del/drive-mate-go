@@ -2,14 +2,14 @@ import { useState, useCallback, useMemo } from 'react';
 
 export interface Waypoint {
   id: string;
-  type: 'pickup' | 'dropoff' | 'final_destination';
+  type: 'pickup' | 'dropoff' | 'meeting_point' | 'final_destination';
   lat: number;
   lng: number;
   name: string;
   completed: boolean;
 }
 
-export type TripLeg = 'to_pickup' | 'to_dropoff' | 'to_destination';
+export type TripLeg = 'to_meeting_point' | 'to_pickup' | 'to_dropoff' | 'to_destination';
 
 interface UseWaypointsOptions {
   finalDestination?: { lat: number; lng: number; name: string } | null;
