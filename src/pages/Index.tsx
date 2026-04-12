@@ -63,6 +63,12 @@ const Index = () => {
   const [meetingPoint, setMeetingPoint] = useState<{ lat: number; lng: number; name: string } | null>(null);
   const [isDoorToDoor, setIsDoorToDoor] = useState(false);
 
+  // Real user location from MapView
+  const [realUserLocation, setRealUserLocation] = useState<[number, number] | null>(null);
+
+  // Navigation simulation
+  const [enableNavSim, setEnableNavSim] = useState(false);
+
   // Waypoints system
   const {
     waypoints,
