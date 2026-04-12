@@ -155,7 +155,43 @@ const Index = () => {
     }
   }, [currentLeg]);
 
-  const handleDriverToggle = () => {
+  // Show match popup when simulated passenger appears
+  const prevPassengerRef = useMemo(() => ({ id: '' }), []);
+  useMemo(() => {
+    if (simulatedPassenger && simulatedPassenger.id !== prevPassengerRef.id) {
+      prevPassengerRef.id = simulatedPassenger.id;
+      setShowMatchPopup(true);
+    }
+  }, [simulatedPassenger, prevPassengerRef]);
+
+  // Match data from simulated passenger
+  const currentMatchData = useMemo(() => {
+    if (!simulatedPassenger) return undefined;
+    return {
+      userName: simulatedPassenger.name,
+      rating: simulatedPassenger.rating,
+      detourMinutes: simulatedPassenger.detourMinutes,
+      compensation: simulatedPassenger.compensation,
+      pickupDistance: simulatedPassenger.pickupDistance,
+      acceptsPets: simulatedPassenger.acceptsPets,
+      hasChildSeat: simulatedPassenger.hasChildSeat,
+      doorToDoor: simulatedPassenger.doorToDoor,
+      doorToDoorSurcharge: simulatedPassenger.doorToDoor ? 1.20 : 0,
+      tripPrice: simulatedPassenger.compensation,
+      origin: simulatedPassenger.origin.name,
+      destination: simulatedPassenger.destination.name,
+    };
+  }, [simulatedPassenger]);
+
+  // Preview waypoints for map (before accepting)
+  const previewWaypoints = useMemo(() => {
+    if (!showMatchPopup || !simulatedPassenger) return undefined;
+    return [
+      { lat: simulatedPassenger.origin.lat, lng: simulatedPassenger.origin.lng, type: 'pickup' as const, name: 'Recogida' },
+      { lat: simulatedPassenger.destination.lat, lng: simulatedPassenger.destination.lng, type: 'dropoff' as const, name: simulatedPassenger.destination.name },
+    ];
+  }, [showMatchPopup, simulatedPassenger]);
+
     setIsDriverMode(!isDriverMode);
     if (!isDriverMode) {
       toast({
