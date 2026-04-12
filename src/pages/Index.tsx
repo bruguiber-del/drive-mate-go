@@ -302,6 +302,7 @@ const Index = () => {
 
   const handleMatchReject = () => {
     setShowMatchPopup(false);
+    dismissSimPassenger();
     toast({ title: "Solicitud rechazada", description: "Seguirás recibiendo nuevas solicitudes" });
   };
 
