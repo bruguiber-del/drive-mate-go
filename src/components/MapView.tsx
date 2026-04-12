@@ -23,6 +23,19 @@ interface MapViewProps {
   walkingRoute?: RouteData | null;
   /** Callback to expose route data to parent */
   onRouteUpdate?: (route: RouteData | null) => void;
+  /** Override user position with simulated position */
+  simulatedPosition?: [number, number] | null;
+  /** Override heading with simulated heading */
+  simulatedHeading?: number | null;
+  /** Expose real user location to parent */
+  onUserLocationUpdate?: (loc: [number, number]) => void;
+  /** Preview route (before accepting) — separate from main route */
+  previewWaypoints?: Array<{
+    lat: number;
+    lng: number;
+    type: 'pickup' | 'dropoff';
+    name: string;
+  }>;
 }
 
 // Fix for default markers in Leaflet with bundlers
