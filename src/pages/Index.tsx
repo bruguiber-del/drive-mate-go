@@ -192,6 +192,7 @@ const Index = () => {
     ];
   }, [showMatchPopup, simulatedPassenger]);
 
+  const handleDriverToggle = () => {
     setIsDriverMode(!isDriverMode);
     if (!isDriverMode) {
       toast({
