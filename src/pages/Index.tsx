@@ -346,6 +346,10 @@ const Index = () => {
         waypointMarkers={mapWaypointMarkers}
         walkingRoute={passengerWalkingEnabled ? walkingRouteData : null}
         onRouteUpdate={setCurrentRoute}
+        simulatedPosition={enableNavSim ? simulatedPosition : null}
+        simulatedHeading={enableNavSim ? simulatedHeading : null}
+        onUserLocationUpdate={setRealUserLocation}
+        previewWaypoints={previewWaypoints}
       >
         {/* Top Bar */}
         <div className="absolute top-0 left-0 right-0 p-4 safe-area-inset-top pointer-events-none">
@@ -577,6 +581,7 @@ const Index = () => {
         onAccept={handleMatchAccept}
         onReject={handleMatchReject}
         isDriverView={isDriverMode}
+        matchData={currentMatchData}
       />
 
       <SettingsMenu 
