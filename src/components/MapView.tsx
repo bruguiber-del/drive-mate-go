@@ -73,6 +73,10 @@ const MapView = ({
   waypointMarkers,
   walkingRoute,
   onRouteUpdate,
+  simulatedPosition,
+  simulatedHeading,
+  onUserLocationUpdate,
+  previewWaypoints,
 }: MapViewProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
@@ -84,13 +88,23 @@ const MapView = ({
   const trailLine = useRef<L.Polyline | null>(null);
   const driverTrailLine = useRef<L.Polyline | null>(null);
   const waypointMarkersRef = useRef<L.Marker[]>([]);
+  const previewMarkersRef = useRef<L.Marker[]>([]);
+  const previewLineRef = useRef<L.Polyline | null>(null);
   const watchIdRef = useRef<number | null>(null);
-  const isFollowingRef = useRef(true); // Whether camera follows user
+  const isFollowingRef = useRef(true);
 
-  const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
+  const [rawUserLocation, setRawUserLocation] = useState<[number, number] | null>(null);
   const [userHeading, setUserHeading] = useState<number | null>(null);
   const [positionHistory, setPositionHistory] = useState<[number, number][]>([]);
   const [mapReady, setMapReady] = useState(false);
+
+  // Effective position: simulated overrides real
+  const userLocation = simulatedPosition ?? rawUserLocation;
+
+  // Expose real location to parent
+  useEffect(() => {
+    if (rawUserLocation) onUserLocationUpdate?.(rawUserLocation);
+  }, [rawUserLocation, onUserLocationUpdate]);
 
   // Use routing hook for real driving routes
   const { route } = useRouting({
