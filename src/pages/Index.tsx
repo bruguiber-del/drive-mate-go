@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, Settings, Locate, X, Navigation } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,8 @@ import RatingModal from '@/components/RatingModal';
 import { useDriverTracking } from '@/hooks/useDriverTracking';
 import { useWaypoints } from '@/hooks/useWaypoints';
 import { useWalkingRoute } from '@/hooks/useWalkingRoute';
+import { usePassengerSimulation } from '@/hooks/usePassengerSimulation';
+import { useNavigationSimulation } from '@/hooks/useNavigationSimulation';
 import type { RouteData } from '@/hooks/useRouting';
 
 const Index = () => {
@@ -61,6 +63,12 @@ const Index = () => {
   const [meetingPoint, setMeetingPoint] = useState<{ lat: number; lng: number; name: string } | null>(null);
   const [isDoorToDoor, setIsDoorToDoor] = useState(false);
 
+  // Real user location from MapView
+  const [realUserLocation, setRealUserLocation] = useState<[number, number] | null>(null);
+
+  // Navigation simulation
+  const [enableNavSim, setEnableNavSim] = useState(false);
+
   // Waypoints system
   const {
     waypoints,
@@ -85,12 +93,28 @@ const Index = () => {
     enabled: showActiveTrip,
   });
 
+  // Passenger simulation (generates nearby passengers in driver mode)
+  const {
+    currentPassenger: simulatedPassenger,
+    dismissCurrent: dismissSimPassenger,
+    acceptCurrent: acceptSimPassenger,
+  } = usePassengerSimulation({
+    enabled: isDriverMode && isNavigating && !showActiveTrip && !showMatchPopup,
+    userLocation: realUserLocation,
+    intervalMs: 12000,
+  });
+
+  // Navigation simulation (animate along route)
+  const { simulatedPosition, simulatedHeading } = useNavigationSimulation({
+    routeCoordinates: currentRoute?.coordinates ?? null,
+    enabled: enableNavSim && isNavigating,
+    speedMultiplier: 20,
+  });
+
   // Walking route for passenger (to meeting point)
   const passengerWalkingEnabled = activeTripRole === 'passenger' && meetingPoint !== null && showActiveTrip && !isDoorToDoor;
-  // For passenger walking, we use null userLocation here - MapView handles the user's location internally
-  // The walking route will be calculated separately
   const { route: walkingRouteData } = useWalkingRoute({
-    origin: null, // Passenger location is managed by MapView internally
+    origin: null,
     destination: meetingPoint ? { lat: meetingPoint.lat, lng: meetingPoint.lng } : null,
     enabled: passengerWalkingEnabled,
   });
@@ -131,14 +155,51 @@ const Index = () => {
     }
   }, [currentLeg]);
 
+  // Show match popup when simulated passenger appears
+  const prevPassengerIdRef = useRef('');
+  useEffect(() => {
+    if (simulatedPassenger && simulatedPassenger.id !== prevPassengerIdRef.current) {
+      prevPassengerIdRef.current = simulatedPassenger.id;
+      setShowMatchPopup(true);
+    }
+  }, [simulatedPassenger]);
+
+  // Match data from simulated passenger
+  const currentMatchData = useMemo(() => {
+    if (!simulatedPassenger) return undefined;
+    return {
+      userName: simulatedPassenger.name,
+      rating: simulatedPassenger.rating,
+      detourMinutes: simulatedPassenger.detourMinutes,
+      compensation: simulatedPassenger.compensation,
+      pickupDistance: simulatedPassenger.pickupDistance,
+      acceptsPets: simulatedPassenger.acceptsPets,
+      hasChildSeat: simulatedPassenger.hasChildSeat,
+      doorToDoor: simulatedPassenger.doorToDoor,
+      doorToDoorSurcharge: simulatedPassenger.doorToDoor ? 1.20 : 0,
+      tripPrice: simulatedPassenger.compensation,
+      origin: simulatedPassenger.origin.name,
+      destination: simulatedPassenger.destination.name,
+    };
+  }, [simulatedPassenger]);
+
+  // Preview waypoints for map (before accepting)
+  const previewWaypoints = useMemo(() => {
+    if (!showMatchPopup || !simulatedPassenger) return undefined;
+    return [
+      { lat: simulatedPassenger.origin.lat, lng: simulatedPassenger.origin.lng, type: 'pickup' as const, name: 'Recogida' },
+      { lat: simulatedPassenger.destination.lat, lng: simulatedPassenger.destination.lng, type: 'dropoff' as const, name: simulatedPassenger.destination.name },
+    ];
+  }, [showMatchPopup, simulatedPassenger]);
+
   const handleDriverToggle = () => {
     setIsDriverMode(!isDriverMode);
     if (!isDriverMode) {
       toast({
         title: "Modo conductor activado",
-        description: "Ahora recibirás solicitudes de pasajeros compatibles",
+        description: "Navega a tu destino y aparecerán pasajeros cercanos",
       });
-      setTimeout(() => setShowMatchPopup(true), 3000);
+      // Don't force match popup; simulation will handle it
     }
   };
 
@@ -146,12 +207,14 @@ const Index = () => {
     setDestination(dest);
     setDestinationCoords({ ...coords, name: dest });
     setIsNavigating(true);
+    setEnableNavSim(true);
     setFinalDestination({ lat: coords.lat, lng: coords.lng, name: dest });
     toast({ title: "Navegación iniciada", description: `Ruta hacia ${dest}`, duration: 500 });
   };
 
   const handleStopNavigation = () => {
     setIsNavigating(false);
+    setEnableNavSim(false);
     setDestination('');
     setDestinationCoords(null);
     cancelTrip();
@@ -198,29 +261,24 @@ const Index = () => {
     const newTripId = crypto.randomUUID();
     setActiveTripId(newTripId);
     
-    if (isDriverMode) {
+    if (isDriverMode && simulatedPassenger) {
       setActiveTripRole('driver');
+      const pickup = { lat: simulatedPassenger.origin.lat, lng: simulatedPassenger.origin.lng, name: simulatedPassenger.origin.name };
+      const dropoff = { lat: simulatedPassenger.destination.lat, lng: simulatedPassenger.destination.lng, name: simulatedPassenger.destination.name };
 
-      // Simulate passenger waypoints
-      const simulatedPickup = { lat: 42.1380, lng: -0.4100, name: 'Recogida pasajero' };
-      const simulatedDropoff = { lat: 42.0500, lng: -0.5000, name: 'Bajada pasajero' };
-
-      if (!isDoorToDoor) {
-        // Calculate meeting point on route (simulated)
-        const simulatedMeetingPt = { lat: 42.1370, lng: -0.4090, name: 'Punto de encuentro' };
-        setMeetingPoint(simulatedMeetingPt);
-        addMeetingPointWaypoints(simulatedMeetingPt, simulatedDropoff);
-        toast({
-          title: "¡Viaje aceptado!",
-          description: "Dirígete al punto de encuentro para recoger al pasajero.",
-        });
+      if (!simulatedPassenger.doorToDoor) {
+        // Meeting point halfway between driver and passenger
+        const mpLat = realUserLocation ? (realUserLocation[0] + pickup.lat) / 2 : pickup.lat;
+        const mpLng = realUserLocation ? (realUserLocation[1] + pickup.lng) / 2 : pickup.lng;
+        const mp = { lat: mpLat, lng: mpLng, name: 'Punto de encuentro' };
+        setMeetingPoint(mp);
+        addMeetingPointWaypoints(mp, dropoff);
+        toast({ title: "¡Viaje aceptado!", description: "Dirígete al punto de encuentro." });
       } else {
-        addPassengerWaypoints(simulatedPickup, simulatedDropoff);
-        toast({
-          title: "¡Viaje aceptado!",
-          description: "Tu ubicación se compartirá con el pasajero en tiempo real.",
-        });
+        addPassengerWaypoints(pickup, dropoff);
+        toast({ title: "¡Viaje aceptado!", description: "Dirígete a recoger al pasajero." });
       }
+      dismissSimPassenger();
     } else {
       setActiveTripRole('passenger');
       handlePassengerAcceptDriver();
@@ -244,6 +302,7 @@ const Index = () => {
 
   const handleMatchReject = () => {
     setShowMatchPopup(false);
+    dismissSimPassenger();
     toast({ title: "Solicitud rechazada", description: "Seguirás recibiendo nuevas solicitudes" });
   };
 
@@ -288,6 +347,10 @@ const Index = () => {
         waypointMarkers={mapWaypointMarkers}
         walkingRoute={passengerWalkingEnabled ? walkingRouteData : null}
         onRouteUpdate={setCurrentRoute}
+        simulatedPosition={enableNavSim ? simulatedPosition : null}
+        simulatedHeading={enableNavSim ? simulatedHeading : null}
+        onUserLocationUpdate={setRealUserLocation}
+        previewWaypoints={previewWaypoints}
       >
         {/* Top Bar */}
         <div className="absolute top-0 left-0 right-0 p-4 safe-area-inset-top pointer-events-none">
@@ -519,6 +582,7 @@ const Index = () => {
         onAccept={handleMatchAccept}
         onReject={handleMatchReject}
         isDriverView={isDriverMode}
+        matchData={currentMatchData}
       />
 
       <SettingsMenu 

@@ -23,6 +23,19 @@ interface MapViewProps {
   walkingRoute?: RouteData | null;
   /** Callback to expose route data to parent */
   onRouteUpdate?: (route: RouteData | null) => void;
+  /** Override user position with simulated position */
+  simulatedPosition?: [number, number] | null;
+  /** Override heading with simulated heading */
+  simulatedHeading?: number | null;
+  /** Expose real user location to parent */
+  onUserLocationUpdate?: (loc: [number, number]) => void;
+  /** Preview route (before accepting) — separate from main route */
+  previewWaypoints?: Array<{
+    lat: number;
+    lng: number;
+    type: 'pickup' | 'dropoff';
+    name: string;
+  }>;
 }
 
 // Fix for default markers in Leaflet with bundlers
@@ -60,6 +73,10 @@ const MapView = ({
   waypointMarkers,
   walkingRoute,
   onRouteUpdate,
+  simulatedPosition,
+  simulatedHeading,
+  onUserLocationUpdate,
+  previewWaypoints,
 }: MapViewProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
@@ -71,13 +88,23 @@ const MapView = ({
   const trailLine = useRef<L.Polyline | null>(null);
   const driverTrailLine = useRef<L.Polyline | null>(null);
   const waypointMarkersRef = useRef<L.Marker[]>([]);
+  const previewMarkersRef = useRef<L.Marker[]>([]);
+  const previewLineRef = useRef<L.Polyline | null>(null);
   const watchIdRef = useRef<number | null>(null);
-  const isFollowingRef = useRef(true); // Whether camera follows user
+  const isFollowingRef = useRef(true);
 
-  const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
+  const [rawUserLocation, setRawUserLocation] = useState<[number, number] | null>(null);
   const [userHeading, setUserHeading] = useState<number | null>(null);
   const [positionHistory, setPositionHistory] = useState<[number, number][]>([]);
   const [mapReady, setMapReady] = useState(false);
+
+  // Effective position: simulated overrides real
+  const userLocation = simulatedPosition ?? rawUserLocation;
+
+  // Expose real location to parent
+  useEffect(() => {
+    if (rawUserLocation) onUserLocationUpdate?.(rawUserLocation);
+  }, [rawUserLocation, onUserLocationUpdate]);
 
   // Use routing hook for real driving routes
   const { route } = useRouting({
@@ -91,8 +118,9 @@ const MapView = ({
     onRouteUpdate?.(route);
   }, [route, onRouteUpdate]);
 
-  // Calculate heading from position history or GPS heading
+  // Calculate heading from position history, GPS heading, or simulated heading
   const getHeading = useCallback((): number => {
+    if (simulatedHeading != null) return simulatedHeading;
     if (userHeading !== null) return userHeading;
     if (positionHistory.length >= 2) {
       const prev = positionHistory[positionHistory.length - 2];
@@ -102,7 +130,7 @@ const MapView = ({
       return (Math.atan2(dLng, dLat) * 180) / Math.PI;
     }
     return 0;
-  }, [userHeading, positionHistory]);
+  }, [simulatedHeading, userHeading, positionHistory]);
 
   // Center map on user location with navigation offset
   const centerOnUser = useCallback(() => {
@@ -180,7 +208,7 @@ const MapView = ({
     watchIdRef.current = navigator.geolocation.watchPosition(
       (position) => {
         const coords: [number, number] = [position.coords.latitude, position.coords.longitude];
-        setUserLocation(coords);
+        setRawUserLocation(coords);
         
         if (position.coords.heading !== null && !isNaN(position.coords.heading)) {
           setUserHeading(position.coords.heading);
@@ -190,7 +218,7 @@ const MapView = ({
       },
       (error) => {
         console.error('Geolocation error:', error);
-        setUserLocation(prev => prev ?? [42.1401, -0.4087]);
+        setRawUserLocation(prev => prev ?? [42.1401, -0.4087]);
       },
       { enableHighAccuracy: true, timeout: 5000, maximumAge: 2000 }
     );
@@ -381,7 +409,55 @@ const MapView = ({
     }
   }, [waypointMarkers, mapReady]);
 
-  // Clear route and destination when showRoute becomes false
+  // Preview waypoints (shown before accepting a match)
+  useEffect(() => {
+    if (!map.current || !mapReady) return;
+
+    previewMarkersRef.current.forEach(m => m.remove());
+    previewMarkersRef.current = [];
+    if (previewLineRef.current) { previewLineRef.current.remove(); previewLineRef.current = null; }
+
+    if (!previewWaypoints?.length) return;
+
+    const points: [number, number][] = [];
+    for (const wp of previewWaypoints) {
+      const color = WAYPOINT_COLORS[wp.type] || 'hsl(199,89%,48%)';
+      const iconPath = WAYPOINT_ICONS[wp.type] || WAYPOINT_ICONS.pickup;
+      points.push([wp.lat, wp.lng]);
+
+      const icon = L.divIcon({
+        className: 'preview-marker',
+        html: `<div class="flex flex-col items-center" style="opacity:0.8;">
+          <div class="w-7 h-7 rounded-full flex items-center justify-center shadow-lg" style="background: ${color}; border: 2px dashed white;">
+            <svg class="w-3.5 h-3.5" fill="white" viewBox="0 0 24 24">${iconPath}</svg>
+          </div>
+          <span class="text-[9px] font-medium mt-0.5 px-1 py-0.5 rounded-full shadow" style="background: ${color}; color: white; white-space: nowrap;">${wp.name}</span>
+        </div>`,
+        iconSize: [80, 44],
+        iconAnchor: [40, 8],
+      });
+
+      const marker = L.marker([wp.lat, wp.lng], { icon }).addTo(map.current);
+      previewMarkersRef.current.push(marker);
+    }
+
+    // Draw dashed preview line between points
+    if (points.length >= 2) {
+      previewLineRef.current = L.polyline(points, {
+        color: 'hsl(24, 95%, 53%)',
+        weight: 4,
+        opacity: 0.6,
+        dashArray: '10, 8',
+      }).addTo(map.current);
+    }
+
+    // Fit bounds to show preview + user location
+    if (userLocation) {
+      const allPoints = [userLocation, ...points];
+      map.current.fitBounds(L.latLngBounds(allPoints.map(p => [p[0], p[1]])), { padding: [60, 60], maxZoom: 14 });
+    }
+  }, [previewWaypoints, mapReady, userLocation]);
+
   useEffect(() => {
     if (!showRoute) {
       if (routeLine.current && map.current) { routeLine.current.remove(); routeLine.current = null; }
@@ -466,7 +542,7 @@ const MapView = ({
     <div className="relative w-full h-full overflow-hidden bg-background">
       <div ref={mapContainer} className="absolute inset-0 z-0" />
       <div className="absolute inset-0 pointer-events-none z-10 bg-gradient-to-t from-background/60 via-transparent to-background/40" />
-      <div className="absolute inset-0 z-20">
+      <div className="absolute inset-0 z-20 pointer-events-none">
         {children}
       </div>
     </div>
