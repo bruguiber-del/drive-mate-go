@@ -207,7 +207,7 @@ const MapView = ({
     watchIdRef.current = navigator.geolocation.watchPosition(
       (position) => {
         const coords: [number, number] = [position.coords.latitude, position.coords.longitude];
-        setUserLocation(coords);
+        setRawUserLocation(coords);
         
         if (position.coords.heading !== null && !isNaN(position.coords.heading)) {
           setUserHeading(position.coords.heading);
@@ -217,7 +217,7 @@ const MapView = ({
       },
       (error) => {
         console.error('Geolocation error:', error);
-        setUserLocation(prev => prev ?? [42.1401, -0.4087]);
+        setRawUserLocation(prev => prev ?? [42.1401, -0.4087]);
       },
       { enableHighAccuracy: true, timeout: 5000, maximumAge: 2000 }
     );
