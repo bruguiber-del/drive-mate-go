@@ -22,6 +22,8 @@ import RatingModal from '@/components/RatingModal';
 import { useDriverTracking } from '@/hooks/useDriverTracking';
 import { useWaypoints } from '@/hooks/useWaypoints';
 import { useWalkingRoute } from '@/hooks/useWalkingRoute';
+import { usePassengerSimulation } from '@/hooks/usePassengerSimulation';
+import { useNavigationSimulation } from '@/hooks/useNavigationSimulation';
 import type { RouteData } from '@/hooks/useRouting';
 
 const Index = () => {
