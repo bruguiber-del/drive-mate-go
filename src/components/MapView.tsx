@@ -409,7 +409,55 @@ const MapView = ({
     }
   }, [waypointMarkers, mapReady]);
 
-  // Clear route and destination when showRoute becomes false
+  // Preview waypoints (shown before accepting a match)
+  useEffect(() => {
+    if (!map.current || !mapReady) return;
+
+    previewMarkersRef.current.forEach(m => m.remove());
+    previewMarkersRef.current = [];
+    if (previewLineRef.current) { previewLineRef.current.remove(); previewLineRef.current = null; }
+
+    if (!previewWaypoints?.length) return;
+
+    const points: [number, number][] = [];
+    for (const wp of previewWaypoints) {
+      const color = WAYPOINT_COLORS[wp.type] || 'hsl(199,89%,48%)';
+      const iconPath = WAYPOINT_ICONS[wp.type] || WAYPOINT_ICONS.pickup;
+      points.push([wp.lat, wp.lng]);
+
+      const icon = L.divIcon({
+        className: 'preview-marker',
+        html: `<div class="flex flex-col items-center" style="opacity:0.8;">
+          <div class="w-7 h-7 rounded-full flex items-center justify-center shadow-lg" style="background: ${color}; border: 2px dashed white;">
+            <svg class="w-3.5 h-3.5" fill="white" viewBox="0 0 24 24">${iconPath}</svg>
+          </div>
+          <span class="text-[9px] font-medium mt-0.5 px-1 py-0.5 rounded-full shadow" style="background: ${color}; color: white; white-space: nowrap;">${wp.name}</span>
+        </div>`,
+        iconSize: [80, 44],
+        iconAnchor: [40, 8],
+      });
+
+      const marker = L.marker([wp.lat, wp.lng], { icon }).addTo(map.current);
+      previewMarkersRef.current.push(marker);
+    }
+
+    // Draw dashed preview line between points
+    if (points.length >= 2) {
+      previewLineRef.current = L.polyline(points, {
+        color: 'hsl(24, 95%, 53%)',
+        weight: 4,
+        opacity: 0.6,
+        dashArray: '10, 8',
+      }).addTo(map.current);
+    }
+
+    // Fit bounds to show preview + user location
+    if (userLocation) {
+      const allPoints = [userLocation, ...points];
+      map.current.fitBounds(L.latLngBounds(allPoints.map(p => [p[0], p[1]])), { padding: [60, 60], maxZoom: 14 });
+    }
+  }, [previewWaypoints, mapReady, userLocation]);
+
   useEffect(() => {
     if (!showRoute) {
       if (routeLine.current && map.current) { routeLine.current.remove(); routeLine.current = null; }
