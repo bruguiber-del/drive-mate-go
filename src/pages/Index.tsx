@@ -160,9 +160,9 @@ const Index = () => {
     if (!isDriverMode) {
       toast({
         title: "Modo conductor activado",
-        description: "Ahora recibirás solicitudes de pasajeros compatibles",
+        description: "Navega a tu destino y aparecerán pasajeros cercanos",
       });
-      setTimeout(() => setShowMatchPopup(true), 3000);
+      // Don't force match popup; simulation will handle it
     }
   };
 
@@ -170,6 +170,7 @@ const Index = () => {
     setDestination(dest);
     setDestinationCoords({ ...coords, name: dest });
     setIsNavigating(true);
+    setEnableNavSim(true);
     setFinalDestination({ lat: coords.lat, lng: coords.lng, name: dest });
     toast({ title: "Navegación iniciada", description: `Ruta hacia ${dest}`, duration: 500 });
   };
