@@ -466,7 +466,7 @@ const MapView = ({
     <div className="relative w-full h-full overflow-hidden bg-background">
       <div ref={mapContainer} className="absolute inset-0 z-0" />
       <div className="absolute inset-0 pointer-events-none z-10 bg-gradient-to-t from-background/60 via-transparent to-background/40" />
-      <div className="absolute inset-0 z-20">
+      <div className="absolute inset-0 z-20 pointer-events-none">
         {children}
       </div>
     </div>
