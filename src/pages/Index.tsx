@@ -93,12 +93,28 @@ const Index = () => {
     enabled: showActiveTrip,
   });
 
+  // Passenger simulation (generates nearby passengers in driver mode)
+  const {
+    currentPassenger: simulatedPassenger,
+    dismissCurrent: dismissSimPassenger,
+    acceptCurrent: acceptSimPassenger,
+  } = usePassengerSimulation({
+    enabled: isDriverMode && isNavigating && !showActiveTrip && !showMatchPopup,
+    userLocation: realUserLocation,
+    intervalMs: 12000,
+  });
+
+  // Navigation simulation (animate along route)
+  const { simulatedPosition, simulatedHeading } = useNavigationSimulation({
+    routeCoordinates: currentRoute?.coordinates ?? null,
+    enabled: enableNavSim && isNavigating,
+    speedMultiplier: 20,
+  });
+
   // Walking route for passenger (to meeting point)
   const passengerWalkingEnabled = activeTripRole === 'passenger' && meetingPoint !== null && showActiveTrip && !isDoorToDoor;
-  // For passenger walking, we use null userLocation here - MapView handles the user's location internally
-  // The walking route will be calculated separately
   const { route: walkingRouteData } = useWalkingRoute({
-    origin: null, // Passenger location is managed by MapView internally
+    origin: null,
     destination: meetingPoint ? { lat: meetingPoint.lat, lng: meetingPoint.lng } : null,
     enabled: passengerWalkingEnabled,
   });
