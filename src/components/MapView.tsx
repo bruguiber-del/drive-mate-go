@@ -118,8 +118,9 @@ const MapView = ({
     onRouteUpdate?.(route);
   }, [route, onRouteUpdate]);
 
-  // Calculate heading from position history or GPS heading
+  // Calculate heading from position history, GPS heading, or simulated heading
   const getHeading = useCallback((): number => {
+    if (simulatedHeading != null) return simulatedHeading;
     if (userHeading !== null) return userHeading;
     if (positionHistory.length >= 2) {
       const prev = positionHistory[positionHistory.length - 2];
@@ -129,7 +130,7 @@ const MapView = ({
       return (Math.atan2(dLng, dLat) * 180) / Math.PI;
     }
     return 0;
-  }, [userHeading, positionHistory]);
+  }, [simulatedHeading, userHeading, positionHistory]);
 
   // Center map on user location with navigation offset
   const centerOnUser = useCallback(() => {
