@@ -156,13 +156,13 @@ const Index = () => {
   }, [currentLeg]);
 
   // Show match popup when simulated passenger appears
-  const prevPassengerRef = useMemo(() => ({ id: '' }), []);
-  useMemo(() => {
-    if (simulatedPassenger && simulatedPassenger.id !== prevPassengerRef.id) {
-      prevPassengerRef.id = simulatedPassenger.id;
+  const prevPassengerIdRef = useRef('');
+  useEffect(() => {
+    if (simulatedPassenger && simulatedPassenger.id !== prevPassengerIdRef.current) {
+      prevPassengerIdRef.current = simulatedPassenger.id;
       setShowMatchPopup(true);
     }
-  }, [simulatedPassenger, prevPassengerRef]);
+  }, [simulatedPassenger]);
 
   // Match data from simulated passenger
   const currentMatchData = useMemo(() => {
