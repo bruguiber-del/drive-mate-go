@@ -177,6 +177,7 @@ const Index = () => {
 
   const handleStopNavigation = () => {
     setIsNavigating(false);
+    setEnableNavSim(false);
     setDestination('');
     setDestinationCoords(null);
     cancelTrip();
