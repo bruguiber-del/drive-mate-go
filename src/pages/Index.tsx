@@ -261,29 +261,24 @@ const Index = () => {
     const newTripId = crypto.randomUUID();
     setActiveTripId(newTripId);
     
-    if (isDriverMode) {
+    if (isDriverMode && simulatedPassenger) {
       setActiveTripRole('driver');
+      const pickup = { lat: simulatedPassenger.origin.lat, lng: simulatedPassenger.origin.lng, name: simulatedPassenger.origin.name };
+      const dropoff = { lat: simulatedPassenger.destination.lat, lng: simulatedPassenger.destination.lng, name: simulatedPassenger.destination.name };
 
-      // Simulate passenger waypoints
-      const simulatedPickup = { lat: 42.1380, lng: -0.4100, name: 'Recogida pasajero' };
-      const simulatedDropoff = { lat: 42.0500, lng: -0.5000, name: 'Bajada pasajero' };
-
-      if (!isDoorToDoor) {
-        // Calculate meeting point on route (simulated)
-        const simulatedMeetingPt = { lat: 42.1370, lng: -0.4090, name: 'Punto de encuentro' };
-        setMeetingPoint(simulatedMeetingPt);
-        addMeetingPointWaypoints(simulatedMeetingPt, simulatedDropoff);
-        toast({
-          title: "¡Viaje aceptado!",
-          description: "Dirígete al punto de encuentro para recoger al pasajero.",
-        });
+      if (!simulatedPassenger.doorToDoor) {
+        // Meeting point halfway between driver and passenger
+        const mpLat = realUserLocation ? (realUserLocation[0] + pickup.lat) / 2 : pickup.lat;
+        const mpLng = realUserLocation ? (realUserLocation[1] + pickup.lng) / 2 : pickup.lng;
+        const mp = { lat: mpLat, lng: mpLng, name: 'Punto de encuentro' };
+        setMeetingPoint(mp);
+        addMeetingPointWaypoints(mp, dropoff);
+        toast({ title: "¡Viaje aceptado!", description: "Dirígete al punto de encuentro." });
       } else {
-        addPassengerWaypoints(simulatedPickup, simulatedDropoff);
-        toast({
-          title: "¡Viaje aceptado!",
-          description: "Tu ubicación se compartirá con el pasajero en tiempo real.",
-        });
+        addPassengerWaypoints(pickup, dropoff);
+        toast({ title: "¡Viaje aceptado!", description: "Dirígete a recoger al pasajero." });
       }
+      dismissSimPassenger();
     } else {
       setActiveTripRole('passenger');
       handlePassengerAcceptDriver();
