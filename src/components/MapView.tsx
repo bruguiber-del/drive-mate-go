@@ -36,6 +36,8 @@ interface MapViewProps {
     type: 'pickup' | 'dropoff';
     name: string;
   }>;
+  /** Intermediate stops to insert into the main driving route (e.g. pickup) */
+  intermediateRouteWaypoints?: Array<{ lat: number; lng: number }>;
 }
 
 // Fix for default markers in Leaflet with bundlers
@@ -77,6 +79,7 @@ const MapView = ({
   simulatedHeading,
   onUserLocationUpdate,
   previewWaypoints,
+  intermediateRouteWaypoints,
 }: MapViewProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
@@ -98,7 +101,8 @@ const MapView = ({
   const [positionHistory, setPositionHistory] = useState<[number, number][]>([]);
   const [mapReady, setMapReady] = useState(false);
 
-  // Effective position: simulated overrides real
+  // Effective position: simulated overrides real ONLY when explicitly provided.
+  // Parent passes `simulatedPosition = null` until the user starts driving.
   const userLocation = simulatedPosition ?? rawUserLocation;
 
   // Expose real location to parent
@@ -106,10 +110,11 @@ const MapView = ({
     if (rawUserLocation) onUserLocationUpdate?.(rawUserLocation);
   }, [rawUserLocation, onUserLocationUpdate]);
 
-  // Use routing hook for real driving routes
+  // Use routing hook for real driving routes (with optional intermediate stops)
   const { route } = useRouting({
     origin: userLocation,
     destination: destination,
+    intermediateWaypoints: intermediateRouteWaypoints,
     enabled: showRoute ?? false,
   });
 
