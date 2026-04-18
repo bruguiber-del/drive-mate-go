@@ -426,6 +426,26 @@ const Index = () => {
           </motion.div>
         )}
 
+        {/* "Iniciar conducción" CTA — only when route exists but user hasn't moved yet */}
+        {nav.isNavigating && !nav.hasStartedDriving && !trip.showActiveTrip && (
+          <motion.div
+            className="absolute bottom-24 left-4 right-4 pointer-events-auto z-20"
+            initial={{ y: 30, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 30, opacity: 0 }}
+          >
+            <Button
+              variant="default"
+              size="lg"
+              className="w-full shadow-float"
+              onClick={nav.startDriving}
+            >
+              <Navigation className="w-5 h-5 mr-2" />
+              Iniciar conducción
+            </Button>
+          </motion.div>
+        )}
+
         {/* Unified Bottom Bar */}
         {!trip.showActiveTrip && (
           <motion.div
