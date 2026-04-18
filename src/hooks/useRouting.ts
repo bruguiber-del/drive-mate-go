@@ -1,28 +1,27 @@
 import { useState, useEffect, useCallback } from 'react';
+import { MAPBOX_TOKEN } from '@/lib/mapboxConfig';
 
 export interface RouteData {
-  coordinates: [number, number][];
+  coordinates: [number, number][]; // [lat, lng] for consistency with previous API
   distance: number; // meters
   duration: number; // seconds
 }
 
 interface UseRoutingOptions {
-  origin: [number, number] | null;
+  origin: [number, number] | null; // [lat, lng]
   destination: { lat: number; lng: number } | null;
   /** Optional ordered intermediate waypoints between origin and destination */
   intermediateWaypoints?: Array<{ lat: number; lng: number }>;
   enabled: boolean;
 }
 
-// Use OSRM public API for routing (free, no API key needed)
-const OSRM_API = 'https://router.project-osrm.org/route/v1/driving';
+const MAPBOX_DIRECTIONS = 'https://api.mapbox.com/directions/v5/mapbox/driving';
 
 export function useRouting({ origin, destination, intermediateWaypoints, enabled }: UseRoutingOptions) {
   const [route, setRoute] = useState<RouteData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Stable serialization for waypoints to keep useCallback identity steady
   const waypointsKey = (intermediateWaypoints ?? [])
     .map(w => `${w.lat.toFixed(5)},${w.lng.toFixed(5)}`)
     .join('|');
@@ -37,30 +36,26 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
     setError(null);
 
     try {
-      // OSRM expects coordinates as lng,lat (opposite of Leaflet's lat,lng)
+      // Mapbox expects lng,lat order, semicolon-separated.
       const points: string[] = [`${origin[1]},${origin[0]}`];
       for (const wp of intermediateWaypoints ?? []) {
         points.push(`${wp.lng},${wp.lat}`);
       }
       points.push(`${destination.lng},${destination.lat}`);
 
-      const url = `${OSRM_API}/${points.join(';')}?overview=full&geometries=geojson`;
+      const url =
+        `${MAPBOX_DIRECTIONS}/${points.join(';')}` +
+        `?geometries=geojson&overview=full&access_token=${MAPBOX_TOKEN}`;
 
       const response = await fetch(url);
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch route');
-      }
+      if (!response.ok) throw new Error('Failed to fetch route');
 
       const data = await response.json();
-
-      if (data.code !== 'Ok' || !data.routes || data.routes.length === 0) {
-        throw new Error('No route found');
-      }
+      if (!data.routes || data.routes.length === 0) throw new Error('No route found');
 
       const routeData = data.routes[0];
 
-      // Convert GeoJSON coordinates [lng, lat] to Leaflet format [lat, lng]
+      // GeoJSON [lng, lat] -> [lat, lng]
       const coordinates: [number, number][] = routeData.geometry.coordinates.map(
         (coord: [number, number]) => [coord[1], coord[0]] as [number, number]
       );
@@ -73,7 +68,7 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
     } catch (err) {
       console.error('Routing error:', err);
       setError(err instanceof Error ? err.message : 'Unknown error');
-      // Fallback to straight line if routing fails
+      // Fallback: straight line so the UI still draws something.
       setRoute({
         coordinates: [origin, [destination.lat, destination.lng]],
         distance: 0,
@@ -85,22 +80,8 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [origin, destination, enabled, waypointsKey]);
 
-  // Fetch route when dependencies change
-  useEffect(() => {
-    fetchRoute();
-  }, [fetchRoute]);
+  useEffect(() => { fetchRoute(); }, [fetchRoute]);
+  useEffect(() => { if (!enabled) setRoute(null); }, [enabled]);
 
-  // Clear route when disabled
-  useEffect(() => {
-    if (!enabled) {
-      setRoute(null);
-    }
-  }, [enabled]);
-
-  return {
-    route,
-    isLoading,
-    error,
-    refetch: fetchRoute,
-  };
+  return { route, isLoading, error, refetch: fetchRoute };
 }

@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
+import mapboxgl from 'mapbox-gl';
+import 'mapbox-gl/dist/mapbox-gl.css';
 import { useRouting, RouteData } from '@/hooks/useRouting';
+import { MAPBOX_TOKEN, MAPBOX_STYLE } from '@/lib/mapboxConfig';
+
+mapboxgl.accessToken = MAPBOX_TOKEN;
 
 interface MapViewProps {
   children?: React.ReactNode;
@@ -12,65 +15,157 @@ interface MapViewProps {
   showDriverMarker?: boolean;
   onCenterLocation?: () => void;
   isNavigating?: boolean;
-  /** Additional waypoint markers to show on the map */
   waypointMarkers?: Array<{
     lat: number;
     lng: number;
     type: 'meeting_point' | 'pickup' | 'dropoff' | 'final_destination';
     name: string;
   }>;
-  /** Walking route for passenger view */
   walkingRoute?: RouteData | null;
-  /** Callback to expose route data to parent */
   onRouteUpdate?: (route: RouteData | null) => void;
-  /** Override user position with simulated position */
   simulatedPosition?: [number, number] | null;
-  /** Override heading with simulated heading */
   simulatedHeading?: number | null;
-  /** Expose real user location to parent */
   onUserLocationUpdate?: (loc: [number, number]) => void;
-  /** Preview route (before accepting) — separate from main route */
   previewWaypoints?: Array<{
     lat: number;
     lng: number;
     type: 'pickup' | 'dropoff';
     name: string;
   }>;
-  /** Intermediate stops to insert into the main driving route (e.g. pickup) */
   intermediateRouteWaypoints?: Array<{ lat: number; lng: number }>;
 }
 
-// Fix for default markers in Leaflet with bundlers
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
-  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-});
+// ── Visual constants ─────────────────────────────────────────────────────────
+const ROUTE_COLOR = 'hsl(199, 89%, 48%)';
+const WALKING_COLOR = 'hsl(280, 70%, 55%)';
+const TRAIL_COLOR = 'hsl(199, 89%, 48%)';
 
-// Waypoint marker colors by type
 const WAYPOINT_COLORS: Record<string, string> = {
-  meeting_point: 'hsl(280, 70%, 55%)',  // Purple
-  pickup: 'hsl(142, 71%, 45%)',          // Green
-  dropoff: 'hsl(24, 95%, 53%)',          // Orange
-  final_destination: 'hsl(199, 89%, 48%)', // Blue
+  meeting_point: 'hsl(280, 70%, 55%)',
+  pickup: 'hsl(24, 95%, 53%)',          // 🟧 Naranja — Parada 1 / Recogida
+  dropoff: 'hsl(142, 71%, 45%)',         // 🟩 Verde — Destino pasajero (bandera)
+  final_destination: 'hsl(199, 89%, 48%)',
+};
+
+const WAYPOINT_LABELS: Record<string, string> = {
+  meeting_point: 'Punto de encuentro',
+  pickup: 'Parada 1 — Recogida',
+  dropoff: 'Destino pasajero',
+  final_destination: 'Destino',
 };
 
 const WAYPOINT_ICONS: Record<string, string> = {
-  meeting_point: '<path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 4.5a2.5 2.5 0 010 5 2.5 2.5 0 010-5z"/>',
-  pickup: '<path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>',
-  dropoff: '<path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>',
+  meeting_point:
+    '<path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 4.5a2.5 2.5 0 010 5 2.5 2.5 0 010-5z"/>',
+  // Person icon for pickup (Parada 1)
+  pickup:
+    '<path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>',
+  // Flag icon for dropoff
+  dropoff: '<path d="M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6z"/>',
   final_destination: '<path d="M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6z"/>',
 };
 
-const MapView = ({ 
-  children, 
-  destination, 
-  showRoute, 
-  driverLocation, 
-  driverLocationHistory, 
+const buildMarkerEl = (color: string, iconPath: string, label?: string, dashed = false) => {
+  const el = document.createElement('div');
+  el.style.pointerEvents = 'auto';
+  el.innerHTML = `
+    <div style="display:flex;flex-direction:column;align-items:center;${dashed ? 'opacity:0.85;' : ''}">
+      <div style="
+        width:34px;height:34px;border-radius:9999px;
+        display:flex;align-items:center;justify-content:center;
+        background:${color};
+        box-shadow:0 4px 14px rgba(0,0,0,0.4);
+        ${dashed ? 'border:2px dashed white;' : 'border:2px solid white;'}
+      ">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="white">${iconPath}</svg>
+      </div>
+      ${
+        label
+          ? `<span style="
+              margin-top:4px;font-size:10px;font-weight:600;
+              padding:2px 8px;border-radius:9999px;color:white;
+              background:${color};white-space:nowrap;
+              box-shadow:0 2px 6px rgba(0,0,0,0.3);
+            ">${label}</span>`
+          : ''
+      }
+    </div>`;
+  return el;
+};
+
+const buildUserMarkerEl = (showRoute: boolean, heading: number) => {
+  const el = document.createElement('div');
+  el.style.pointerEvents = 'none';
+  if (showRoute) {
+    el.innerHTML = `
+      <div style="transform: rotate(${heading}deg);">
+        <div style="
+          width:30px;height:30px;border-radius:9999px;
+          background:${ROUTE_COLOR};border:2px solid white;
+          box-shadow:0 4px 12px rgba(0,0,0,0.5);
+          display:flex;align-items:center;justify-content:center;
+        ">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
+            <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/>
+          </svg>
+        </div>
+      </div>`;
+  } else {
+    el.innerHTML = `
+      <div style="position:relative;">
+        <div style="
+          width:20px;height:20px;border-radius:9999px;
+          background:${ROUTE_COLOR};border:2px solid white;
+          box-shadow:0 4px 12px rgba(0,0,0,0.5);
+        "></div>
+      </div>`;
+  }
+  return el;
+};
+
+const buildDriverMarkerEl = () => {
+  const el = document.createElement('div');
+  el.innerHTML = `
+    <div style="
+      width:40px;height:40px;border-radius:9999px;
+      background:hsl(142,71%,45%);border:3px solid white;
+      box-shadow:0 4px 14px rgba(0,0,0,0.5);
+      display:flex;align-items:center;justify-content:center;
+    ">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+        <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/>
+      </svg>
+    </div>`;
+  return el;
+};
+
+// ── Source/layer IDs ─────────────────────────────────────────────────────────
+const SRC_ROUTE = 'vm-route';
+const LYR_ROUTE = 'vm-route-line';
+const SRC_WALK = 'vm-walking';
+const LYR_WALK = 'vm-walking-line';
+const SRC_TRAIL = 'vm-trail';
+const LYR_TRAIL = 'vm-trail-line';
+const SRC_PREVIEW = 'vm-preview';
+const LYR_PREVIEW = 'vm-preview-line';
+
+const toLineGeoJSON = (coords: [number, number][]): GeoJSON.Feature<GeoJSON.LineString> => ({
+  type: 'Feature',
+  properties: {},
+  geometry: {
+    type: 'LineString',
+    // Convert [lat, lng] -> [lng, lat] for GeoJSON
+    coordinates: coords.map(([lat, lng]) => [lng, lat]),
+  },
+});
+
+const MapView = ({
+  children,
+  destination,
+  showRoute,
+  driverLocation,
+  driverLocationHistory,
   showDriverMarker,
-  onCenterLocation,
   isNavigating = false,
   waypointMarkers,
   walkingRoute,
@@ -82,17 +177,14 @@ const MapView = ({
   intermediateRouteWaypoints,
 }: MapViewProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<L.Map | null>(null);
-  const userMarker = useRef<L.Marker | null>(null);
-  const destMarker = useRef<L.Marker | null>(null);
-  const driverMarker = useRef<L.Marker | null>(null);
-  const routeLine = useRef<L.Polyline | null>(null);
-  const walkingLine = useRef<L.Polyline | null>(null);
-  const trailLine = useRef<L.Polyline | null>(null);
-  const driverTrailLine = useRef<L.Polyline | null>(null);
-  const waypointMarkersRef = useRef<L.Marker[]>([]);
-  const previewMarkersRef = useRef<L.Marker[]>([]);
-  const previewLineRef = useRef<L.Polyline | null>(null);
+  const map = useRef<mapboxgl.Map | null>(null);
+
+  const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const destMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const driverMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const waypointMarkersRef = useRef<mapboxgl.Marker[]>([]);
+  const previewMarkersRef = useRef<mapboxgl.Marker[]>([]);
+
   const watchIdRef = useRef<number | null>(null);
   const isFollowingRef = useRef(true);
 
@@ -101,29 +193,23 @@ const MapView = ({
   const [positionHistory, setPositionHistory] = useState<[number, number][]>([]);
   const [mapReady, setMapReady] = useState(false);
 
-  // Effective position: simulated overrides real ONLY when explicitly provided.
-  // Parent passes `simulatedPosition = null` until the user starts driving.
+  // simulatedPosition overrides real ONLY when explicitly provided
   const userLocation = simulatedPosition ?? rawUserLocation;
 
-  // Expose real location to parent
   useEffect(() => {
     if (rawUserLocation) onUserLocationUpdate?.(rawUserLocation);
   }, [rawUserLocation, onUserLocationUpdate]);
 
-  // Use routing hook for real driving routes (with optional intermediate stops)
+  // Routing — real driving routes via Mapbox Directions
   const { route } = useRouting({
     origin: userLocation,
-    destination: destination,
+    destination,
     intermediateWaypoints: intermediateRouteWaypoints,
     enabled: showRoute ?? false,
   });
 
-  // Expose route data to parent
-  useEffect(() => {
-    onRouteUpdate?.(route);
-  }, [route, onRouteUpdate]);
+  useEffect(() => { onRouteUpdate?.(route); }, [route, onRouteUpdate]);
 
-  // Calculate heading from position history, GPS heading, or simulated heading
   const getHeading = useCallback((): number => {
     if (simulatedHeading != null) return simulatedHeading;
     if (userHeading !== null) return userHeading;
@@ -137,64 +223,38 @@ const MapView = ({
     return 0;
   }, [simulatedHeading, userHeading, positionHistory]);
 
-  // Center map on user location with navigation offset
   const centerOnUser = useCallback(() => {
     if (!map.current || !userLocation) return;
     isFollowingRef.current = true;
+    map.current.easeTo({
+      center: [userLocation[1], userLocation[0]],
+      zoom: Math.max(map.current.getZoom(), 16),
+      duration: 600,
+    });
+  }, [userLocation]);
 
-    if (showRoute) {
-      // Navigation mode: position user in lower third, rotated to heading
-      const heading = getHeading();
-      const zoom = map.current.getZoom() || 17;
-      
-      // Calculate offset point: shift center ahead of user in travel direction
-      const offsetPx = map.current.getSize().y * 0.25; // 25% of screen height
-      const headingRad = (heading * Math.PI) / 180;
-      const point = map.current.project(userLocation, zoom);
-      // Move center ahead (negative because we want user below center)
-      point.x -= Math.sin(headingRad) * offsetPx;
-      point.y += Math.cos(headingRad) * offsetPx;
-      const offsetLatLng = map.current.unproject(point, zoom);
-
-      map.current.setView(offsetLatLng, Math.max(zoom, 16), { animate: true, duration: 0.5 });
-    } else {
-      map.current.setView(userLocation, 16, { animate: true });
-    }
-  }, [userLocation, showRoute, getHeading]);
-
-  // Zoom controls
   const zoomIn = useCallback(() => { map.current?.zoomIn(); }, []);
   const zoomOut = useCallback(() => { map.current?.zoomOut(); }, []);
 
-  // Stop following when user manually pans
-  useEffect(() => {
-    if (!map.current || !mapReady) return;
-    const m = map.current;
-    const onDragStart = () => { isFollowingRef.current = false; };
-    m.on('dragstart', onDragStart);
-    return () => { m.off('dragstart', onDragStart); };
-  }, [mapReady]);
-
-  // Initialize map
+  // ── Initialize map ────────────────────────────────────────────────────────
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
 
-    const initialCenter: [number, number] = [42.1401, -0.4087];
-
-    map.current = L.map(mapContainer.current, {
-      center: initialCenter,
-      zoom: 14,
-      zoomControl: false,
+    map.current = new mapboxgl.Map({
+      container: mapContainer.current,
+      style: MAPBOX_STYLE,
+      center: [-0.4087, 42.1401],
+      zoom: 13,
       attributionControl: false,
+      pitchWithRotate: false,
     });
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; OpenStreetMap &copy; CARTO',
-      maxZoom: 19,
-    }).addTo(map.current);
+    map.current.on('load', () => {
+      setMapReady(true);
+    });
 
-    L.control.attribution({ position: 'bottomleft', prefix: false }).addTo(map.current);
-    setMapReady(true);
+    // Stop following when user manually pans
+    map.current.on('dragstart', () => { isFollowingRef.current = false; });
 
     return () => {
       map.current?.remove();
@@ -202,7 +262,7 @@ const MapView = ({
     };
   }, []);
 
-  // Watch user location
+  // ── Watch user GPS ────────────────────────────────────────────────────────
   useEffect(() => {
     if (!mapReady) return;
 
@@ -214,11 +274,9 @@ const MapView = ({
       (position) => {
         const coords: [number, number] = [position.coords.latitude, position.coords.longitude];
         setRawUserLocation(coords);
-        
         if (position.coords.heading !== null && !isNaN(position.coords.heading)) {
           setUserHeading(position.coords.heading);
         }
-        
         setPositionHistory(prev => [...prev, coords].slice(-50));
       },
       (error) => {
@@ -236,302 +294,256 @@ const MapView = ({
     };
   }, [mapReady]);
 
-  // Update user marker + navigation camera follow
+  // ── User marker + auto-follow during navigation ───────────────────────────
   useEffect(() => {
     if (!map.current || !mapReady || !userLocation) return;
+    const m = map.current;
+    const heading = getHeading();
+    const el = buildUserMarkerEl(!!showRoute, heading);
 
-    const rotation = getHeading();
-
-    // Navigation mode: directional arrow icon
-    const markerHtml = showRoute 
-      ? `<div style="transform: rotate(${rotation}deg);">
-          <div class="w-7 h-7 rounded-full bg-primary border-2 border-white shadow-lg flex items-center justify-center" style="background: hsl(199,89%,48%);">
-            <svg class="w-4 h-4" fill="white" viewBox="0 0 24 24">
-              <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/>
-            </svg>
-          </div>
-        </div>`
-      : `<div class="relative">
-          <div class="w-5 h-5 rounded-full border-2 border-white shadow-lg" style="background: hsl(199,89%,48%);">
-            <div class="absolute inset-0 rounded-full animate-ping opacity-50" style="background: hsl(199,89%,48%);"></div>
-          </div>
-        </div>`;
-
-    const userIcon = L.divIcon({
-      className: 'user-location-marker',
-      html: markerHtml,
-      iconSize: showRoute ? [28, 28] : [20, 20],
-      iconAnchor: showRoute ? [14, 14] : [10, 10],
-    });
-
-    if (!userMarker.current) {
-      userMarker.current = L.marker(userLocation, { icon: userIcon }).addTo(map.current);
-      map.current.setView(userLocation, 15, { animate: true });
+    if (!userMarkerRef.current) {
+      userMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: 'center' })
+        .setLngLat([userLocation[1], userLocation[0]])
+        .addTo(m);
+      m.easeTo({ center: [userLocation[1], userLocation[0]], zoom: 15, duration: 600 });
     } else {
-      userMarker.current.setLatLng(userLocation);
-      userMarker.current.setIcon(userIcon);
+      userMarkerRef.current.setLngLat([userLocation[1], userLocation[0]]);
+      // Replace the marker element so heading/style updates
+      const cur = userMarkerRef.current.getElement();
+      cur.innerHTML = el.innerHTML;
     }
 
-    // Auto-follow in navigation mode
     if (showRoute && isFollowingRef.current) {
-      const heading = getHeading();
-      const zoom = map.current.getZoom() || 17;
-      const offsetPx = map.current.getSize().y * 0.25;
-      const headingRad = (heading * Math.PI) / 180;
-      const point = map.current.project(userLocation, zoom);
-      point.x -= Math.sin(headingRad) * offsetPx;
-      point.y += Math.cos(headingRad) * offsetPx;
-      const offsetLatLng = map.current.unproject(point, zoom);
-      map.current.setView(offsetLatLng, Math.max(zoom, 16), { animate: true, duration: 0.8 });
+      m.easeTo({
+        center: [userLocation[1], userLocation[0]],
+        zoom: Math.max(m.getZoom(), 16),
+        duration: 800,
+      });
     }
+  }, [userLocation, mapReady, showRoute, getHeading]);
 
-    // Trail line during navigation
-    if (showRoute && positionHistory.length > 1) {
-      if (trailLine.current) {
-        trailLine.current.setLatLngs(positionHistory);
-      } else {
-        trailLine.current = L.polyline(positionHistory, {
-          color: 'hsl(199, 89%, 48%)',
-          weight: 3,
-          opacity: 0.4,
-          dashArray: '5, 10',
-        }).addTo(map.current);
-      }
-    } else if (!showRoute && trailLine.current) {
-      trailLine.current.remove();
-      trailLine.current = null;
-    }
-  }, [userLocation, userHeading, positionHistory, mapReady, showRoute, getHeading]);
-
-  // Destination marker
+  // ── Trail line during navigation ──────────────────────────────────────────
   useEffect(() => {
     if (!map.current || !mapReady) return;
+    const m = map.current;
+
+    if (showRoute && positionHistory.length > 1) {
+      const data = toLineGeoJSON(positionHistory);
+      const src = m.getSource(SRC_TRAIL) as mapboxgl.GeoJSONSource | undefined;
+      if (src) {
+        src.setData(data);
+      } else {
+        m.addSource(SRC_TRAIL, { type: 'geojson', data });
+        m.addLayer({
+          id: LYR_TRAIL,
+          type: 'line',
+          source: SRC_TRAIL,
+          paint: {
+            'line-color': TRAIL_COLOR,
+            'line-width': 3,
+            'line-opacity': 0.4,
+            'line-dasharray': [2, 3],
+          },
+        });
+      }
+    } else {
+      if (m.getLayer(LYR_TRAIL)) m.removeLayer(LYR_TRAIL);
+      if (m.getSource(SRC_TRAIL)) m.removeSource(SRC_TRAIL);
+    }
+  }, [positionHistory, mapReady, showRoute]);
+
+  // ── Destination marker ────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!map.current || !mapReady) return;
+    const m = map.current;
 
     if (!destination) {
-      if (destMarker.current) { destMarker.current.remove(); destMarker.current = null; }
+      destMarkerRef.current?.remove();
+      destMarkerRef.current = null;
       return;
     }
-    if (!userLocation) return;
 
-    if (destMarker.current) destMarker.current.remove();
+    const el = buildMarkerEl(WAYPOINT_COLORS.final_destination, WAYPOINT_ICONS.final_destination);
+    if (destMarkerRef.current) {
+      destMarkerRef.current
+        .setLngLat([destination.lng, destination.lat])
+        .getElement().innerHTML = el.innerHTML;
+    } else {
+      destMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
+        .setLngLat([destination.lng, destination.lat])
+        .addTo(m);
+    }
 
-    const destIcon = L.divIcon({
-      className: 'destination-marker',
-      html: `<div class="w-8 h-8 rounded-full flex items-center justify-center shadow-lg" style="background: hsl(24,95%,53%);">
-        <svg class="w-4 h-4" fill="white" viewBox="0 0 24 24">
-          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
-        </svg>
-      </div>`,
-      iconSize: [32, 32],
-      iconAnchor: [16, 32],
-    });
-
-    destMarker.current = L.marker([destination.lat, destination.lng], { icon: destIcon })
-      .addTo(map.current);
-
-    if (!showRoute) {
-      const bounds = L.latLngBounds([userLocation, [destination.lat, destination.lng]]);
-      map.current.fitBounds(bounds, { padding: [80, 80] });
+    if (!showRoute && userLocation) {
+      const bounds = new mapboxgl.LngLatBounds()
+        .extend([userLocation[1], userLocation[0]])
+        .extend([destination.lng, destination.lat]);
+      m.fitBounds(bounds, { padding: 80, maxZoom: 15, duration: 600 });
     }
   }, [destination, userLocation, mapReady, showRoute]);
 
-  // Route drawing
+  // ── Driving route line (real Mapbox geometry, on road) ────────────────────
   useEffect(() => {
     if (!map.current || !mapReady) return;
+    const m = map.current;
 
-    if (!showRoute || !route) {
-      if (routeLine.current) { routeLine.current.remove(); routeLine.current = null; }
+    if (!showRoute || !route || route.coordinates.length === 0) {
+      if (m.getLayer(LYR_ROUTE)) m.removeLayer(LYR_ROUTE);
+      if (m.getSource(SRC_ROUTE)) m.removeSource(SRC_ROUTE);
       return;
     }
 
-    if (route.coordinates.length > 0) {
-      if (routeLine.current) {
-        routeLine.current.setLatLngs(route.coordinates);
-      } else {
-        routeLine.current = L.polyline(route.coordinates, {
-          color: 'hsl(199, 89%, 48%)',
-          weight: 6,
-          opacity: 1,
-          lineCap: 'round',
-          lineJoin: 'round',
-        }).addTo(map.current);
-      }
+    const data = toLineGeoJSON(route.coordinates);
+    const src = m.getSource(SRC_ROUTE) as mapboxgl.GeoJSONSource | undefined;
+    if (src) {
+      src.setData(data);
+    } else {
+      m.addSource(SRC_ROUTE, { type: 'geojson', data });
+      m.addLayer({
+        id: LYR_ROUTE,
+        type: 'line',
+        source: SRC_ROUTE,
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: {
+          'line-color': ROUTE_COLOR,
+          'line-width': 6,
+          'line-opacity': 0.95,
+        },
+      });
     }
   }, [route, showRoute, mapReady]);
 
-  // Walking route drawing (dashed, different color)
+  // ── Walking route (passenger → meeting point) ─────────────────────────────
   useEffect(() => {
     if (!map.current || !mapReady) return;
+    const m = map.current;
 
-    if (!walkingRoute) {
-      if (walkingLine.current) { walkingLine.current.remove(); walkingLine.current = null; }
+    if (!walkingRoute || walkingRoute.coordinates.length === 0) {
+      if (m.getLayer(LYR_WALK)) m.removeLayer(LYR_WALK);
+      if (m.getSource(SRC_WALK)) m.removeSource(SRC_WALK);
       return;
     }
 
-    if (walkingRoute.coordinates.length > 0) {
-      if (walkingLine.current) {
-        walkingLine.current.setLatLngs(walkingRoute.coordinates);
-      } else {
-        walkingLine.current = L.polyline(walkingRoute.coordinates, {
-          color: 'hsl(280, 70%, 55%)',
-          weight: 4,
-          opacity: 0.9,
-          dashArray: '8, 12',
-          lineCap: 'round',
-        }).addTo(map.current);
-      }
+    const data = toLineGeoJSON(walkingRoute.coordinates);
+    const src = m.getSource(SRC_WALK) as mapboxgl.GeoJSONSource | undefined;
+    if (src) {
+      src.setData(data);
+    } else {
+      m.addSource(SRC_WALK, { type: 'geojson', data });
+      m.addLayer({
+        id: LYR_WALK,
+        type: 'line',
+        source: SRC_WALK,
+        paint: {
+          'line-color': WALKING_COLOR,
+          'line-width': 4,
+          'line-opacity': 0.9,
+          'line-dasharray': [1, 2],
+        },
+      });
     }
   }, [walkingRoute, mapReady]);
 
-  // Waypoint markers (meeting point, pickup, dropoff, etc.)
+  // ── Waypoint markers (active trip) ────────────────────────────────────────
   useEffect(() => {
     if (!map.current || !mapReady) return;
+    const m = map.current;
 
-    // Clear existing waypoint markers
-    waypointMarkersRef.current.forEach(m => m.remove());
+    waypointMarkersRef.current.forEach(mk => mk.remove());
     waypointMarkersRef.current = [];
 
     if (!waypointMarkers?.length) return;
 
     for (const wp of waypointMarkers) {
-      const color = WAYPOINT_COLORS[wp.type] || 'hsl(199,89%,48%)';
+      const color = WAYPOINT_COLORS[wp.type] || ROUTE_COLOR;
       const iconPath = WAYPOINT_ICONS[wp.type] || WAYPOINT_ICONS.pickup;
-
-      const icon = L.divIcon({
-        className: 'waypoint-marker',
-        html: `<div class="flex flex-col items-center">
-          <div class="w-8 h-8 rounded-full flex items-center justify-center shadow-lg" style="background: ${color};">
-            <svg class="w-4 h-4" fill="white" viewBox="0 0 24 24">${iconPath}</svg>
-          </div>
-          <span class="text-[10px] font-medium mt-0.5 px-1.5 py-0.5 rounded-full shadow" style="background: ${color}; color: white; white-space: nowrap;">${wp.name}</span>
-        </div>`,
-        iconSize: [80, 48],
-        iconAnchor: [40, 8],
-      });
-
-      const marker = L.marker([wp.lat, wp.lng], { icon }).addTo(map.current);
+      const label = WAYPOINT_LABELS[wp.type] || wp.name;
+      const el = buildMarkerEl(color, iconPath, label);
+      const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
+        .setLngLat([wp.lng, wp.lat])
+        .addTo(m);
       waypointMarkersRef.current.push(marker);
     }
   }, [waypointMarkers, mapReady]);
 
-  // Preview waypoints (shown before accepting a match)
+  // ── Preview waypoints (before accepting match) ────────────────────────────
   useEffect(() => {
     if (!map.current || !mapReady) return;
+    const m = map.current;
 
-    previewMarkersRef.current.forEach(m => m.remove());
+    previewMarkersRef.current.forEach(mk => mk.remove());
     previewMarkersRef.current = [];
-    if (previewLineRef.current) { previewLineRef.current.remove(); previewLineRef.current = null; }
+    if (m.getLayer(LYR_PREVIEW)) m.removeLayer(LYR_PREVIEW);
+    if (m.getSource(SRC_PREVIEW)) m.removeSource(SRC_PREVIEW);
 
     if (!previewWaypoints?.length) return;
 
     const points: [number, number][] = [];
     for (const wp of previewWaypoints) {
-      const color = WAYPOINT_COLORS[wp.type] || 'hsl(199,89%,48%)';
+      const color = WAYPOINT_COLORS[wp.type] || ROUTE_COLOR;
       const iconPath = WAYPOINT_ICONS[wp.type] || WAYPOINT_ICONS.pickup;
-      points.push([wp.lat, wp.lng]);
-
-      const icon = L.divIcon({
-        className: 'preview-marker',
-        html: `<div class="flex flex-col items-center" style="opacity:0.8;">
-          <div class="w-7 h-7 rounded-full flex items-center justify-center shadow-lg" style="background: ${color}; border: 2px dashed white;">
-            <svg class="w-3.5 h-3.5" fill="white" viewBox="0 0 24 24">${iconPath}</svg>
-          </div>
-          <span class="text-[9px] font-medium mt-0.5 px-1 py-0.5 rounded-full shadow" style="background: ${color}; color: white; white-space: nowrap;">${wp.name}</span>
-        </div>`,
-        iconSize: [80, 44],
-        iconAnchor: [40, 8],
-      });
-
-      const marker = L.marker([wp.lat, wp.lng], { icon }).addTo(map.current);
+      const label = WAYPOINT_LABELS[wp.type] || wp.name;
+      const el = buildMarkerEl(color, iconPath, label, true);
+      const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
+        .setLngLat([wp.lng, wp.lat])
+        .addTo(m);
       previewMarkersRef.current.push(marker);
+      points.push([wp.lat, wp.lng]);
     }
 
-    // Draw dashed preview line between points
     if (points.length >= 2) {
-      previewLineRef.current = L.polyline(points, {
-        color: 'hsl(24, 95%, 53%)',
-        weight: 4,
-        opacity: 0.6,
-        dashArray: '10, 8',
-      }).addTo(map.current);
+      m.addSource(SRC_PREVIEW, { type: 'geojson', data: toLineGeoJSON(points) });
+      m.addLayer({
+        id: LYR_PREVIEW,
+        type: 'line',
+        source: SRC_PREVIEW,
+        paint: {
+          'line-color': 'hsl(24, 95%, 53%)',
+          'line-width': 4,
+          'line-opacity': 0.6,
+          'line-dasharray': [2, 2],
+        },
+      });
     }
 
-    // Fit bounds to show preview + user location
     if (userLocation) {
-      const allPoints = [userLocation, ...points];
-      map.current.fitBounds(L.latLngBounds(allPoints.map(p => [p[0], p[1]])), { padding: [60, 60], maxZoom: 14 });
+      const bounds = new mapboxgl.LngLatBounds().extend([userLocation[1], userLocation[0]]);
+      points.forEach(([lat, lng]) => bounds.extend([lng, lat]));
+      m.fitBounds(bounds, { padding: 60, maxZoom: 14, duration: 600 });
     }
   }, [previewWaypoints, mapReady, userLocation]);
 
+  // ── Driver marker (passenger view) ────────────────────────────────────────
   useEffect(() => {
-    if (!showRoute) {
-      if (routeLine.current && map.current) { routeLine.current.remove(); routeLine.current = null; }
-      if (destMarker.current && map.current) { destMarker.current.remove(); destMarker.current = null; }
-      if (walkingLine.current && map.current) { walkingLine.current.remove(); walkingLine.current = null; }
-      if (map.current && userLocation) {
-        isFollowingRef.current = true;
-        map.current.setView(userLocation, 15, { animate: true });
-      }
+    if (!map.current || !mapReady) return;
+    const m = map.current;
+
+    if (!showDriverMarker || !driverLocation) {
+      driverMarkerRef.current?.remove();
+      driverMarkerRef.current = null;
+      return;
     }
-  }, [showRoute, userLocation]);
 
-  // Driver location (passenger view)
-  useEffect(() => {
-    if (!map.current || !mapReady || !showDriverMarker || !driverLocation) return;
-
-    const driverCoords: [number, number] = [driverLocation.latitude, driverLocation.longitude];
-
-    if (!driverMarker.current) {
-      const driverIcon = L.divIcon({
-        className: 'driver-location-marker',
-        html: `<div class="relative">
-          <div class="w-10 h-10 rounded-full border-3 border-white shadow-xl flex items-center justify-center" style="background: hsl(142,71%,45%);">
-            <svg class="w-5 h-5" fill="white" viewBox="0 0 24 24">
-              <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/>
-            </svg>
-            <div class="absolute inset-0 rounded-full animate-ping opacity-30" style="background: hsl(142,71%,45%);"></div>
-          </div>
-        </div>`,
-        iconSize: [40, 40],
-        iconAnchor: [20, 20],
-      });
-
-      driverMarker.current = L.marker(driverCoords, { icon: driverIcon })
-        .addTo(map.current)
-        .bindPopup('Conductor en camino');
+    const lngLat: [number, number] = [driverLocation.longitude, driverLocation.latitude];
+    if (!driverMarkerRef.current) {
+      driverMarkerRef.current = new mapboxgl.Marker({ element: buildDriverMarkerEl(), anchor: 'center' })
+        .setLngLat(lngLat)
+        .setPopup(new mapboxgl.Popup({ offset: 24 }).setText('Conductor en camino'))
+        .addTo(m);
     } else {
-      driverMarker.current.setLatLng(driverCoords);
-    }
-
-    if (driverLocationHistory && driverLocationHistory.length > 1) {
-      if (driverTrailLine.current) {
-        driverTrailLine.current.setLatLngs(driverLocationHistory);
-      } else {
-        driverTrailLine.current = L.polyline(driverLocationHistory, {
-          color: 'hsl(142, 71%, 45%)',
-          weight: 4,
-          opacity: 0.7,
-          dashArray: '8, 12',
-        }).addTo(map.current);
-      }
+      driverMarkerRef.current.setLngLat(lngLat);
     }
 
     if (userLocation) {
-      const bounds = L.latLngBounds([userLocation, driverCoords]);
-      if (destination) bounds.extend([destination.lat, destination.lng]);
-      map.current.fitBounds(bounds, { padding: [60, 60], maxZoom: 16 });
+      const bounds = new mapboxgl.LngLatBounds()
+        .extend([userLocation[1], userLocation[0]])
+        .extend(lngLat);
+      if (destination) bounds.extend([destination.lng, destination.lat]);
+      m.fitBounds(bounds, { padding: 60, maxZoom: 16, duration: 600 });
     }
   }, [driverLocation, driverLocationHistory, showDriverMarker, mapReady, userLocation, destination]);
 
-  // Cleanup driver marker
-  useEffect(() => {
-    if (!showDriverMarker) {
-      if (driverMarker.current) { driverMarker.current.remove(); driverMarker.current = null; }
-      if (driverTrailLine.current) { driverTrailLine.current.remove(); driverTrailLine.current = null; }
-    }
-  }, [showDriverMarker]);
-
-  // Expose map controls
+  // ── Expose map controls to window for the bottom-bar zoom buttons ─────────
   useEffect(() => {
     (window as any).__mapCenterOnUser = centerOnUser;
     (window as any).__mapZoomIn = zoomIn;
@@ -545,8 +557,11 @@ const MapView = ({
 
   return (
     <div className="relative w-full h-full overflow-hidden bg-background">
+      {/* Map canvas — fully interactive */}
       <div ref={mapContainer} className="absolute inset-0 z-0" />
+      {/* Decorative gradient — non-interactive */}
       <div className="absolute inset-0 pointer-events-none z-10 bg-gradient-to-t from-background/60 via-transparent to-background/40" />
+      {/* Children (overlays) — wrapper non-interactive; children opt-in via pointer-events-auto */}
       <div className="absolute inset-0 z-20 pointer-events-none">
         {children}
       </div>

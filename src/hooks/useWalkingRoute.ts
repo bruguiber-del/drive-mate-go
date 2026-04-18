@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { RouteData } from './useRouting';
+import { MAPBOX_TOKEN } from '@/lib/mapboxConfig';
 
-const OSRM_WALKING = 'https://router.project-osrm.org/route/v1/foot';
+const MAPBOX_WALKING = 'https://api.mapbox.com/directions/v5/mapbox/walking';
 
 interface UseWalkingRouteOptions {
   origin: [number, number] | null;
@@ -23,13 +24,15 @@ export function useWalkingRoute({ origin, destination, enabled }: UseWalkingRout
     try {
       const originStr = `${origin[1]},${origin[0]}`;
       const destStr = `${destination.lng},${destination.lat}`;
-      const url = `${OSRM_WALKING}/${originStr};${destStr}?overview=full&geometries=geojson`;
+      const url =
+        `${MAPBOX_WALKING}/${originStr};${destStr}` +
+        `?geometries=geojson&overview=full&access_token=${MAPBOX_TOKEN}`;
 
       const res = await fetch(url);
       if (!res.ok) throw new Error('Walking route failed');
 
       const data = await res.json();
-      if (data.code !== 'Ok' || !data.routes?.length) throw new Error('No walking route');
+      if (!data.routes?.length) throw new Error('No walking route');
 
       const r = data.routes[0];
       const coordinates: [number, number][] = r.geometry.coordinates.map(
