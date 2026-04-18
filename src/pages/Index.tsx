@@ -195,13 +195,37 @@ const Index = () => {
     ];
   }, [modals.showMatchPopup, simulatedPassenger]);
 
-  // ── Derived: active map destination (waypoints take priority) ──────────────
+  // ── Derived: active map destination ──────────────────────────────────────
+  // When a trip is active, the route's *destination* is always the final
+  // destination; pickups/meeting points are inserted as intermediate stops so
+  // the polyline goes: driver → pickup → final_destination.
+  const finalDestinationWaypoint = useMemo(
+    () => routeWaypoints.find(w => w.type === 'final_destination'),
+    [routeWaypoints],
+  );
+
   const mapDestination = useMemo(() => {
+    if (finalDestinationWaypoint) {
+      return {
+        lat: finalDestinationWaypoint.lat,
+        lng: finalDestinationWaypoint.lng,
+        name: finalDestinationWaypoint.name,
+      };
+    }
     if (currentTarget) {
       return { lat: currentTarget.lat, lng: currentTarget.lng, name: currentTarget.name };
     }
     return nav.destinationCoords;
-  }, [currentTarget, nav.destinationCoords]);
+  }, [finalDestinationWaypoint, currentTarget, nav.destinationCoords]);
+
+  // Intermediate stops to insert in the routing call (everything except final)
+  const intermediateRouteWaypoints = useMemo(
+    () =>
+      routeWaypoints
+        .filter(w => w.type !== 'final_destination')
+        .map(w => ({ lat: w.lat, lng: w.lng })),
+    [routeWaypoints],
+  );
 
   // ── Derived: waypoint markers for map ──────────────────────────────────────
   const mapWaypointMarkers = useMemo(
@@ -260,6 +284,7 @@ const Index = () => {
         showDriverMarker={showDriverOnMap}
         isNavigating={nav.isNavigating}
         waypointMarkers={mapWaypointMarkers}
+        intermediateRouteWaypoints={intermediateRouteWaypoints}
         walkingRoute={passengerWalkingEnabled ? walkingRouteData : null}
         onRouteUpdate={nav.setCurrentRoute}
         simulatedPosition={nav.enableNavSim ? simulatedPosition : null}
