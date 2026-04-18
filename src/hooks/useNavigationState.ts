@@ -25,6 +25,9 @@ interface UseNavigationStateReturn {
   destination: string;
   destinationCoords: DestinationCoords | null;
   isNavigating: boolean;
+  /** True only after the user explicitly taps "Iniciar conducción" */
+  hasStartedDriving: boolean;
+  /** True when nav simulation should actually animate the user marker */
   enableNavSim: boolean;
   currentRoute: RouteData | null;
 
@@ -34,6 +37,8 @@ interface UseNavigationStateReturn {
 
   // Setters / actions
   handleNavigate: (dest: string, coords: { lng: number; lat: number }) => void;
+  /** Begin moving the user marker along the route (driving simulation) */
+  startDriving: () => void;
   handleStopNavigation: () => void;
   setCurrentRoute: (route: RouteData | null) => void;
 }
