@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { User, X, Check, Star, PawPrint, Baby, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { COMMISSION } from '@/lib/priceCalculator';
 
 interface MatchPopupProps {
   isOpen: boolean;
@@ -111,7 +112,7 @@ const MatchPopup = ({ isOpen, onAccept, onReject, isDriverView = true, matchData
               </div>
 
               {/* Stats - Compact */}
-              <div className="flex gap-2 mb-3">
+              <div className="flex gap-2 mb-2">
                 <div className="flex-1 bg-muted rounded-lg p-2 text-center">
                   <p className="text-sm font-bold text-foreground">+{data.detourMinutes} min</p>
                   <p className="text-xs text-muted-foreground">desvío</p>
@@ -122,12 +123,37 @@ const MatchPopup = ({ isOpen, onAccept, onReject, isDriverView = true, matchData
                 </div>
                 <div className={`flex-1 ${isDriverView ? 'bg-success/20' : 'bg-secondary/20'} rounded-lg p-2 text-center`}>
                   <p className={`text-sm font-bold ${isDriverView ? 'text-success' : 'text-secondary'}`}>
-                    {isDriverView ? '+' : ''}{data.compensation.toFixed(2)}€
+                    {isDriverView
+                      ? `+${data.compensation.toFixed(2)}€`
+                      : `${(data.compensation * (1 + COMMISSION)).toFixed(2)}€`}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {isDriverView ? 'compensación' : 'precio'}
+                    {isDriverView ? 'recibes' : 'precio total'}
                   </p>
                 </div>
+              </div>
+
+              {/* Price breakdown — cost-sharing transparency */}
+              <div className="mb-3 px-2 py-1.5 rounded-lg bg-muted/40 border border-border/40">
+                {isDriverView ? (
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-muted-foreground">Compensación por compartir gastos</span>
+                    <span className="font-medium text-foreground">{data.compensation.toFixed(2)}€</span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-muted-foreground">Compartido con conductor</span>
+                      <span className="font-medium text-foreground">{data.compensation.toFixed(2)}€</span>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] mt-0.5">
+                      <span className="text-muted-foreground">Comisión VIMATCH ({Math.round(COMMISSION * 100)}%)</span>
+                      <span className="font-medium text-foreground">
+                        {(data.compensation * COMMISSION).toFixed(2)}€
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Actions - Compact */}

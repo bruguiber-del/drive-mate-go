@@ -25,6 +25,9 @@ interface UseNavigationStateReturn {
   destination: string;
   destinationCoords: DestinationCoords | null;
   isNavigating: boolean;
+  /** True only after the user explicitly taps "Iniciar conducción" */
+  hasStartedDriving: boolean;
+  /** True when nav simulation should actually animate the user marker */
   enableNavSim: boolean;
   currentRoute: RouteData | null;
 
@@ -34,6 +37,8 @@ interface UseNavigationStateReturn {
 
   // Setters / actions
   handleNavigate: (dest: string, coords: { lng: number; lat: number }) => void;
+  /** Begin moving the user marker along the route (driving simulation) */
+  startDriving: () => void;
   handleStopNavigation: () => void;
   setCurrentRoute: (route: RouteData | null) => void;
 }
@@ -50,8 +55,16 @@ export function useNavigationState({
   const [destination, setDestination] = useState('');
   const [destinationCoords, setDestinationCoords] = useState<DestinationCoords | null>(null);
   const [isNavigating, setIsNavigating] = useState(false);
-  const [enableNavSim, setEnableNavSim] = useState(false);
+  /**
+   * `hasStartedDriving` decouples "I have a route" from "I am moving".
+   * It must be true before we animate the user marker, so that picking a
+   * destination only draws the route — it does NOT teleport the user along it.
+   */
+  const [hasStartedDriving, setHasStartedDriving] = useState(false);
   const [currentRoute, setCurrentRoute] = useState<RouteData | null>(null);
+
+  // The simulation should only run when the user has explicitly started driving.
+  const enableNavSim = isNavigating && hasStartedDriving;
 
   // ── handleNavigate ──────────────────────────────────────────────────────────
   const handleNavigate = useCallback(
@@ -59,27 +72,24 @@ export function useNavigationState({
       setDestination(dest);
       setDestinationCoords({ ...coords, name: dest });
       setIsNavigating(true);
-      setEnableNavSim(true);
+      // NOTE: do NOT auto-start the driving simulation. The user must tap
+      // "Iniciar conducción" to actually move along the route.
+      setHasStartedDriving(false);
       setFinalDestination({ lat: coords.lat, lng: coords.lng, name: dest });
-      toast({ title: 'Navegación iniciada', description: `Ruta hacia ${dest}`, duration: 500 });
+      toast({ title: 'Ruta calculada', description: `Hacia ${dest}. Pulsa "Iniciar" cuando arranques.`, duration: 1500 });
     },
     [setFinalDestination, toast],
   );
 
+  const startDriving = useCallback(() => {
+    setHasStartedDriving(true);
+    toast({ title: 'En marcha', description: 'Navegación activa', duration: 800 });
+  }, [toast]);
+
   // ── handleStopNavigation ────────────────────────────────────────────────────
-  /**
-   * Stops navigation and resets all local state.
-   *
-   * Also calls `cancelTrip` from useWaypoints to ensure waypoints are cleared
-   * immediately, preventing a one-frame stale destination flicker in MapView
-   * (which would occur if the waypoint hook cleared asynchronously).
-   *
-   * `onStop` is called last so parent state resets happen after local state is
-   * already consistent.
-   */
   const handleStopNavigation = useCallback(() => {
     setIsNavigating(false);
-    setEnableNavSim(false);
+    setHasStartedDriving(false);
     setDestination('');
     setDestinationCoords(null);
     setCurrentRoute(null);
@@ -101,10 +111,12 @@ export function useNavigationState({
     destination,
     destinationCoords,
     isNavigating,
+    hasStartedDriving,
     enableNavSim,
     currentRoute,
     dynamicETA,
     handleNavigate,
+    startDriving,
     handleStopNavigation,
     setCurrentRoute,
   };
