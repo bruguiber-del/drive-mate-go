@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { calculatePrice } from '@/lib/priceCalculator';
 
 export interface SimulatedPassenger {
   id: string;
@@ -28,6 +29,17 @@ function randomInRange(min: number, max: number) {
   return Math.random() * (max - min) + min;
 }
 
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
 function generatePassenger(userLat: number, userLng: number): SimulatedPassenger {
   // Generate pickup within 0.5-3km of driver
   const offsetLat = randomInRange(-0.015, 0.015);
@@ -35,6 +47,20 @@ function generatePassenger(userLat: number, userLng: number): SimulatedPassenger
   const dest = DESTINATIONS[Math.floor(Math.random() * DESTINATIONS.length)];
   const name = PASSENGER_NAMES[Math.floor(Math.random() * PASSENGER_NAMES.length)];
   const distM = Math.sqrt(offsetLat ** 2 + offsetLng ** 2) * 111000;
+
+  // Trip distance from passenger origin to destination
+  const tripDistanceKm = haversineKm(userLat + offsetLat, userLng + offsetLng, dest.lat, dest.lng);
+  // Detour ≈ pickup distance from driver, both ways
+  const detourKm = (distM / 1000) * 2;
+  const detourMinutes = Math.ceil(randomInRange(2, 8));
+
+  // Use VIMATCH formula. Simulation assumes 1 passenger for the popup price.
+  const pricing = calculatePrice({
+    distanceKm: tripDistanceKm,
+    passengerCount: 1,
+    detourKm,
+    traffic: 'normal',
+  });
 
   return {
     id: crypto.randomUUID(),
@@ -46,9 +72,10 @@ function generatePassenger(userLat: number, userLng: number): SimulatedPassenger
       name: `Calle ${Math.floor(randomInRange(1, 50))}`,
     },
     destination: { lat: dest.lat, lng: dest.lng, name: dest.name },
-    detourMinutes: Math.ceil(randomInRange(2, 8)),
+    detourMinutes,
     pickupDistance: distM < 1000 ? `${Math.round(distM)}m` : `${(distM / 1000).toFixed(1)}km`,
-    compensation: parseFloat(randomInRange(3, 12).toFixed(2)),
+    // `compensation` = what the driver receives (basePrice, no commission)
+    compensation: pricing.driverIncome,
     acceptsPets: Math.random() > 0.6,
     hasChildSeat: Math.random() > 0.8,
     doorToDoor: Math.random() > 0.5,
