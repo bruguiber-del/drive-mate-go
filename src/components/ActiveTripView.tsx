@@ -40,13 +40,15 @@ const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onP
   if (!isOpen) return null;
 
   return (
+    // Wrapper is non-interactive so it never blocks map drag/zoom/pinch.
+    // Only the inner card re-enables pointer events.
     <motion.div
       initial={{ y: 100, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       exit={{ y: 100, opacity: 0 }}
-      className="fixed bottom-0 left-0 right-0 z-40 p-3 pb-6"
+      className="fixed bottom-0 left-0 right-0 z-40 p-3 pb-6 pointer-events-none"
     >
-      <div className="glass-strong rounded-xl overflow-hidden max-w-md mx-auto">
+      <div className="glass-strong rounded-xl overflow-hidden max-w-md mx-auto pointer-events-auto">
         {/* Compact Trip Header */}
         <div className={`px-3 py-2 ${userRole === 'driver' ? 'bg-primary/20' : 'bg-secondary/20'}`}>
           <div className="flex items-center justify-between">
