@@ -322,14 +322,18 @@ const MapView = ({
       cur.innerHTML = el.innerHTML;
     }
 
-    if (showRoute && isFollowingRef.current) {
+    // Auto-follow during navigation: keep the user centered with bearing/pitch
+    // unless the user has manually panned (isFollowingRef = false).
+    if (isNavigating && isFollowingRef.current) {
       m.easeTo({
         center: [userLocation[1], userLocation[0]],
+        bearing: simulatedHeading ?? heading ?? 0,
+        pitch: 45,
         zoom: Math.max(m.getZoom(), 16),
-        duration: 800,
+        duration: 500,
       });
     }
-  }, [userLocation, mapReady, showRoute, getHeading]);
+  }, [userLocation, mapReady, showRoute, isNavigating, simulatedHeading, getHeading]);
 
   // ── Trail line during navigation ──────────────────────────────────────────
   useEffect(() => {
@@ -396,9 +400,16 @@ const MapView = ({
     if (!map.current || !mapReady) return;
     const m = map.current;
 
-    if (!showRoute || !route || route.coordinates.length === 0) {
+    // Only clear the route layer when navigation stops; never wipe it just
+    // because the route is momentarily recalculating (e.g. preview waypoints
+    // appearing). Require >2 points so we never draw a degenerate straight line.
+    if (!showRoute) {
       if (m.getLayer(LYR_ROUTE)) m.removeLayer(LYR_ROUTE);
       if (m.getSource(SRC_ROUTE)) m.removeSource(SRC_ROUTE);
+      return;
+    }
+    if (!route || route.coordinates.length <= 2) {
+      // Keep any previously-drawn route in place; do not redraw with too few points.
       return;
     }
 

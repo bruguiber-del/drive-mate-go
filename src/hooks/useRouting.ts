@@ -43,6 +43,8 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
       }
       points.push(`${destination.lng},${destination.lat}`);
 
+      console.log('Routing URL points:', points);
+
       const url =
         `${MAPBOX_DIRECTIONS}/${points.join(';')}` +
         `?geometries=geojson&overview=full&access_token=${MAPBOX_TOKEN}`;
@@ -68,12 +70,8 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
     } catch (err) {
       console.error('Routing error:', err);
       setError(err instanceof Error ? err.message : 'Unknown error');
-      // Fallback: straight line so the UI still draws something.
-      setRoute({
-        coordinates: [origin, [destination.lat, destination.lng]],
-        distance: 0,
-        duration: 0,
-      });
+      // No straight-line fallback — leave route null so the map draws nothing.
+      setRoute(null);
     } finally {
       setIsLoading(false);
     }
