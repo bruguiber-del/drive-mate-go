@@ -23,7 +23,15 @@ const DESTINATIONS = [
   { name: 'Monzón', lat: 41.9108, lng: 0.1933 },
   { name: 'Sabiñánigo', lat: 42.5186, lng: -0.3647 },
   { name: 'Teruel', lat: 40.3456, lng: -1.1065 },
+  { name: 'Calatayud', lat: 41.3564, lng: -1.6432 },
+  { name: 'Fraga', lat: 41.5197, lng: 0.3467 },
+  { name: 'Lleida', lat: 41.6176, lng: 0.6200 },
 ];
+
+// Default fallback coords used by MapView when GPS is unavailable.
+// Don't generate passengers if we're sitting on these — wait for real GPS.
+const FALLBACK_LAT = 42.1401;
+const FALLBACK_LNG = -0.4087;
 
 function randomInRange(min: number, max: number) {
   return Math.random() * (max - min) + min;
@@ -41,12 +49,13 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
 }
 
 function generatePassenger(userLat: number, userLng: number): SimulatedPassenger {
-  // Generate pickup within 0.5-3km of driver
-  const offsetLat = randomInRange(-0.015, 0.015);
-  const offsetLng = randomInRange(-0.015, 0.015);
+  // Generate pickup within ~2km of driver. Lng is stretched slightly more than
+  // lat at Spanish latitudes, so we use a wider lng span.
+  const offsetLat = randomInRange(-0.020, 0.020);
+  const offsetLng = randomInRange(-0.025, 0.025);
   const dest = DESTINATIONS[Math.floor(Math.random() * DESTINATIONS.length)];
   const name = PASSENGER_NAMES[Math.floor(Math.random() * PASSENGER_NAMES.length)];
-  const distM = Math.sqrt(offsetLat ** 2 + offsetLng ** 2) * 111000;
+  const distM = haversineKm(userLat, userLng, userLat + offsetLat, userLng + offsetLng) * 1000;
 
   // Trip distance from passenger origin to destination
   const tripDistanceKm = haversineKm(userLat + offsetLat, userLng + offsetLng, dest.lat, dest.lng);
@@ -95,7 +104,16 @@ export function usePassengerSimulation({ enabled, userLocation, intervalMs = 800
 
   const generateNew = useCallback(() => {
     if (!userLocation) return;
-    const passenger = generatePassenger(userLocation[0], userLocation[1]);
+    const [lat, lng] = userLocation;
+    // Block generation while we're on the hardcoded fallback coords —
+    // otherwise passengers spawn in Huesca regardless of where the driver is.
+    if (
+      Math.abs(lat - FALLBACK_LAT) < 1e-4 &&
+      Math.abs(lng - FALLBACK_LNG) < 1e-4
+    ) {
+      return;
+    }
+    const passenger = generatePassenger(lat, lng);
     setPendingPassengers(prev => [...prev.slice(-4), passenger]);
     setCurrentPassenger(passenger);
   }, [userLocation]);

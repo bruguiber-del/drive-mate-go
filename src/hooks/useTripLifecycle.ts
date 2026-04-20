@@ -117,18 +117,18 @@ export function useTripLifecycle({
       };
 
       if (!simulatedPassenger.doorToDoor) {
-        // Midpoint between driver and passenger as meeting point
-        const mpLat = realUserLocation
-          ? (realUserLocation[0] + pickup.lat) / 2
-          : pickup.lat;
-        const mpLng = realUserLocation
-          ? (realUserLocation[1] + pickup.lng) / 2
-          : pickup.lng;
-        const mp: MeetingPoint = { lat: mpLat, lng: mpLng, name: 'Punto de encuentro' };
+        // Without door-to-door, the passenger walks to the driver. The pickup
+        // point IS the passenger's origin (a real address) — never compute a
+        // mathematical midpoint, which can land in the middle of a field.
+        const mp: MeetingPoint = {
+          lat: pickup.lat,
+          lng: pickup.lng,
+          name: `Recogida — ${pickup.name}`,
+        };
 
         setMeetingPoint(mp);
         addMeetingPointWaypoints(mp, dropoff);
-        toast({ title: '¡Viaje aceptado!', description: 'Dirígete al punto de encuentro.' });
+        toast({ title: '¡Viaje aceptado!', description: 'Dirígete al punto de recogida.' });
       } else {
         addPassengerWaypoints(pickup, dropoff);
         toast({ title: '¡Viaje aceptado!', description: 'Dirígete a recoger al pasajero.' });
