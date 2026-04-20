@@ -116,6 +116,19 @@ const Index = () => {
     tripEndRef.current = trip.handleTripEnd;
   }, [trip.handleTripEnd]);
 
+  // Listen for GPS permission denial and surface a toast
+  useEffect(() => {
+    const handler = () => {
+      toast({
+        title: 'Ubicación denegada',
+        description: 'Activa los permisos de ubicación para usar VIMATCH correctamente.',
+        variant: 'destructive',
+      });
+    };
+    window.addEventListener('vimatch:gps-denied', handler);
+    return () => window.removeEventListener('vimatch:gps-denied', handler);
+  }, [toast]);
+
   // Unified flag — single source of truth for passenger simulation gating
   const passengerSimEnabled =
     isDriverMode && nav.isNavigating && !trip.showActiveTrip && !modals.showMatchPopup;
