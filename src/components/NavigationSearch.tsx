@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, Navigation, X, Clock, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { MAPBOX_TOKEN } from '@/lib/mapboxConfig';
 
 interface NavigationSearchProps {
   isOpen: boolean;
@@ -27,10 +28,8 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate }: NavigationSearchProps
   const [isSearching, setIsSearching] = useState(false);
   const [selectedResult, setSelectedResult] = useState<SearchResult | null>(null);
 
-  const mapboxToken = localStorage.getItem('vimatch_mapbox_token');
-
   useEffect(() => {
-    if (!destination.trim() || !mapboxToken) {
+    if (!destination.trim()) {
       setSearchResults([]);
       return;
     }
@@ -39,7 +38,7 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate }: NavigationSearchProps
       setIsSearching(true);
       try {
         const response = await fetch(
-          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(destination)}.json?access_token=${mapboxToken}&country=es&limit=5&language=es`
+          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(destination)}.json?access_token=${MAPBOX_TOKEN}&country=es&limit=5&language=es`
         );
         const data = await response.json();
         if (data.features) {
@@ -57,7 +56,7 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate }: NavigationSearchProps
     }, 300);
 
     return () => clearTimeout(timeoutId);
-  }, [destination, mapboxToken]);
+  }, [destination]);
 
   const handleSelectResult = (result: SearchResult) => {
     setSelectedResult(result);

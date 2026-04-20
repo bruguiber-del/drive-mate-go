@@ -79,11 +79,16 @@ const Index = () => {
   });
 
   // ── Passenger simulation ────────────────────────────────────────────────────
+  // Forward-declared via ref to use trip.showActiveTrip without TDZ.
+  const showActiveTripRef = useRef(false);
+  const passengerSimEnabledEarly =
+    isDriverMode && nav.isNavigating && !modals.showMatchPopup && !showActiveTripRef.current;
+
   const {
     currentPassenger: simulatedPassenger,
     dismissCurrent: dismissSimPassenger,
   } = usePassengerSimulation({
-    enabled: isDriverMode && nav.isNavigating && !modals.showMatchPopup,
+    enabled: passengerSimEnabledEarly,
     userLocation: realUserLocation,
     intervalMs: 12000,
   });
@@ -111,9 +116,14 @@ const Index = () => {
     tripEndRef.current = trip.handleTripEnd;
   }, [trip.handleTripEnd]);
 
-  // Disable passenger simulation while a trip is active (after `trip` exists)
+  // Unified flag — single source of truth for passenger simulation gating
   const passengerSimEnabled =
     isDriverMode && nav.isNavigating && !trip.showActiveTrip && !modals.showMatchPopup;
+
+  // Keep the ref in sync so the early gate above also sees showActiveTrip
+  useEffect(() => {
+    showActiveTripRef.current = trip.showActiveTrip;
+  }, [trip.showActiveTrip]);
 
   // ── Navigation simulation ──────────────────────────────────────────────────
   const { simulatedPosition, simulatedHeading } = useNavigationSimulation({
@@ -137,7 +147,7 @@ const Index = () => {
     !isDoorToDoor;
 
   const { route: walkingRouteData } = useWalkingRoute({
-    origin: null,
+    origin: realUserLocation,
     destination: trip.meetingPoint
       ? { lat: trip.meetingPoint.lat, lng: trip.meetingPoint.lng }
       : null,

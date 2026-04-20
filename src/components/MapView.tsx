@@ -270,6 +270,12 @@ const MapView = ({
       navigator.geolocation.clearWatch(watchIdRef.current);
     }
 
+    if (!('geolocation' in navigator)) {
+      console.warn('Geolocation API not available');
+      setRawUserLocation([42.1401, -0.4087]);
+      return;
+    }
+
     watchIdRef.current = navigator.geolocation.watchPosition(
       (position) => {
         const coords: [number, number] = [position.coords.latitude, position.coords.longitude];
@@ -281,9 +287,12 @@ const MapView = ({
       },
       (error) => {
         console.error('Geolocation error:', error);
+        if (error.code === error.PERMISSION_DENIED) {
+          window.dispatchEvent(new CustomEvent('vimatch:gps-denied'));
+        }
         setRawUserLocation(prev => prev ?? [42.1401, -0.4087]);
       },
-      { enableHighAccuracy: true, timeout: 5000, maximumAge: 2000 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 2000 }
     );
 
     return () => {
@@ -464,7 +473,19 @@ const MapView = ({
         .addTo(m);
       waypointMarkersRef.current.push(marker);
     }
-  }, [waypointMarkers, mapReady]);
+
+    // Auto-fit map to show user + first pickup/meeting point waypoint
+    const pickupWp = waypointMarkers.find(
+      w => w.type === 'pickup' || w.type === 'meeting_point',
+    );
+    if (pickupWp && userLocation) {
+      const bounds = new mapboxgl.LngLatBounds()
+        .extend([userLocation[1], userLocation[0]])
+        .extend([pickupWp.lng, pickupWp.lat]);
+      m.fitBounds(bounds, { padding: 80, maxZoom: 15, duration: 800 });
+      isFollowingRef.current = false;
+    }
+  }, [waypointMarkers, mapReady, userLocation]);
 
   // ── Preview waypoints (before accepting match) ────────────────────────────
   useEffect(() => {
