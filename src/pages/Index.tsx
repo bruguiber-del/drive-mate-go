@@ -452,7 +452,7 @@ const Index = () => {
         {/* "Iniciar conducción" CTA — only when route exists but user hasn't moved yet */}
         {nav.isNavigating && !nav.hasStartedDriving && !trip.showActiveTrip && (
           <motion.div
-            className="absolute bottom-24 left-4 right-4 pointer-events-auto z-20"
+            className="absolute bottom-28 left-4 right-4 pointer-events-auto z-20"
             initial={{ y: 30, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 30, opacity: 0 }}

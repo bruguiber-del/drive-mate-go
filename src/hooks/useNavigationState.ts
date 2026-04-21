@@ -76,7 +76,7 @@ export function useNavigationState({
       // "Iniciar conducción" to actually move along the route.
       setHasStartedDriving(false);
       setFinalDestination({ lat: coords.lat, lng: coords.lng, name: dest });
-      toast({ title: 'Ruta calculada', description: `Hacia ${dest}. Pulsa "Iniciar" cuando arranques.`, duration: 1500 });
+      toast({ title: `Ruta hacia ${dest}`, duration: 1500 });
     },
     [setFinalDestination, toast],
   );

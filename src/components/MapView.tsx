@@ -278,6 +278,7 @@ const MapView = ({
 
     watchIdRef.current = navigator.geolocation.watchPosition(
       (position) => {
+        console.log('GPS position:', position.coords);
         const coords: [number, number] = [position.coords.latitude, position.coords.longitude];
         setRawUserLocation(coords);
         if (position.coords.heading !== null && !isNaN(position.coords.heading)) {
