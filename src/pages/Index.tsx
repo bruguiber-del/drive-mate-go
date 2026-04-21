@@ -138,12 +138,11 @@ const Index = () => {
     showActiveTripRef.current = trip.showActiveTrip;
   }, [trip.showActiveTrip]);
 
-  // ── Navigation simulation ──────────────────────────────────────────────────
-  const { simulatedPosition, simulatedHeading } = useNavigationSimulation({
-    routeCoordinates: nav.currentRoute?.coordinates ?? null,
-    enabled: nav.enableNavSim && nav.isNavigating,
-    speedMultiplier: 20,
-  });
+  // ── Navigation simulation DISABLED for real-GPS MVP ────────────────────────
+  // The user marker must move only when the real device GPS reports a new
+  // position. We keep the values as null to avoid any synthetic movement.
+  const simulatedPosition = null;
+  const simulatedHeading = null;
 
   // ── Driver real-time tracking ──────────────────────────────────────────────
   const { driverLocation, locationHistory } = useDriverTracking({
