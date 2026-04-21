@@ -522,6 +522,7 @@ const MapView = ({
   useEffect(() => {
     if (!map.current || !mapReady) return;
     const m = map.current;
+    if (!m.isStyleLoaded()) return;
 
     previewMarkersRef.current.forEach(mk => mk.remove());
     previewMarkersRef.current = [];
