@@ -483,6 +483,7 @@ const MapView = ({
   useEffect(() => {
     if (!map.current || !mapReady) return;
     const m = map.current;
+    console.log('waypointMarkers received:', waypointMarkers);
 
     waypointMarkersRef.current.forEach(mk => mk.remove());
     waypointMarkersRef.current = [];
@@ -500,16 +501,16 @@ const MapView = ({
       waypointMarkersRef.current.push(marker);
     }
 
-    // Auto-fit to show user + ALL waypoints (pickup → dropoff → final)
+    // Auto-fit to show user + ALL waypoints
     const hasPickup = waypointMarkers.some(
       w => w.type === 'pickup' || w.type === 'meeting_point',
     );
-    if (hasPickup) {
+    if (hasPickup && userLocation) {
       const bounds = new mapboxgl.LngLatBounds();
-      if (userLocation) bounds.extend([userLocation[1], userLocation[0]]);
+      bounds.extend([userLocation[1], userLocation[0]]);
       waypointMarkers.forEach(wp => bounds.extend([wp.lng, wp.lat]));
       if (!bounds.isEmpty()) {
-        m.fitBounds(bounds, { padding: 80, maxZoom: 13, duration: 800 });
+        m.fitBounds(bounds, { padding: 100, maxZoom: 13, duration: 1000 });
         isFollowingRef.current = false;
       }
     }
