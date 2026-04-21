@@ -384,8 +384,8 @@ const Index = () => {
           </motion.div>
         )}
 
-        {/* Navigation info chip during active trip */}
-        {trip.showActiveTrip && hasPassenger && (
+        {/* Driver navigation chip */}
+        {trip.showActiveTrip && trip.activeTripRole === 'driver' && hasPassenger && (
           <motion.div
             className="absolute top-20 left-4 right-4 pointer-events-none z-10"
             initial={{ opacity: 0, y: -10 }}
