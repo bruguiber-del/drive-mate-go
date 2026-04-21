@@ -309,8 +309,8 @@ const Index = () => {
         intermediateRouteWaypoints={intermediateRouteWaypoints}
         walkingRoute={passengerWalkingEnabled ? walkingRouteData : null}
         onRouteUpdate={nav.setCurrentRoute}
-        simulatedPosition={nav.enableNavSim ? simulatedPosition : null}
-        simulatedHeading={nav.enableNavSim ? simulatedHeading : null}
+        simulatedPosition={null}
+        simulatedHeading={null}
         onUserLocationUpdate={setRealUserLocation}
         previewWaypoints={previewWaypoints}
       >
