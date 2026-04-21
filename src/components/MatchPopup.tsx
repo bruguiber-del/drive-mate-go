@@ -176,8 +176,4 @@ const MatchPopup = ({ isOpen, onAccept, onReject, isDriverView = true, matchData
   );
 };
 
-// dummy to keep diff anchor
-  );
-};
-
 export default MatchPopup;
