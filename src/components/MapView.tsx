@@ -500,16 +500,18 @@ const MapView = ({
       waypointMarkersRef.current.push(marker);
     }
 
-    // Auto-fit map to show user + first pickup/meeting point waypoint
-    const pickupWp = waypointMarkers.find(
+    // Auto-fit to show user + ALL waypoints (pickup → dropoff → final)
+    const hasPickup = waypointMarkers.some(
       w => w.type === 'pickup' || w.type === 'meeting_point',
     );
-    if (pickupWp && userLocation) {
-      const bounds = new mapboxgl.LngLatBounds()
-        .extend([userLocation[1], userLocation[0]])
-        .extend([pickupWp.lng, pickupWp.lat]);
-      m.fitBounds(bounds, { padding: 80, maxZoom: 15, duration: 800 });
-      isFollowingRef.current = false;
+    if (hasPickup) {
+      const bounds = new mapboxgl.LngLatBounds();
+      if (userLocation) bounds.extend([userLocation[1], userLocation[0]]);
+      waypointMarkers.forEach(wp => bounds.extend([wp.lng, wp.lat]));
+      if (!bounds.isEmpty()) {
+        m.fitBounds(bounds, { padding: 80, maxZoom: 13, duration: 800 });
+        isFollowingRef.current = false;
+      }
     }
   }, [waypointMarkers, mapReady, userLocation]);
 
@@ -538,8 +540,13 @@ const MapView = ({
       points.push([wp.lat, wp.lng]);
     }
 
-    if (points.length >= 2) {
-      m.addSource(SRC_PREVIEW, { type: 'geojson', data: toLineGeoJSON(points) });
+    // Build full preview line: user → pickup → dropoff
+    const linePoints: [number, number][] = userLocation
+      ? [userLocation, ...points]
+      : points;
+
+    if (linePoints.length >= 2) {
+      m.addSource(SRC_PREVIEW, { type: 'geojson', data: toLineGeoJSON(linePoints) });
       m.addLayer({
         id: LYR_PREVIEW,
         type: 'line',
@@ -547,7 +554,7 @@ const MapView = ({
         paint: {
           'line-color': 'hsl(24, 95%, 53%)',
           'line-width': 4,
-          'line-opacity': 0.6,
+          'line-opacity': 0.7,
           'line-dasharray': [2, 2],
         },
       });
@@ -556,7 +563,8 @@ const MapView = ({
     if (userLocation) {
       const bounds = new mapboxgl.LngLatBounds().extend([userLocation[1], userLocation[0]]);
       points.forEach(([lat, lng]) => bounds.extend([lng, lat]));
-      m.fitBounds(bounds, { padding: 60, maxZoom: 14, duration: 600 });
+      m.fitBounds(bounds, { padding: 80, maxZoom: 13, duration: 700 });
+      isFollowingRef.current = false;
     }
   }, [previewWaypoints, mapReady, userLocation]);
 

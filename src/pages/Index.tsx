@@ -300,7 +300,7 @@ const Index = () => {
     <div className="h-screen w-screen overflow-hidden">
       <MapView
         destination={mapDestination}
-        showRoute={nav.isNavigating}
+        showRoute={nav.isNavigating || (trip.showActiveTrip && trip.activeTripRole === 'driver')}
         driverLocation={driverLocation}
         driverLocationHistory={locationHistory}
         showDriverMarker={showDriverOnMap}
