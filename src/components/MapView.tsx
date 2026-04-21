@@ -193,8 +193,12 @@ const MapView = ({
   const [positionHistory, setPositionHistory] = useState<[number, number][]>([]);
   const [mapReady, setMapReady] = useState(false);
 
-  // simulatedPosition overrides real ONLY when explicitly provided
-  const userLocation = simulatedPosition ?? rawUserLocation;
+  // The marker position is driven by real GPS (rawUserLocation) by default.
+  // simulatedPosition only takes over once the user explicitly starts driving
+  // (the parent only passes a non-null simulatedPosition when enableNavSim).
+  const markerLocation = simulatedPosition ?? rawUserLocation;
+  // userLocation (used for routing/fitBounds) prefers real GPS too.
+  const userLocation = rawUserLocation ?? simulatedPosition;
 
   useEffect(() => {
     if (rawUserLocation) onUserLocationUpdate?.(rawUserLocation);
@@ -306,35 +310,45 @@ const MapView = ({
 
   // ── User marker + auto-follow during navigation ───────────────────────────
   useEffect(() => {
-    if (!map.current || !mapReady || !userLocation) return;
-    const m = map.current;
-    const heading = getHeading();
-    const el = buildUserMarkerEl(!!showRoute, heading);
+    console.log('[marker effect] markerLocation=', markerLocation, 'rawUserLocation=', rawUserLocation, 'simulatedPosition=', simulatedPosition, 'mapReady=', mapReady);
+    if (!map.current || !markerLocation) return;
 
-    if (!userMarkerRef.current) {
-      userMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: 'center' })
-        .setLngLat([userLocation[1], userLocation[0]])
-        .addTo(m);
-      m.easeTo({ center: [userLocation[1], userLocation[0]], zoom: 15, duration: 600 });
+    const tryMount = () => {
+      if (!map.current) return;
+      const m = map.current;
+      const heading = getHeading();
+      const el = buildUserMarkerEl(!!showRoute, heading);
+
+      if (!userMarkerRef.current) {
+        userMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: 'center' })
+          .setLngLat([markerLocation[1], markerLocation[0]])
+          .addTo(m);
+        m.easeTo({ center: [markerLocation[1], markerLocation[0]], zoom: 15, duration: 600 });
+      } else {
+        userMarkerRef.current.setLngLat([markerLocation[1], markerLocation[0]]);
+        const cur = userMarkerRef.current.getElement();
+        cur.innerHTML = el.innerHTML;
+      }
+
+      if (isNavigating && isFollowingRef.current) {
+        m.easeTo({
+          center: [markerLocation[1], markerLocation[0]],
+          bearing: simulatedHeading ?? heading ?? 0,
+          pitch: 45,
+          zoom: Math.max(m.getZoom(), 16),
+          duration: 500,
+        });
+      }
+    };
+
+    if (mapReady) {
+      tryMount();
     } else {
-      userMarkerRef.current.setLngLat([userLocation[1], userLocation[0]]);
-      // Replace the marker element so heading/style updates
-      const cur = userMarkerRef.current.getElement();
-      cur.innerHTML = el.innerHTML;
+      // Map not ready yet — retry shortly so the marker doesn't get stuck waiting.
+      const id = setTimeout(tryMount, 500);
+      return () => clearTimeout(id);
     }
-
-    // Auto-follow during navigation: keep the user centered with bearing/pitch
-    // unless the user has manually panned (isFollowingRef = false).
-    if (isNavigating && isFollowingRef.current) {
-      m.easeTo({
-        center: [userLocation[1], userLocation[0]],
-        bearing: simulatedHeading ?? heading ?? 0,
-        pitch: 45,
-        zoom: Math.max(m.getZoom(), 16),
-        duration: 500,
-      });
-    }
-  }, [userLocation, mapReady, showRoute, isNavigating, simulatedHeading, getHeading]);
+  }, [rawUserLocation, simulatedPosition, markerLocation, mapReady, showRoute, isNavigating, simulatedHeading, getHeading]);
 
   // ── Trail line during navigation ──────────────────────────────────────────
   useEffect(() => {
