@@ -357,6 +357,7 @@ const MapView = ({
   useEffect(() => {
     if (!map.current || !mapReady) return;
     const m = map.current;
+    if (!m.isStyleLoaded()) return;
 
     if (showRoute && positionHistory.length > 1) {
       const data = toLineGeoJSON(positionHistory);
@@ -417,17 +418,14 @@ const MapView = ({
   useEffect(() => {
     if (!map.current || !mapReady) return;
     const m = map.current;
+    if (!m.isStyleLoaded()) return;
 
-    // Only clear the route layer when navigation stops; never wipe it just
-    // because the route is momentarily recalculating (e.g. preview waypoints
-    // appearing). Require >2 points so we never draw a degenerate straight line.
     if (!showRoute) {
       if (m.getLayer(LYR_ROUTE)) m.removeLayer(LYR_ROUTE);
       if (m.getSource(SRC_ROUTE)) m.removeSource(SRC_ROUTE);
       return;
     }
     if (!route || route.coordinates.length <= 2) {
-      // Keep any previously-drawn route in place; do not redraw with too few points.
       return;
     }
 
@@ -455,6 +453,7 @@ const MapView = ({
   useEffect(() => {
     if (!map.current || !mapReady) return;
     const m = map.current;
+    if (!m.isStyleLoaded()) return;
 
     if (!walkingRoute || walkingRoute.coordinates.length === 0) {
       if (m.getLayer(LYR_WALK)) m.removeLayer(LYR_WALK);
