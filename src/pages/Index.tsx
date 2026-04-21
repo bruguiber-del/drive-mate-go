@@ -27,7 +27,7 @@ import { useDriverTracking } from '@/hooks/useDriverTracking';
 import { useWaypoints, type TripLeg } from '@/hooks/useWaypoints';
 import { useWalkingRoute } from '@/hooks/useWalkingRoute';
 import { usePassengerSimulation } from '@/hooks/usePassengerSimulation';
-import { useNavigationSimulation } from '@/hooks/useNavigationSimulation';
+// useNavigationSimulation removed: real GPS only for MVP
 import { useTripLifecycle } from '@/hooks/useTripLifecycle';
 import { useNavigationState } from '@/hooks/useNavigationState';
 import { useUIModals } from '@/hooks/useUIModals';
@@ -138,12 +138,11 @@ const Index = () => {
     showActiveTripRef.current = trip.showActiveTrip;
   }, [trip.showActiveTrip]);
 
-  // ── Navigation simulation ──────────────────────────────────────────────────
-  const { simulatedPosition, simulatedHeading } = useNavigationSimulation({
-    routeCoordinates: nav.currentRoute?.coordinates ?? null,
-    enabled: nav.enableNavSim && nav.isNavigating,
-    speedMultiplier: 20,
-  });
+  // ── Navigation simulation DISABLED for real-GPS MVP ────────────────────────
+  // The user marker must move only when the real device GPS reports a new
+  // position. We keep the values as null to avoid any synthetic movement.
+  const simulatedPosition = null;
+  const simulatedHeading = null;
 
   // ── Driver real-time tracking ──────────────────────────────────────────────
   const { driverLocation, locationHistory } = useDriverTracking({
@@ -310,8 +309,8 @@ const Index = () => {
         intermediateRouteWaypoints={intermediateRouteWaypoints}
         walkingRoute={passengerWalkingEnabled ? walkingRouteData : null}
         onRouteUpdate={nav.setCurrentRoute}
-        simulatedPosition={nav.enableNavSim ? simulatedPosition : null}
-        simulatedHeading={nav.enableNavSim ? simulatedHeading : null}
+        simulatedPosition={null}
+        simulatedHeading={null}
         onUserLocationUpdate={setRealUserLocation}
         previewWaypoints={previewWaypoints}
       >
