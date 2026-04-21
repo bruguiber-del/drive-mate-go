@@ -46,22 +46,13 @@ const MatchPopup = ({ isOpen, onAccept, onReject, isDriverView = true, matchData
     <AnimatePresence>
       {isOpen && (
         <>
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-background/60 backdrop-blur-sm z-40"
-            onClick={onReject}
-          />
-
-          {/* Popup - Compact version */}
+          {/* Popup floats over the map without dimming it — map stays fully visible & interactive */}
           <motion.div
             initial={{ scale: 0.9, opacity: 0, y: 30 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.9, opacity: 0, y: 30 }}
             transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-            className="fixed left-4 right-4 bottom-24 z-50 max-w-sm mx-auto"
+            className="fixed left-4 right-4 bottom-6 z-50 max-w-sm mx-auto"
           >
             <div className="glass-strong rounded-2xl p-4 shadow-float border border-primary/30">
               {/* Header + User Info - Combined compact */}
@@ -182,6 +173,10 @@ const MatchPopup = ({ isOpen, onAccept, onReject, isDriverView = true, matchData
         </>
       )}
     </AnimatePresence>
+  );
+};
+
+// dummy to keep diff anchor
   );
 };
 
