@@ -242,10 +242,13 @@ const Index = () => {
 
   // Intermediate stops to insert in the routing call (everything except final)
   const intermediateRouteWaypoints = useMemo(
-    () =>
-      routeWaypoints
+    () => {
+      const wps = routeWaypoints
         .filter(w => w.type !== 'final_destination')
-        .map(w => ({ lat: w.lat, lng: w.lng })),
+        .map(w => ({ lat: w.lat, lng: w.lng }));
+      console.log('intermediateRouteWaypoints:', wps, 'routeWaypoints:', routeWaypoints);
+      return wps;
+    },
     [routeWaypoints],
   );
 

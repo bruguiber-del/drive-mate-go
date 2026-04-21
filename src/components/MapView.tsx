@@ -256,6 +256,9 @@ const MapView = ({
     map.current.on('load', () => {
       setMapReady(true);
     });
+    map.current.on('style.load', () => {
+      setMapReady(true);
+    });
 
     // Stop following when user manually pans
     map.current.on('dragstart', () => { isFollowingRef.current = false; });
