@@ -63,8 +63,9 @@ export function useNavigationState({
   const [hasStartedDriving, setHasStartedDriving] = useState(false);
   const [currentRoute, setCurrentRoute] = useState<RouteData | null>(null);
 
-  // The simulation should only run when the user has explicitly started driving.
-  const enableNavSim = isNavigating && hasStartedDriving;
+  // Simulation disabled for real-GPS MVP. The marker only moves when the
+  // device GPS reports a new position via watchPosition.
+  const enableNavSim = false;
 
   // ── handleNavigate ──────────────────────────────────────────────────────────
   const handleNavigate = useCallback(
