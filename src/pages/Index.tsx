@@ -277,11 +277,13 @@ const Index = () => {
   }, [toast]);
 
   const handleMatchAcceptAndClose = useCallback(() => {
+    setShowPreview(false);
     modals.closeMatchPopup();
     trip.handleMatchAccept();
   }, [modals, trip]);
 
   const handleMatchReject = useCallback(() => {
+    setShowPreview(false);
     modals.closeMatchPopup();
     dismissSimPassenger();
     toast({ title: 'Solicitud rechazada', description: 'Seguirás recibiendo nuevas solicitudes' });
