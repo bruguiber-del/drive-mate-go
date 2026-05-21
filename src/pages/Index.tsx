@@ -52,6 +52,7 @@ const Index = () => {
   const [isDoorToDoor, setIsDoorToDoor] = useState(false);
   const [hasActivePassengerSearch, setHasActivePassengerSearch] = useState(false);
   const [realUserLocation, setRealUserLocation] = useState<[number, number] | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
 
   // ── Modal / section visibility ──────────────────────────────────────────────
   const modals = useUIModals();
