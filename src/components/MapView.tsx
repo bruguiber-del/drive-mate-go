@@ -249,9 +249,25 @@ const MapView = ({
       style: MAPBOX_STYLE,
       center: [-0.4087, 42.1401],
       zoom: 13,
+      pitch: 0,
+      bearing: 0,
+      antialias: true,
       attributionControl: false,
       pitchWithRotate: false,
     });
+
+    map.current.addControl(
+      new mapboxgl.NavigationControl({
+        showCompass: true,
+        showZoom: false,
+        visualizePitch: true,
+      }),
+      'top-right',
+    );
+    map.current.addControl(
+      new mapboxgl.ScaleControl({ maxWidth: 100, unit: 'metric' }),
+      'bottom-left',
+    );
 
     map.current.on('load', () => {
       setMapReady(true);
