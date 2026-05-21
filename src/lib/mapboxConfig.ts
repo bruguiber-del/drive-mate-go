@@ -3,4 +3,4 @@ export const MAPBOX_TOKEN =
   'pk.eyJ1IjoiYnJ1bm82MSIsImEiOiJjbWpoMzA3OGQxZThzM2dzaGFubXN6bnp0In0.46c8NI7GQHeC4WpsoPw9rQ';
 
 // Google-Maps-like streets style.
-export const MAPBOX_STYLE = 'mapbox://styles/mapbox/streets-v12';
+export const MAPBOX_STYLE = 'mapbox://styles/mapbox/navigation-night-v1';
