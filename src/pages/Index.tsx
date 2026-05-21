@@ -179,6 +179,7 @@ const Index = () => {
     ) {
       prevPassengerIdRef.current = simulatedPassenger.id;
       modals.openMatchPopup();
+      setShowPreview(true);
     }
   }, [simulatedPassenger, passengerSimEnabled, modals]);
 
@@ -203,7 +204,7 @@ const Index = () => {
 
   // ── Derived: preview waypoints shown on map during match popup ─────────────
   const previewWaypoints = useMemo(() => {
-    if (!modals.showMatchPopup || !simulatedPassenger) return undefined;
+    if (!showPreview || !simulatedPassenger) return undefined;
     return [
       {
         lat: simulatedPassenger.origin.lat,
@@ -218,7 +219,7 @@ const Index = () => {
         name: simulatedPassenger.destination.name,
       },
     ];
-  }, [modals.showMatchPopup, simulatedPassenger]);
+  }, [showPreview, simulatedPassenger]);
 
   // ── Derived: active map destination ──────────────────────────────────────
   // When a trip is active, the route's *destination* is always the final
