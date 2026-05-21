@@ -5,6 +5,16 @@ export interface RouteData {
   coordinates: [number, number][]; // [lat, lng] for consistency with previous API
   distance: number; // meters
   duration: number; // seconds
+  steps?: Array<{
+    instruction: string;
+    distance: number;
+    duration: number;
+    maneuver: {
+      type: string;
+      modifier?: string;
+      location: [number, number];
+    };
+  }>;
 }
 
 interface UseRoutingOptions {
