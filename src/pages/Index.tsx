@@ -52,6 +52,7 @@ const Index = () => {
   const [isDoorToDoor, setIsDoorToDoor] = useState(false);
   const [hasActivePassengerSearch, setHasActivePassengerSearch] = useState(false);
   const [realUserLocation, setRealUserLocation] = useState<[number, number] | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
 
   // ── Modal / section visibility ──────────────────────────────────────────────
   const modals = useUIModals();
@@ -91,6 +92,8 @@ const Index = () => {
     enabled: passengerSimEnabledEarly,
     userLocation: realUserLocation,
     intervalMs: 12000,
+    driverRoute: nav.currentRoute?.coordinates ?? null,
+    driverDestination: nav.destinationCoords,
   });
 
   // ── Trip lifecycle ──────────────────────────────────────────────────────────
@@ -176,6 +179,7 @@ const Index = () => {
     ) {
       prevPassengerIdRef.current = simulatedPassenger.id;
       modals.openMatchPopup();
+      setShowPreview(true);
     }
   }, [simulatedPassenger, passengerSimEnabled, modals]);
 
@@ -200,7 +204,7 @@ const Index = () => {
 
   // ── Derived: preview waypoints shown on map during match popup ─────────────
   const previewWaypoints = useMemo(() => {
-    if (!modals.showMatchPopup || !simulatedPassenger) return undefined;
+    if (!showPreview || !simulatedPassenger) return undefined;
     return [
       {
         lat: simulatedPassenger.origin.lat,
@@ -215,7 +219,7 @@ const Index = () => {
         name: simulatedPassenger.destination.name,
       },
     ];
-  }, [modals.showMatchPopup, simulatedPassenger]);
+  }, [showPreview, simulatedPassenger]);
 
   // ── Derived: active map destination ──────────────────────────────────────
   // When a trip is active, the route's *destination* is always the final
@@ -273,11 +277,13 @@ const Index = () => {
   }, [toast]);
 
   const handleMatchAcceptAndClose = useCallback(() => {
+    setShowPreview(false);
     modals.closeMatchPopup();
     trip.handleMatchAccept();
   }, [modals, trip]);
 
   const handleMatchReject = useCallback(() => {
+    setShowPreview(false);
     modals.closeMatchPopup();
     dismissSimPassenger();
     toast({ title: 'Solicitud rechazada', description: 'Seguirás recibiendo nuevas solicitudes' });

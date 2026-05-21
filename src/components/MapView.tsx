@@ -249,9 +249,25 @@ const MapView = ({
       style: MAPBOX_STYLE,
       center: [-0.4087, 42.1401],
       zoom: 13,
+      pitch: 0,
+      bearing: 0,
+      antialias: true,
       attributionControl: false,
       pitchWithRotate: false,
     });
+
+    map.current.addControl(
+      new mapboxgl.NavigationControl({
+        showCompass: true,
+        showZoom: false,
+        visualizePitch: true,
+      }),
+      'top-right',
+    );
+    map.current.addControl(
+      new mapboxgl.ScaleControl({ maxWidth: 100, unit: 'metric' }),
+      'bottom-left',
+    );
 
     map.current.on('load', () => {
       setMapReady(true);
@@ -518,7 +534,17 @@ const MapView = ({
     }
   }, [waypointMarkers, mapReady, userLocation]);
 
-  // ── Preview waypoints (before accepting match) ────────────────────────────
+  // ── Google-Maps-like 3D camera when navigating ────────────────────────────
+  useEffect(() => {
+    if (!map.current || !mapReady) return;
+    if (isNavigating) {
+      map.current.easeTo({ pitch: 60, zoom: 17, duration: 800 });
+    } else {
+      map.current.easeTo({ pitch: 0, zoom: 13, duration: 600 });
+    }
+  }, [isNavigating, mapReady]);
+
+  // ── Preview waypoints (before accepting match) — real road route ──────────
   useEffect(() => {
     if (!map.current || !mapReady) return;
     const m = map.current;
@@ -531,7 +557,6 @@ const MapView = ({
 
     if (!previewWaypoints?.length) return;
 
-    const points: [number, number][] = [];
     for (const wp of previewWaypoints) {
       const color = WAYPOINT_COLORS[wp.type] || ROUTE_COLOR;
       const iconPath = WAYPOINT_ICONS[wp.type] || WAYPOINT_ICONS.pickup;
@@ -541,33 +566,56 @@ const MapView = ({
         .setLngLat([wp.lng, wp.lat])
         .addTo(m);
       previewMarkersRef.current.push(marker);
-      points.push([wp.lat, wp.lng]);
     }
 
-    // Build full preview line: user → pickup → dropoff
-    const linePoints: [number, number][] = userLocation
-      ? [userLocation, ...points]
-      : points;
+    if (userLocation && previewWaypoints.length >= 2) {
+      const pickup = previewWaypoints[0];
+      const dropoff = previewWaypoints[1];
+      const points = [
+        `${userLocation[1]},${userLocation[0]}`,
+        `${pickup.lng},${pickup.lat}`,
+        `${dropoff.lng},${dropoff.lat}`,
+      ].join(';');
 
-    if (linePoints.length >= 2) {
-      m.addSource(SRC_PREVIEW, { type: 'geojson', data: toLineGeoJSON(linePoints) });
-      m.addLayer({
-        id: LYR_PREVIEW,
-        type: 'line',
-        source: SRC_PREVIEW,
-        paint: {
-          'line-color': 'hsl(24, 95%, 53%)',
-          'line-width': 4,
-          'line-opacity': 0.7,
-          'line-dasharray': [2, 2],
-        },
-      });
-    }
+      fetch(
+        `https://api.mapbox.com/directions/v5/mapbox/driving/${points}` +
+          `?geometries=geojson&overview=full&access_token=${MAPBOX_TOKEN}`,
+      )
+        .then(r => r.json())
+        .then(data => {
+          if (!data.routes?.length || !map.current) return;
+          const mm = map.current;
+          if (!mm.isStyleLoaded()) return;
+          const geojson: GeoJSON.Feature<GeoJSON.LineString> = {
+            type: 'Feature',
+            properties: {},
+            geometry: data.routes[0].geometry,
+          };
+          const src = mm.getSource(SRC_PREVIEW) as mapboxgl.GeoJSONSource | undefined;
+          if (src) {
+            src.setData(geojson);
+          } else {
+            mm.addSource(SRC_PREVIEW, { type: 'geojson', data: geojson });
+            mm.addLayer({
+              id: LYR_PREVIEW,
+              type: 'line',
+              source: SRC_PREVIEW,
+              paint: {
+                'line-color': 'hsl(24, 95%, 53%)',
+                'line-width': 4,
+                'line-opacity': 0.75,
+                'line-dasharray': [2, 2],
+              },
+            });
+          }
+        })
+        .catch(() => {});
 
-    if (userLocation) {
-      const bounds = new mapboxgl.LngLatBounds().extend([userLocation[1], userLocation[0]]);
-      points.forEach(([lat, lng]) => bounds.extend([lng, lat]));
-      m.fitBounds(bounds, { padding: 80, maxZoom: 13, duration: 700 });
+      const bounds = new mapboxgl.LngLatBounds();
+      bounds.extend([userLocation[1], userLocation[0]]);
+      bounds.extend([pickup.lng, pickup.lat]);
+      bounds.extend([dropoff.lng, dropoff.lat]);
+      m.fitBounds(bounds, { padding: 80, maxZoom: 13, duration: 800 });
       isFollowingRef.current = false;
     }
   }, [previewWaypoints, mapReady, userLocation]);
