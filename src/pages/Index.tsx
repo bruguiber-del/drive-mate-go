@@ -303,6 +303,12 @@ const Index = () => {
 
   const showDriverOnMap = trip.showActiveTrip && trip.activeTripRole === 'passenger';
 
+  // ── Current navigation step (turn-by-turn) ──────────────────────────────────
+  const currentStep = useMemo(() => {
+    if (!nav.currentRoute?.steps?.length || !realUserLocation) return null;
+    return nav.currentRoute.steps[0];
+  }, [nav.currentRoute, realUserLocation]);
+
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
