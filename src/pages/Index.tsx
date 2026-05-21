@@ -92,6 +92,8 @@ const Index = () => {
     enabled: passengerSimEnabledEarly,
     userLocation: realUserLocation,
     intervalMs: 12000,
+    driverRoute: nav.currentRoute?.coordinates ?? null,
+    driverDestination: nav.destinationCoords,
   });
 
   // ── Trip lifecycle ──────────────────────────────────────────────────────────
