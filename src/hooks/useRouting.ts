@@ -5,6 +5,16 @@ export interface RouteData {
   coordinates: [number, number][]; // [lat, lng] for consistency with previous API
   distance: number; // meters
   duration: number; // seconds
+  steps?: Array<{
+    instruction: string;
+    distance: number;
+    duration: number;
+    maneuver: {
+      type: string;
+      modifier?: string;
+      location: [number, number];
+    };
+  }>;
 }
 
 interface UseRoutingOptions {
@@ -47,7 +57,9 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
 
       const url =
         `${MAPBOX_DIRECTIONS}/${points.join(';')}` +
-        `?geometries=geojson&overview=full&access_token=${MAPBOX_TOKEN}`;
+        `?geometries=geojson&overview=full&steps=true` +
+        `&voice_instructions=true&banner_instructions=true` +
+        `&language=es&access_token=${MAPBOX_TOKEN}`;
 
       const response = await fetch(url);
       if (!response.ok) throw new Error('Failed to fetch route');
@@ -62,10 +74,22 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
         (coord: [number, number]) => [coord[1], coord[0]] as [number, number]
       );
 
+      const steps = routeData.legs?.[0]?.steps?.map((s: any) => ({
+        instruction: s.maneuver?.instruction ?? '',
+        distance: s.distance,
+        duration: s.duration,
+        maneuver: {
+          type: s.maneuver?.type ?? '',
+          modifier: s.maneuver?.modifier,
+          location: s.maneuver?.location,
+        },
+      })) ?? [];
+
       setRoute({
         coordinates,
         distance: routeData.distance,
         duration: routeData.duration,
+        steps,
       });
     } catch (err) {
       console.error('Routing error:', err);

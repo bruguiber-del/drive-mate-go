@@ -303,6 +303,12 @@ const Index = () => {
 
   const showDriverOnMap = trip.showActiveTrip && trip.activeTripRole === 'passenger';
 
+  // ── Current navigation step (turn-by-turn) ──────────────────────────────────
+  const currentStep = useMemo(() => {
+    if (!nav.currentRoute?.steps?.length || !realUserLocation) return null;
+    return nav.currentRoute.steps[0];
+  }, [nav.currentRoute, realUserLocation]);
+
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -414,6 +420,31 @@ const Index = () => {
                   <span className="text-[10px] text-muted-foreground ml-1">{nav.dynamicETA.distanceKm} km</span>
                 </div>
               )}
+            </div>
+          </motion.div>
+        )}
+
+        {/* Turn-by-turn navigation banner */}
+        {nav.isNavigating && nav.hasStartedDriving && currentStep && (
+          <motion.div
+            className="absolute top-20 left-4 right-4 pointer-events-none z-10"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <div className="glass-strong rounded-xl px-4 py-3 flex items-center gap-3 border border-primary/30 bg-background/90">
+              <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center shrink-0">
+                <Navigation className="w-5 h-5 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-foreground leading-tight">
+                  {currentStep.instruction}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  En {currentStep.distance < 1000
+                    ? `${Math.round(currentStep.distance)}m`
+                    : `${(currentStep.distance / 1000).toFixed(1)}km`}
+                </p>
+              </div>
             </div>
           </motion.div>
         )}
