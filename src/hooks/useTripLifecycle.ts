@@ -140,12 +140,22 @@ export function useTripLifecycle({
       setActiveTripRole('passenger');
       setActiveTripId(newTripId);
 
-      if (!isDoorToDoor) {
-        const mp: MeetingPoint = { lat: 42.138, lng: -0.41, name: 'Punto de encuentro' };
+      if (!isDoorToDoor && realUserLocation) {
+        // Meeting point ~150m from passenger's real location
+        const mp: MeetingPoint = {
+          lat: realUserLocation[0] + 0.001,
+          lng: realUserLocation[1] + 0.001,
+          name: 'Punto de encuentro',
+        };
         setMeetingPoint(mp);
         toast({
           title: '¡Viaje confirmado!',
-          description: 'Camina al punto de encuentro. Tu conductor también se dirige allí.',
+          description: 'Camina al punto de encuentro cercano.',
+        });
+      } else if (!isDoorToDoor && !realUserLocation) {
+        toast({
+          title: '¡Viaje confirmado!',
+          description: 'Esperando tu ubicación GPS...',
         });
       } else {
         toast({
