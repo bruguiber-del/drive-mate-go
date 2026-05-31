@@ -337,7 +337,7 @@ const Index = () => {
         isNavigating={nav.isNavigating}
         waypointMarkers={mapWaypointMarkers}
         intermediateRouteWaypoints={intermediateRouteWaypoints}
-        walkingRoute={passengerWalkingEnabled ? walkingRouteData : null}
+        walkingRoute={passengerWalkingEnabled && trip.activeTripRole === 'passenger' ? walkingRouteData : null}
         onRouteUpdate={nav.setCurrentRoute}
         simulatedPosition={null}
         simulatedHeading={null}
