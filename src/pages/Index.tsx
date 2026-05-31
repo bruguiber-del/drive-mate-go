@@ -35,10 +35,10 @@ import { useUIModals } from '@/hooks/useUIModals';
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const LEG_LABELS: Record<TripLeg, string> = {
-  to_meeting_point: 'Punto de encuentro',
-  to_pickup: 'Recogida',
-  to_dropoff: 'Bajada pasajero',
-  to_destination: 'Destino',
+  to_meeting_point: 'Ve a recoger al pasajero',
+  to_pickup: 'Ve a recoger al pasajero',
+  to_dropoff: 'Lleva al pasajero a su destino',
+  to_destination: 'Continúa a tu destino',
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
