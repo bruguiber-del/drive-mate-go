@@ -429,12 +429,14 @@ const Index = () => {
                   <span className="text-xs text-muted-foreground ml-1 truncate">· {currentTarget.name}</span>
                 )}
               </div>
-              {nav.dynamicETA && (
-                <div className="text-right shrink-0">
+              <div className="text-right shrink-0">
+                {nav.dynamicETA && (
                   <span className="text-sm font-bold text-primary">{nav.dynamicETA.minutes} min</span>
-                  <span className="text-[10px] text-muted-foreground ml-1">{nav.dynamicETA.distanceKm} km</span>
-                </div>
-              )}
+                )}
+                {nav.detourMinutes != null && nav.detourMinutes > 0 && (
+                  <span className="text-[10px] text-warning ml-1">+{nav.detourMinutes} min desvío</span>
+                )}
+              </div>
             </div>
           </motion.div>
         )}
