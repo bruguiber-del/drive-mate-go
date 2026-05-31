@@ -67,11 +67,21 @@ export function useNavigationState({
    * destination only draws the route — it does NOT teleport the user along it.
    */
   const [hasStartedDriving, setHasStartedDriving] = useState(false);
-  const [currentRoute, setCurrentRoute] = useState<RouteData | null>(null);
+  const [currentRoute, setCurrentRouteState] = useState<RouteData | null>(null);
+  const [originalDuration, setOriginalDuration] = useState<number | null>(null);
 
   // Simulation disabled for real-GPS MVP. The marker only moves when the
   // device GPS reports a new position via watchPosition.
   const enableNavSim = false;
+
+  // Wrap setCurrentRoute so we capture the very first route duration as the
+  // "original" (no-passenger) duration. Reset in handleNavigate/handleStop.
+  const setCurrentRoute = useCallback((route: RouteData | null) => {
+    setCurrentRouteState(route);
+    if (route?.duration) {
+      setOriginalDuration(prev => (prev == null ? route.duration : prev));
+    }
+  }, []);
 
   // ── handleNavigate ──────────────────────────────────────────────────────────
   const handleNavigate = useCallback(
@@ -79,9 +89,8 @@ export function useNavigationState({
       setDestination(dest);
       setDestinationCoords({ ...coords, name: dest });
       setIsNavigating(true);
-      // NOTE: do NOT auto-start the driving simulation. The user must tap
-      // "Iniciar conducción" to actually move along the route.
       setHasStartedDriving(false);
+      setOriginalDuration(null);
       setFinalDestination({ lat: coords.lat, lng: coords.lng, name: dest });
       toast({ title: `Ruta hacia ${dest}`, duration: 1500 });
     },
@@ -99,7 +108,8 @@ export function useNavigationState({
     setHasStartedDriving(false);
     setDestination('');
     setDestinationCoords(null);
-    setCurrentRoute(null);
+    setCurrentRouteState(null);
+    setOriginalDuration(null);
     cancelTrip();
     onStop?.();
     toast({ title: 'Navegación detenida', duration: 500 });
@@ -114,6 +124,15 @@ export function useNavigationState({
     };
   }, [currentRoute]);
 
+  // Extra minutes vs. the original direct route. Only meaningful when an
+  // intermediate stop (pickup) extended the route.
+  const detourMinutes = useMemo(() => {
+    if (!currentRoute || originalDuration == null) return null;
+    const diff = currentRoute.duration - originalDuration;
+    if (diff <= 30) return null;
+    return Math.ceil(diff / 60);
+  }, [currentRoute, originalDuration]);
+
   return {
     destination,
     destinationCoords,
@@ -121,7 +140,9 @@ export function useNavigationState({
     hasStartedDriving,
     enableNavSim,
     currentRoute,
+    originalDuration,
     dynamicETA,
+    detourMinutes,
     handleNavigate,
     startDriving,
     handleStopNavigation,
