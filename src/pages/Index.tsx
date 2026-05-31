@@ -414,7 +414,7 @@ const Index = () => {
           </motion.div>
         )}
 
-        {/* Driver navigation chip */}
+        {/* Navigation chip — conductor con pasajero */}
         {trip.showActiveTrip && trip.activeTripRole === 'driver' && hasPassenger && (
           <motion.div
             className="absolute top-20 left-4 right-4 pointer-events-none z-10"
@@ -441,8 +441,8 @@ const Index = () => {
           </motion.div>
         )}
 
-        {/* Turn-by-turn navigation banner */}
-        {nav.isNavigating && nav.hasStartedDriving && currentStep && (
+        {/* Turn-by-turn banner — SOLO cuando navegando SIN viaje activo */}
+        {nav.isNavigating && nav.hasStartedDriving && !trip.showActiveTrip && currentStep && (
           <motion.div
             className="absolute top-20 left-4 right-4 pointer-events-none z-10"
             initial={{ opacity: 0, y: -10 }}
@@ -466,10 +466,35 @@ const Index = () => {
           </motion.div>
         )}
 
-        {/* Passenger walking info */}
-        {trip.showActiveTrip && trip.activeTripRole === 'passenger' && trip.meetingPoint && !isDoorToDoor && walkingRouteData && (
+        {/* Turn-by-turn banner — conductor CON viaje activo */}
+        {trip.showActiveTrip && trip.activeTripRole === 'driver' && nav.hasStartedDriving && currentStep && (
           <motion.div
             className="absolute top-32 left-4 right-4 pointer-events-none z-10"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <div className="glass-strong rounded-xl px-3 py-2 flex items-center gap-2 border border-primary/10 bg-background/80">
+              <div className="w-7 h-7 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
+                <Navigation className="w-3.5 h-3.5 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-foreground leading-tight truncate">
+                  {currentStep.instruction}
+                </p>
+                <p className="text-[10px] text-muted-foreground">
+                  En {currentStep.distance < 1000
+                    ? `${Math.round(currentStep.distance)}m`
+                    : `${(currentStep.distance / 1000).toFixed(1)}km`}
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Passenger walking chip — SOLO pasajero */}
+        {trip.showActiveTrip && trip.activeTripRole === 'passenger' && trip.meetingPoint && !isDoorToDoor && walkingRouteData && (
+          <motion.div
+            className="absolute top-20 left-4 right-4 pointer-events-none z-10"
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
           >
@@ -489,6 +514,7 @@ const Index = () => {
             </div>
           </motion.div>
         )}
+
 
         {/* Passenger Card */}
         {!trip.showActiveTrip && (
