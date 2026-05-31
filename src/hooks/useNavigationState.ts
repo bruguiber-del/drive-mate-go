@@ -30,10 +30,16 @@ interface UseNavigationStateReturn {
   /** True when nav simulation should actually animate the user marker */
   enableNavSim: boolean;
   currentRoute: RouteData | null;
+  /** Duration (s) of the very first route computed for the trip, before any
+   *  passenger pickup was added as an intermediate stop. */
+  originalDuration: number | null;
 
   // Derived
   /** { minutes, distanceKm } computed from currentRoute; null when no route */
   dynamicETA: { minutes: number; distanceKm: string } | null;
+  /** Extra minutes added to the trip by current intermediate stops vs. the
+   *  original direct route. Null when not applicable. */
+  detourMinutes: number | null;
 
   // Setters / actions
   handleNavigate: (dest: string, coords: { lng: number; lat: number }) => void;
