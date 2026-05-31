@@ -305,8 +305,23 @@ const Index = () => {
 
   // ── Current navigation step (turn-by-turn) ──────────────────────────────────
   const currentStep = useMemo(() => {
-    if (!nav.currentRoute?.steps?.length || !realUserLocation) return null;
-    return nav.currentRoute.steps[0];
+    const steps = nav.currentRoute?.steps;
+    if (!steps?.length || !realUserLocation) return null;
+    let closest = steps[0];
+    let minDist = Infinity;
+    for (const step of steps) {
+      const loc = step.maneuver?.location;
+      if (!loc) continue;
+      const [lng, lat] = loc;
+      const dLat = lat - realUserLocation[0];
+      const dLng = lng - realUserLocation[1];
+      const d = dLat * dLat + dLng * dLng;
+      if (d < minDist) {
+        minDist = d;
+        closest = step;
+      }
+    }
+    return closest;
   }, [nav.currentRoute, realUserLocation]);
 
   // ─── Render ────────────────────────────────────────────────────────────────
