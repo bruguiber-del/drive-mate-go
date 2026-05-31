@@ -20,6 +20,19 @@ export function useWalkingRoute({ origin, destination, enabled }: UseWalkingRout
       return;
     }
 
+    // Guard against absurd distances (e.g. stale/hardcoded coords)
+    const straightLineKm =
+      Math.sqrt(
+        Math.pow(origin[0] - destination.lat, 2) +
+        Math.pow(origin[1] - destination.lng, 2)
+      ) * 111;
+    if (straightLineKm > 5) {
+      setRoute(null);
+      return;
+    }
+
+
+
     setIsLoading(true);
     try {
       const originStr = `${origin[1]},${origin[0]}`;
