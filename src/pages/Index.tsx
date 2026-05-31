@@ -35,10 +35,10 @@ import { useUIModals } from '@/hooks/useUIModals';
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const LEG_LABELS: Record<TripLeg, string> = {
-  to_meeting_point: 'Punto de encuentro',
-  to_pickup: 'Recogida',
-  to_dropoff: 'Bajada pasajero',
-  to_destination: 'Destino',
+  to_meeting_point: 'Ve a recoger al pasajero',
+  to_pickup: 'Ve a recoger al pasajero',
+  to_dropoff: 'Lleva al pasajero a su destino',
+  to_destination: 'Continúa a tu destino',
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -305,8 +305,23 @@ const Index = () => {
 
   // ── Current navigation step (turn-by-turn) ──────────────────────────────────
   const currentStep = useMemo(() => {
-    if (!nav.currentRoute?.steps?.length || !realUserLocation) return null;
-    return nav.currentRoute.steps[0];
+    const steps = nav.currentRoute?.steps;
+    if (!steps?.length || !realUserLocation) return null;
+    let closest = steps[0];
+    let minDist = Infinity;
+    for (const step of steps) {
+      const loc = step.maneuver?.location;
+      if (!loc) continue;
+      const [lng, lat] = loc;
+      const dLat = lat - realUserLocation[0];
+      const dLng = lng - realUserLocation[1];
+      const d = dLat * dLat + dLng * dLng;
+      if (d < minDist) {
+        minDist = d;
+        closest = step;
+      }
+    }
+    return closest;
   }, [nav.currentRoute, realUserLocation]);
 
   // ─── Render ────────────────────────────────────────────────────────────────
@@ -322,7 +337,7 @@ const Index = () => {
         isNavigating={nav.isNavigating}
         waypointMarkers={mapWaypointMarkers}
         intermediateRouteWaypoints={intermediateRouteWaypoints}
-        walkingRoute={passengerWalkingEnabled ? walkingRouteData : null}
+        walkingRoute={passengerWalkingEnabled && trip.activeTripRole === 'passenger' ? walkingRouteData : null}
         onRouteUpdate={nav.setCurrentRoute}
         simulatedPosition={null}
         simulatedHeading={null}
@@ -414,12 +429,14 @@ const Index = () => {
                   <span className="text-xs text-muted-foreground ml-1 truncate">· {currentTarget.name}</span>
                 )}
               </div>
-              {nav.dynamicETA && (
-                <div className="text-right shrink-0">
+              <div className="text-right shrink-0">
+                {nav.dynamicETA && (
                   <span className="text-sm font-bold text-primary">{nav.dynamicETA.minutes} min</span>
-                  <span className="text-[10px] text-muted-foreground ml-1">{nav.dynamicETA.distanceKm} km</span>
-                </div>
-              )}
+                )}
+                {nav.detourMinutes != null && nav.detourMinutes > 0 && (
+                  <span className="text-[10px] text-warning ml-1">+{nav.detourMinutes} min desvío</span>
+                )}
+              </div>
             </div>
           </motion.div>
         )}
