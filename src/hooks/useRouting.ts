@@ -74,16 +74,21 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
         (coord: [number, number]) => [coord[1], coord[0]] as [number, number]
       );
 
-      const steps = routeData.legs?.[0]?.steps?.map((s: any) => ({
-        instruction: s.maneuver?.instruction ?? '',
-        distance: s.distance,
-        duration: s.duration,
-        maneuver: {
-          type: s.maneuver?.type ?? '',
-          modifier: s.maneuver?.modifier,
-          location: s.maneuver?.location,
-        },
-      })) ?? [];
+      // flatMap across all legs so multi-stop routes (origin → pickup →
+      // destination) include the steps from every segment.
+      const steps =
+        routeData.legs?.flatMap((leg: any) =>
+          leg.steps?.map((s: any) => ({
+            instruction: s.maneuver?.instruction ?? '',
+            distance: s.distance,
+            duration: s.duration,
+            maneuver: {
+              type: s.maneuver?.type ?? '',
+              modifier: s.maneuver?.modifier,
+              location: s.maneuver?.location,
+            },
+          })) ?? [],
+        ) ?? [];
 
       setRoute({
         coordinates,
