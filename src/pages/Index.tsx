@@ -33,6 +33,7 @@ import { useTripLifecycle } from '@/hooks/useTripLifecycle';
 import { useNavigationState } from '@/hooks/useNavigationState';
 import { useUIModals } from '@/hooks/useUIModals';
 import { useVehicles } from '@/hooks/useVehicles';
+import { useDriverSimulation } from '@/hooks/useDriverSimulation';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -58,6 +59,7 @@ const Index = () => {
 
   // ── Vehicles ────────────────────────────────────────────────────────────────
   const vehicles = useVehicles();
+  const driverSim = useDriverSimulation();
   const [showVehicleManager, setShowVehicleManager] = useState(false);
   const [vehicleSelectMode, setVehicleSelectMode] = useState<'manage' | 'select'>('manage');
 
@@ -193,6 +195,29 @@ const Index = () => {
 
   // ── Derived: match data for MatchPopup ─────────────────────────────────────
   const currentMatchData = useMemo(() => {
+    // Passenger mode → show the simulated DRIVER we matched with
+    if (!isDriverMode) {
+      const d = driverSim.currentDriver;
+      if (!d) return undefined;
+      return {
+        userName: d.name,
+        rating: d.rating,
+        detourMinutes: d.etaMinutes,
+        compensation: d.basePrice,
+        pickupDistance: d.distanceLabel,
+        acceptsPets: d.acceptsPets,
+        hasChildSeat: d.hasChildSeat,
+        doorToDoor: isDoorToDoor,
+        doorToDoorSurcharge: isDoorToDoor ? 1.2 : 0,
+        origin: 'Tu ubicación',
+        destination: 'Tu destino',
+        vehicle: d.vehicle,
+        etaMinutes: d.etaMinutes,
+        basePrice: d.basePrice,
+        commissionAmount: d.commission,
+        totalPrice: d.totalPrice,
+      };
+    }
     if (!simulatedPassenger) return undefined;
     return {
       userName: simulatedPassenger.name,
@@ -208,7 +233,7 @@ const Index = () => {
       origin: simulatedPassenger.origin.name,
       destination: simulatedPassenger.destination.name,
     };
-  }, [simulatedPassenger]);
+  }, [simulatedPassenger, isDriverMode, isDoorToDoor, driverSim.currentDriver]);
 
   // ── Derived: preview waypoints shown on map during match popup ─────────────
   const previewWaypoints = useMemo(() => {
@@ -341,19 +366,21 @@ const Index = () => {
     setShowPreview(false);
     modals.closeMatchPopup();
     dismissSimPassenger();
+    if (!isDriverMode) driverSim.clearDriver();
     toast({ title: 'Solicitud rechazada', description: 'Seguirás recibiendo nuevas solicitudes' });
-  }, [modals, dismissSimPassenger, toast]);
+  }, [modals, dismissSimPassenger, toast, isDriverMode, driverSim]);
 
   const handlePassengerSearch = useCallback(
     (data: { destination: string }) => {
-      setHasActivePassengerSearch(true);
-      toast({ title: 'Buscando conductores...', description: `Hacia ${data.destination}` });
-      setTimeout(() => {
-        modals.openMatchPopup();
-        setHasActivePassengerSearch(false);
-      }, 2000);
+      setHasActivePassengerSearch(false);
+      const driver = driverSim.searchDriver();
+      toast({
+        title: 'Conductor encontrado',
+        description: `${driver.name} · ${driver.vehicle.brand} ${driver.vehicle.model} · ${driver.vehicle.licensePlate}`,
+      });
+      modals.openMatchPopup();
     },
-    [modals, toast],
+    [modals, toast, driverSim],
   );
 
   const showDriverOnMap = trip.showActiveTrip && trip.activeTripRole === 'passenger';
@@ -673,6 +700,31 @@ const Index = () => {
           onPickup={trip.handlePickup}
           pickupEta={pickupEta}
           dropoffEta={dropoffEta}
+          driverVehicle={
+            trip.activeTripRole === 'passenger' ? driverSim.currentDriver?.vehicle : undefined
+          }
+          driverEta={
+            trip.activeTripRole === 'passenger' ? driverSim.currentDriver?.etaMinutes : undefined
+          }
+          walkingMinutes={
+            trip.activeTripRole === 'passenger' && walkingRouteData
+              ? Math.ceil(walkingRouteData.duration / 60)
+              : undefined
+          }
+          onDriverArrived={trip.handlePickup}
+          tripData={
+            trip.activeTripRole === 'passenger' && driverSim.currentDriver
+              ? {
+                  otherUser: driverSim.currentDriver.name,
+                  otherUserRating: driverSim.currentDriver.rating,
+                  origin: 'Tu ubicación',
+                  destination: nav.destination || 'Tu destino',
+                  pickupPoint: trip.meetingPoint?.name ?? 'Punto de encuentro',
+                  eta: driverSim.currentDriver.etaMinutes,
+                  price: driverSim.currentDriver.totalPrice,
+                }
+              : undefined
+          }
         />
       </AnimatePresence>
 

@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Clock, Navigation, X, ChevronRight, SlidersHorizontal } from 'lucide-react';
+import { MapPin, Clock, Navigation, X, ChevronRight, SlidersHorizontal, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -23,10 +23,26 @@ const PassengerSearch = ({ isOpen, onClose, onSearch, onOpenSettings }: Passenge
   const [destination, setDestination] = useState('');
   const [time, setTime] = useState('');
   const [doorToDoor, setDoorToDoor] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setIsSearching(false);
+      if (timerRef.current) clearTimeout(timerRef.current);
+    }
+  }, [isOpen]);
+
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
 
   const handleSubmit = () => {
-    onSearch({ origin, destination, time, doorToDoor });
-    onClose();
+    if (isSearching) return;
+    setIsSearching(true);
+    timerRef.current = setTimeout(() => {
+      setIsSearching(false);
+      onSearch({ origin, destination, time, doorToDoor });
+      onClose();
+    }, 3000);
   };
 
   return (
@@ -120,6 +136,23 @@ const PassengerSearch = ({ isOpen, onClose, onSearch, onOpenSettings }: Passenge
               </div>
             </button>
 
+            {/* Searching state */}
+            {isSearching && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-4 flex items-center gap-3 rounded-xl bg-secondary/15 border border-secondary/30 p-4"
+              >
+                <Loader2 className="w-5 h-5 text-secondary animate-spin shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-foreground">Buscando conductores cercanos...</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {destination ? `Hacia ${destination}` : 'Analizando rutas compatibles'}
+                  </p>
+                </div>
+              </motion.div>
+            )}
+
             {/* Preferences + Search */}
             <div className="flex gap-2">
               <Button
@@ -135,9 +168,19 @@ const PassengerSearch = ({ isOpen, onClose, onSearch, onOpenSettings }: Passenge
                 size="xl" 
                 className="flex-1"
                 onClick={handleSubmit}
+                disabled={isSearching}
               >
-                Buscar conductores
-                <ChevronRight className="w-5 h-5" />
+                {isSearching ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-1 animate-spin" />
+                    Buscando...
+                  </>
+                ) : (
+                  <>
+                    Buscar conductores
+                    <ChevronRight className="w-5 h-5" />
+                  </>
+                )}
               </Button>
             </div>
           </div>
