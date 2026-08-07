@@ -119,7 +119,9 @@ function generatePassenger(
   userLng: number,
   driverRoute: [number, number][],
   driverDestination: { lat: number; lng: number; name: string } | null,
+  costPerKm?: number,
 ): SimulatedPassenger | null {
+
   // Passenger pickup must be near the driver (≤ ~2km)
   const offsetLat = randomInRange(-0.018, 0.018);
   const offsetLng = randomInRange(-0.022, 0.022);
