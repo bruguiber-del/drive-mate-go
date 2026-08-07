@@ -5,6 +5,8 @@ export interface RouteData {
   coordinates: [number, number][]; // [lat, lng] for consistency with previous API
   distance: number; // meters
   duration: number; // seconds
+  /** Duration (s) of each leg between consecutive waypoints */
+  legDurations?: number[];
   steps?: Array<{
     instruction: string;
     distance: number;
