@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react';
 
 /** All section/modal names reachable from the settings menu */
 
-export type AppSection = 'profile' | 'history' | 'wallet' | 'help' | 'security';
+export type AppSection = 'profile' | 'history' | 'wallet' | 'help' | 'security' | 'vehicles';
 
 interface UseUIModalsReturn {
 
