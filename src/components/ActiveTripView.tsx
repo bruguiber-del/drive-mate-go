@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Phone, MessageCircle, MapPin, Clock, Star, Navigation, User } from 'lucide-react';
+import { Phone, MessageCircle, MapPin, Clock, Star, Navigation, User, Car, Footprints } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface ActiveTripViewProps {
@@ -13,6 +13,14 @@ interface ActiveTripViewProps {
   pickupEta?: number;
   /** Minutes until dropping the passenger at their destination */
   dropoffEta?: number;
+  /** Passenger view — driver's vehicle */
+  driverVehicle?: { brand: string; model: string; color?: string; licensePlate: string };
+  /** Passenger view — minutes until the driver arrives at the meeting point */
+  driverEta?: number;
+  /** Passenger view — walking minutes to the meeting point */
+  walkingMinutes?: number;
+  /** Passenger view — called when confirming the driver has arrived */
+  onDriverArrived?: () => void;
   tripData?: {
     otherUser: string;
     otherUserRating: number;
@@ -26,7 +34,7 @@ interface ActiveTripViewProps {
   };
 }
 
-const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onPickup, isTrackingActive = true, pickupEta, dropoffEta, tripData }: ActiveTripViewProps) => {
+const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onPickup, isTrackingActive = true, pickupEta, dropoffEta, driverVehicle, driverEta, walkingMinutes, onDriverArrived, tripData }: ActiveTripViewProps) => {
   const defaultData = {
     otherUser: userRole === 'driver' ? 'Ana M.' : 'Carlos G.',
     otherUserRating: 4.8,
@@ -105,6 +113,52 @@ const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onP
             </div>
           </div>
 
+          {/* Passenger — vehicle identification */}
+          {userRole === 'passenger' && driverVehicle && (
+            <div className="flex items-center gap-2 rounded-lg border border-secondary/30 bg-secondary/10 p-2">
+              <Car className="w-4 h-4 text-secondary shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold text-foreground truncate">
+                  {driverVehicle.brand} {driverVehicle.model}
+                  {driverVehicle.color ? ` · ${driverVehicle.color}` : ''}
+                </p>
+                <p className="text-[10px] text-muted-foreground">Busca esta matrícula</p>
+              </div>
+              <span className="shrink-0 rounded-md border-2 border-foreground/40 bg-background px-2.5 py-1 font-mono text-base font-extrabold tracking-widest text-foreground">
+                {driverVehicle.licensePlate}
+              </span>
+            </div>
+          )}
+
+          {/* Passenger — status */}
+          {userRole === 'passenger' && tripStatus === 'waiting' && (
+            <div className="space-y-2">
+              <div className="flex gap-2 text-xs">
+                <div className="flex-1 bg-secondary/20 rounded-lg p-2 text-center">
+                  <p className="font-bold text-secondary">{driverEta ?? data.eta} min</p>
+                  <p className="text-muted-foreground">llega tu conductor</p>
+                </div>
+                {walkingMinutes != null && (
+                  <div className="flex-1 rounded-lg p-2 text-center bg-muted flex flex-col items-center">
+                    <p className="font-bold text-foreground flex items-center gap-1">
+                      <Footprints className="w-3 h-3" /> {walkingMinutes} min
+                    </p>
+                    <p className="text-muted-foreground">al punto de encuentro</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {userRole === 'passenger' && (tripStatus === 'picked_up' || tripStatus === 'in_progress') && (
+            <div className="rounded-lg bg-success/20 p-2 text-center text-xs">
+              <p className="font-bold text-success">En camino a tu destino</p>
+              <p className="text-muted-foreground">
+                {dropoffEta ?? data.eta} min hasta {data.destination}
+              </p>
+            </div>
+          )}
+
           {/* Driver ETA breakdown */}
           {userRole === 'driver' && tripStatus === 'waiting' && (
             <div className="flex gap-2 text-xs">
@@ -146,6 +200,11 @@ const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onP
             {userRole === 'driver' && tripStatus === 'waiting' && (
               <Button variant="driver" size="sm" className="flex-1" onClick={onPickup}>
                 Pasajero recogido
+              </Button>
+            )}
+            {userRole === 'passenger' && tripStatus === 'waiting' && (
+              <Button variant="passenger" size="sm" className="flex-1" onClick={onDriverArrived ?? onPickup}>
+                Conductor llegado
               </Button>
             )}
             {tripStatus === 'picked_up' && (
