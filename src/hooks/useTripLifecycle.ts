@@ -100,16 +100,14 @@ export function useTripLifecycle({
   const handleMatchAccept = useCallback(() => {
     const newTripId = crypto.randomUUID();
 
-    console.log('[handleMatchAccept] isDriverMode:', isDriverMode);
-    console.log('[handleMatchAccept] simulatedPassenger:', simulatedPassenger?.id);
-
     if (isDriverMode && simulatedPassenger) {
-      console.log('[handleMatchAccept] → entrando rama DRIVER');
+
       // ── Driver branch ────────────────────────────────────────────────────
       setActiveTripRole('driver');
       setActiveTripId(newTripId);
 
       const pickup = {
+
         lat: simulatedPassenger.origin.lat,
         lng: simulatedPassenger.origin.lng,
         name: simulatedPassenger.origin.name,
@@ -140,10 +138,10 @@ export function useTripLifecycle({
 
       dismissSimPassenger();
     } else {
-      console.log('[handleMatchAccept] → entrando rama PASSENGER');
       // ── Passenger branch ─────────────────────────────────────────────────
       setActiveTripRole('passenger');
       setActiveTripId(newTripId);
+
 
       if (!isDoorToDoor && realUserLocation) {
         // Meeting point ~150m from passenger's real location
@@ -170,13 +168,11 @@ export function useTripLifecycle({
       }
     }
 
-    console.log('[handleMatchAccept] activeTripRole después de set:',
-      isDriverMode && simulatedPassenger ? 'driver' : 'passenger');
-
     // Common to both branches — guaranteed to run
     setTripStatus('waiting');
     setShowActiveTrip(true);
   }, [
+
     isDriverMode,
     simulatedPassenger,
     realUserLocation,
