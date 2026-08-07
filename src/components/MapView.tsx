@@ -244,10 +244,19 @@ const MapView = ({
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
 
+    let savedPos: [number, number] | null = null;
+    try {
+      savedPos = JSON.parse(localStorage.getItem('vimatch_last_pos') || 'null');
+    } catch { savedPos = null; }
+    const initialCenter: [number, number] =
+      savedPos && Array.isArray(savedPos)
+        ? [savedPos[1], savedPos[0]]
+        : [-0.4087, 42.1401];
+
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: MAPBOX_STYLE,
-      center: [-0.4087, 42.1401],
+      center: initialCenter,
       zoom: 13,
       pitch: 0,
       bearing: 0,
