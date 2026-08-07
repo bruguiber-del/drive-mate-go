@@ -189,6 +189,8 @@ interface UsePassengerSimulationOptions {
   intervalMs?: number;
   driverRoute?: [number, number][] | null;
   driverDestination?: { lat: number; lng: number; name: string } | null;
+  /** Cost per km of the driver's active vehicle */
+  costPerKm?: number;
 }
 
 export function usePassengerSimulation({
@@ -197,6 +199,7 @@ export function usePassengerSimulation({
   intervalMs = 8000,
   driverRoute,
   driverDestination,
+  costPerKm,
 }: UsePassengerSimulationOptions) {
   const [currentPassenger, setCurrentPassenger] = useState<SimulatedPassenger | null>(null);
   const [pendingPassengers, setPendingPassengers] = useState<SimulatedPassenger[]>([]);
@@ -206,8 +209,10 @@ export function usePassengerSimulation({
   // resetting the timer every time the route updates slightly.
   const routeRef = useRef<[number, number][] | null>(driverRoute ?? null);
   const destRef = useRef<typeof driverDestination>(driverDestination ?? null);
+  const costRef = useRef<number | undefined>(costPerKm);
   useEffect(() => { routeRef.current = driverRoute ?? null; }, [driverRoute]);
   useEffect(() => { destRef.current = driverDestination ?? null; }, [driverDestination]);
+  useEffect(() => { costRef.current = costPerKm; }, [costPerKm]);
 
   const generateNew = useCallback(() => {
     if (!userLocation) return;
@@ -220,7 +225,8 @@ export function usePassengerSimulation({
     }
     const route = routeRef.current;
     if (!route || route.length < 2) return;
-    const passenger = generatePassenger(lat, lng, route, destRef.current ?? null);
+    const passenger = generatePassenger(lat, lng, route, destRef.current ?? null, costRef.current);
+
     if (!passenger) return;
     setPendingPassengers(prev => [...prev.slice(-4), passenger]);
     setCurrentPassenger(passenger);
