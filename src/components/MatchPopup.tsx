@@ -3,12 +3,7 @@ import { User, X, Check, Star, PawPrint, Baby, MapPin, Car, Clock } from 'lucide
 import { Button } from '@/components/ui/button';
 import { COMMISSION } from '@/lib/priceCalculator';
 
-interface MatchPopupProps {
-  isOpen: boolean;
-  onAccept: () => void;
-  onReject: () => void;
-  isDriverView?: boolean; // true = driver viewing passenger, false = passenger viewing driver
-  matchData?: {
+export interface MatchData {
     userName: string;
     rating: number;
     detourMinutes: number;
@@ -29,11 +24,18 @@ interface MatchPopupProps {
     basePrice?: number;
     commissionAmount?: number;
     totalPrice?: number;
-  };
+}
+
+interface MatchPopupProps {
+  isOpen: boolean;
+  onAccept: () => void;
+  onReject: () => void;
+  isDriverView?: boolean; // true = driver viewing passenger, false = passenger viewing driver
+  matchData?: MatchData;
 }
 
 const MatchPopup = ({ isOpen, onAccept, onReject, isDriverView = true, matchData }: MatchPopupProps) => {
-  const defaultData = {
+  const defaultData: MatchData = {
     userName: isDriverView ? 'María G.' : 'Carlos G.',
     rating: 4.8,
     detourMinutes: 3,
