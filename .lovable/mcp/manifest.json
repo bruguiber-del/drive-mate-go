@@ -1,0 +1,133 @@
+{
+  "version": 1,
+  "sdk_version": "0.26.1",
+  "path": "/functions/v1/mcp",
+  "auth": {
+    "type": "oauth",
+    "issuer": "https://kjfxkyhwghtlawobbukq.supabase.co/auth/v1",
+    "accepted_audiences": [
+      "authenticated"
+    ]
+  },
+  "mcp": {
+    "server": {
+      "name": "vimatch",
+      "version": "0.1.0",
+      "title": "VIMATCH"
+    },
+    "tools": [
+      {
+        "name": "get_driver_location",
+        "title": "Última ubicación del conductor",
+        "description": "Devuelve la última posición GPS registrada del conductor de un viaje.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "trip_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Identificador UUID del viaje."
+            }
+          },
+          "required": [
+            "trip_id"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_driver_position_history",
+        "title": "Histórico de posiciones del conductor",
+        "description": "Devuelve el histórico reciente de posiciones GPS de un viaje, de más nueva a más antigua.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "trip_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Identificador UUID del viaje."
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 30,
+              "description": "Número máximo de posiciones a devolver."
+            }
+          },
+          "required": [
+            "trip_id"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "calculate_trip_price",
+        "title": "Calcular compensación por compartir gastos",
+        "description": "Calcula la compensación por compartir gastos de un trayecto con la fórmula de VIMATCH (coste por km, factor de ocupación, desvío, tráfico y comisión).",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "distance_km": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Distancia del trayecto en kilómetros."
+            },
+            "passenger_count": {
+              "type": "number",
+              "enum": [
+                1,
+                2,
+                3,
+                4
+              ],
+              "description": "Número de pasajeros (1-4)."
+            },
+            "detour_km": {
+              "type": "number",
+              "minimum": 0,
+              "default": 0,
+              "description": "Kilómetros extra de desvío del conductor."
+            },
+            "traffic": {
+              "type": "string",
+              "enum": [
+                "normal",
+                "moderate",
+                "rush"
+              ],
+              "default": "normal",
+              "description": "Factor de tráfico: normal, moderate u hora punta (rush)."
+            }
+          },
+          "required": [
+            "distance_km",
+            "passenger_count"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
