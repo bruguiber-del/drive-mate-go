@@ -366,8 +366,9 @@ const Index = () => {
     setShowPreview(false);
     modals.closeMatchPopup();
     dismissSimPassenger();
+    if (!isDriverMode) driverSim.clearDriver();
     toast({ title: 'Solicitud rechazada', description: 'Seguirás recibiendo nuevas solicitudes' });
-  }, [modals, dismissSimPassenger, toast]);
+  }, [modals, dismissSimPassenger, toast, isDriverMode, driverSim]);
 
   const handlePassengerSearch = useCallback(
     (data: { destination: string }) => {
