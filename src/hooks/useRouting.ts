@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { MAPBOX_TOKEN } from '@/lib/mapboxConfig';
 
 export interface RouteData {
@@ -34,9 +34,16 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const routeCacheRef = useRef<Map<string, { route: RouteData; ts: number }>>(new Map());
+
   const waypointsKey = (intermediateWaypoints ?? [])
     .map(w => `${w.lat.toFixed(5)},${w.lng.toFixed(5)}`)
     .join('|');
+
+  const cacheKey = useMemo(() => {
+    if (!origin || !destination) return null;
+    return `${origin[0].toFixed(3)},${origin[1].toFixed(3)}|${destination.lat.toFixed(3)},${destination.lng.toFixed(3)}|${waypointsKey}`;
+  }, [origin, destination, waypointsKey]);
 
   const fetchRoute = useCallback(async () => {
     if (!origin || !destination || !enabled) {
@@ -44,8 +51,19 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
       return;
     }
 
+    // Serve a recent cached route instantly (< 5 min old)
+    if (cacheKey) {
+      const cached = routeCacheRef.current.get(cacheKey);
+      if (cached && Date.now() - cached.ts < 5 * 60 * 1000) {
+        setRoute(cached.route);
+        setIsLoading(false);
+        return;
+      }
+    }
+
     setIsLoading(true);
     setError(null);
+
 
     try {
       // Mapbox expects lng,lat order, semicolon-separated.
@@ -92,13 +110,19 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
           })) ?? [],
         ) ?? [];
 
-      setRoute({
+      const newRoute: RouteData = {
         coordinates,
         distance: routeData.distance,
         duration: routeData.duration,
         legDurations: routeData.legs?.map((leg: any) => leg.duration ?? 0) ?? [],
         steps,
-      });
+      };
+
+      if (cacheKey) {
+        routeCacheRef.current.set(cacheKey, { route: newRoute, ts: Date.now() });
+      }
+
+      setRoute(newRoute);
     } catch (err) {
       console.error('Routing error:', err);
       setError(err instanceof Error ? err.message : 'Unknown error');
@@ -108,7 +132,7 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
       setIsLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [origin, destination, enabled, waypointsKey]);
+  }, [origin, destination, enabled, waypointsKey, cacheKey]);
 
   useEffect(() => { fetchRoute(); }, [fetchRoute]);
   useEffect(() => { if (!enabled) setRoute(null); }, [enabled]);

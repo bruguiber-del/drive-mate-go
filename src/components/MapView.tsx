@@ -244,10 +244,19 @@ const MapView = ({
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
 
+    let savedPos: [number, number] | null = null;
+    try {
+      savedPos = JSON.parse(localStorage.getItem('vimatch_last_pos') || 'null');
+    } catch { savedPos = null; }
+    const initialCenter: [number, number] =
+      savedPos && Array.isArray(savedPos)
+        ? [savedPos[1], savedPos[0]]
+        : [-0.4087, 42.1401];
+
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: MAPBOX_STYLE,
-      center: [-0.4087, 42.1401],
+      center: initialCenter,
       zoom: 13,
       pitch: 0,
       bearing: 0,
@@ -303,6 +312,9 @@ const MapView = ({
       (position) => {
         console.log('GPS position:', position.coords);
         const coords: [number, number] = [position.coords.latitude, position.coords.longitude];
+        try {
+          localStorage.setItem('vimatch_last_pos', JSON.stringify(coords));
+        } catch { /* ignore quota errors */ }
         setRawUserLocation(coords);
         if (position.coords.heading !== null && !isNaN(position.coords.heading)) {
           setUserHeading(position.coords.heading);
