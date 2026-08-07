@@ -349,6 +349,7 @@ const Index = () => {
 
   return (
     <div className="h-screen w-screen overflow-hidden">
+
       <MapView
         destination={mapDestination}
         showRoute={nav.isNavigating || (trip.showActiveTrip && trip.activeTripRole === 'driver')}

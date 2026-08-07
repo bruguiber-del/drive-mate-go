@@ -101,11 +101,13 @@ export function useTripLifecycle({
     const newTripId = crypto.randomUUID();
 
     if (isDriverMode && simulatedPassenger) {
+
       // ── Driver branch ────────────────────────────────────────────────────
       setActiveTripRole('driver');
       setActiveTripId(newTripId);
 
       const pickup = {
+
         lat: simulatedPassenger.origin.lat,
         lng: simulatedPassenger.origin.lng,
         name: simulatedPassenger.origin.name,
@@ -140,6 +142,7 @@ export function useTripLifecycle({
       setActiveTripRole('passenger');
       setActiveTripId(newTripId);
 
+
       if (!isDoorToDoor && realUserLocation) {
         // Meeting point ~150m from passenger's real location
         const mp: MeetingPoint = {
@@ -169,6 +172,7 @@ export function useTripLifecycle({
     setTripStatus('waiting');
     setShowActiveTrip(true);
   }, [
+
     isDriverMode,
     simulatedPassenger,
     realUserLocation,

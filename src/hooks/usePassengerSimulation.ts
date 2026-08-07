@@ -192,10 +192,13 @@ export function usePassengerSimulation({
   const hasRoute = !!(driverRoute && driverRoute.length >= 2);
   useEffect(() => {
     if (!enabled || !userLocation || !hasRoute) {
-      setCurrentPassenger(null);
+      // Stop generating new passengers, but KEEP the current one so the driver
+      // can still accept it from the open MatchPopup. It is only cleared via
+      // dismissCurrent / acceptCurrent.
       if (timerRef.current) clearTimeout(timerRef.current);
       return;
     }
+
 
     timerRef.current = setTimeout(() => {
       generateNew();
