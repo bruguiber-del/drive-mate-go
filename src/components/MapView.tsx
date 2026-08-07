@@ -519,18 +519,17 @@ const MapView = ({
       waypointMarkersRef.current.push(marker);
     }
 
-    // Auto-fit to show user + ALL waypoints
-    const hasPickup = waypointMarkers.some(
-      w => w.type === 'pickup' || w.type === 'meeting_point',
-    );
-    if (hasPickup && userLocation) {
-      const bounds = new mapboxgl.LngLatBounds();
-      bounds.extend([userLocation[1], userLocation[0]]);
-      waypointMarkers.forEach(wp => bounds.extend([wp.lng, wp.lat]));
-      if (!bounds.isEmpty()) {
-        m.fitBounds(bounds, { padding: 100, maxZoom: 13, duration: 1000 });
-        isFollowingRef.current = false;
-      }
+    // Auto-fit to show user + ALL waypoints (including final destination)
+    const bounds = new mapboxgl.LngLatBounds();
+    if (userLocation) bounds.extend([userLocation[1], userLocation[0]]);
+    waypointMarkers.forEach(wp => bounds.extend([wp.lng, wp.lat]));
+    if (!bounds.isEmpty()) {
+      m.fitBounds(bounds, {
+        padding: { top: 120, bottom: 250, left: 40, right: 40 },
+        maxZoom: 14,
+        duration: 1000,
+      });
+      isFollowingRef.current = false;
     }
   }, [waypointMarkers, mapReady, userLocation]);
 
