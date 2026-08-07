@@ -96,6 +96,7 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
         coordinates,
         distance: routeData.distance,
         duration: routeData.duration,
+        legDurations: routeData.legs?.map((leg: any) => leg.duration ?? 0) ?? [],
         steps,
       });
     } catch (err) {
