@@ -347,14 +347,9 @@ const Index = () => {
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
-  console.log('[render] trip.activeTripRole:', trip.activeTripRole,
-    'trip.showActiveTrip:', trip.showActiveTrip,
-    'trip.meetingPoint:', trip.meetingPoint,
-    'passengerWalkingEnabled:', passengerWalkingEnabled,
-    'walkingRouteData:', !!walkingRouteData);
-
   return (
     <div className="h-screen w-screen overflow-hidden">
+
       <MapView
         destination={mapDestination}
         showRoute={nav.isNavigating || (trip.showActiveTrip && trip.activeTripRole === 'driver')}
