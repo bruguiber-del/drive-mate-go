@@ -80,6 +80,40 @@ function findPointNearRoute(
   return { lat: lat + offsetLat, lng: lng + offsetLng };
 }
 
+/**
+ * Checks that the pickup point lies AHEAD of the driver along their route
+ * (higher index in the route coordinate array).
+ */
+function isPickupAheadOnRoute(
+  driverLat: number, driverLng: number,
+  pickupLat: number, pickupLng: number,
+  routeCoords: [number, number][],
+): boolean {
+  if (routeCoords.length < 2) return true;
+
+  let driverRouteIdx = 0;
+  let minDistDriver = Infinity;
+  for (let i = 0; i < routeCoords.length; i++) {
+    const d = Math.sqrt(
+      Math.pow(routeCoords[i][0] - driverLat, 2) +
+      Math.pow(routeCoords[i][1] - driverLng, 2)
+    );
+    if (d < minDistDriver) { minDistDriver = d; driverRouteIdx = i; }
+  }
+
+  let pickupRouteIdx = 0;
+  let minDistPickup = Infinity;
+  for (let i = 0; i < routeCoords.length; i++) {
+    const d = Math.sqrt(
+      Math.pow(routeCoords[i][0] - pickupLat, 2) +
+      Math.pow(routeCoords[i][1] - pickupLng, 2)
+    );
+    if (d < minDistPickup) { minDistPickup = d; pickupRouteIdx = i; }
+  }
+
+  return pickupRouteIdx > driverRouteIdx;
+}
+
 function generatePassenger(
   userLat: number,
   userLng: number,
@@ -91,6 +125,16 @@ function generatePassenger(
   const offsetLng = randomInRange(-0.022, 0.022);
   const pickupLat = userLat + offsetLat;
   const pickupLng = userLng + offsetLng;
+
+  // Pickup must be ahead of the driver along their route
+  if (!isPickupAheadOnRoute(userLat, userLng, pickupLat, pickupLng, driverRoute)) {
+    return null;
+  }
+
+  // Max detour: ~8km (~10 min at 50 km/h average)
+  const detourKmReal = haversineKm(userLat, userLng, pickupLat, pickupLng);
+  const maxDetourKm = 8;
+  if (detourKmReal > maxDetourKm) return null;
 
   // Passenger destination must lie on the driver's route (or near final dest)
   const destPoint = findPointNearRoute(driverRoute);
