@@ -66,12 +66,16 @@ export function calculatePrice({
   passengerCount,
   detourKm = 0,
   traffic = 'normal',
+  costPerKm,
 }: PriceInput): PriceBreakdown {
   const factor = OCCUPANCY_FACTORS[passengerCount] ?? OCCUPANCY_FACTORS[1];
   const trafficMultiplier = TRAFFIC_MULTIPLIER[traffic];
 
-  const totalCost = distanceKm * TOTAL_COST_PER_KM;
-  const detourSurcharge = detourKm * TOTAL_COST_PER_KM;
+  const costPerKmToUse = costPerKm ?? TOTAL_COST_PER_KM;
+  const totalCost = distanceKm * costPerKmToUse;
+  const detourSurcharge = detourKm * costPerKmToUse;
+
+
 
   // Base price per passenger before commission
   const basePrice = (totalCost / factor + detourSurcharge) * trafficMultiplier;
