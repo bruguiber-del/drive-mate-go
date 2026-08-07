@@ -337,7 +337,11 @@ const Index = () => {
         isNavigating={nav.isNavigating}
         waypointMarkers={mapWaypointMarkers}
         intermediateRouteWaypoints={intermediateRouteWaypoints}
-        walkingRoute={passengerWalkingEnabled && trip.activeTripRole === 'passenger' ? walkingRouteData : null}
+        walkingRoute={
+          trip.activeTripRole === 'passenger' && passengerWalkingEnabled
+            ? walkingRouteData
+            : null
+        }
         onRouteUpdate={nav.setCurrentRoute}
         simulatedPosition={null}
         simulatedHeading={null}
@@ -492,7 +496,11 @@ const Index = () => {
         )}
 
         {/* Passenger walking chip — SOLO pasajero */}
-        {trip.showActiveTrip && trip.activeTripRole === 'passenger' && trip.meetingPoint && !isDoorToDoor && walkingRouteData && (
+        {trip.showActiveTrip &&
+          trip.activeTripRole === 'passenger' &&
+          trip.meetingPoint !== null &&
+          !isDoorToDoor &&
+          walkingRouteData && (
           <motion.div
             className="absolute top-20 left-4 right-4 pointer-events-none z-10"
             initial={{ opacity: 0, y: -10 }}
