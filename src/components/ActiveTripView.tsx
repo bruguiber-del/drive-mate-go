@@ -9,6 +9,10 @@ interface ActiveTripViewProps {
   tripStatus?: 'waiting' | 'picked_up' | 'in_progress';
   onPickup?: () => void;
   isTrackingActive?: boolean;
+  /** Minutes until reaching the passenger pickup point */
+  pickupEta?: number;
+  /** Minutes until dropping the passenger at their destination */
+  dropoffEta?: number;
   tripData?: {
     otherUser: string;
     otherUserRating: number;
@@ -22,7 +26,7 @@ interface ActiveTripViewProps {
   };
 }
 
-const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onPickup, isTrackingActive = true, tripData }: ActiveTripViewProps) => {
+const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onPickup, isTrackingActive = true, pickupEta, dropoffEta, tripData }: ActiveTripViewProps) => {
   const defaultData = {
     otherUser: userRole === 'driver' ? 'Ana M.' : 'Carlos G.',
     otherUserRating: 4.8,
