@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { MAPBOX_TOKEN } from '@/lib/mapboxConfig';
 
 export interface RouteData {
