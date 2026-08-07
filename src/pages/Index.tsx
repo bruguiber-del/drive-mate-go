@@ -262,6 +262,27 @@ const Index = () => {
     [routeWaypoints],
   );
 
+  // ── Derived: pickup / dropoff ETAs from the multi-leg route ────────────────
+  const { pickupEta, dropoffEta } = useMemo(() => {
+    const legs = nav.currentRoute?.legDurations ?? [];
+    const sumTo = (idx: number) =>
+      Math.ceil(legs.slice(0, idx + 1).reduce((a, b) => a + b, 0) / 60);
+
+    const pickupIdx = routeWaypoints.findIndex(
+      w => w.type === 'pickup' || w.type === 'meeting_point',
+    );
+    const dropIdx = routeWaypoints.findIndex(w => w.type === 'dropoff');
+
+    return {
+      pickupEta:
+        pickupIdx >= 0 && legs.length > pickupIdx
+          ? sumTo(pickupIdx)
+          : nav.dynamicETA?.minutes,
+      dropoffEta:
+        dropIdx >= 0 && legs.length > dropIdx ? sumTo(dropIdx) : undefined,
+    };
+  }, [nav.currentRoute, nav.dynamicETA, routeWaypoints]);
+
   // ── Handlers ───────────────────────────────────────────────────────────────
 
   const handleDriverToggle = useCallback(() => {
@@ -614,6 +635,8 @@ const Index = () => {
           userRole={trip.activeTripRole}
           tripStatus={trip.tripStatus}
           onPickup={trip.handlePickup}
+          pickupEta={pickupEta}
+          dropoffEta={dropoffEta}
         />
       </AnimatePresence>
 

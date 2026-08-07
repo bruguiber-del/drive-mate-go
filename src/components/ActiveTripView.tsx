@@ -9,6 +9,10 @@ interface ActiveTripViewProps {
   tripStatus?: 'waiting' | 'picked_up' | 'in_progress';
   onPickup?: () => void;
   isTrackingActive?: boolean;
+  /** Minutes until reaching the passenger pickup point */
+  pickupEta?: number;
+  /** Minutes until dropping the passenger at their destination */
+  dropoffEta?: number;
   tripData?: {
     otherUser: string;
     otherUserRating: number;
@@ -22,7 +26,7 @@ interface ActiveTripViewProps {
   };
 }
 
-const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onPickup, isTrackingActive = true, tripData }: ActiveTripViewProps) => {
+const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onPickup, isTrackingActive = true, pickupEta, dropoffEta, tripData }: ActiveTripViewProps) => {
   const defaultData = {
     otherUser: userRole === 'driver' ? 'Ana M.' : 'Carlos G.',
     otherUserRating: 4.8,
@@ -93,11 +97,34 @@ const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onP
             <div className="flex items-baseline gap-1 shrink-0">
               <Clock className="w-3 h-3 text-primary" />
               <span className="text-lg font-bold text-foreground">
-                {tripStatus === 'picked_up' || tripStatus === 'in_progress' ? '35' : data.eta}
+                {tripStatus === 'picked_up' || tripStatus === 'in_progress'
+                  ? dropoffEta ?? data.eta
+                  : pickupEta ?? data.eta}
               </span>
               <span className="text-xs text-muted-foreground">min</span>
             </div>
           </div>
+
+          {/* Driver ETA breakdown */}
+          {userRole === 'driver' && tripStatus === 'waiting' && (
+            <div className="flex gap-2 text-xs">
+              <div className="flex-1 bg-warning/20 rounded-lg p-2 text-center">
+                <p className="font-bold text-warning">{pickupEta ?? '?'} min</p>
+                <p className="text-muted-foreground">hasta recogida</p>
+              </div>
+              <div className="flex-1 bg-success/20 rounded-lg p-2 text-center">
+                <p className="font-bold text-success">{dropoffEta ?? '?'} min</p>
+                <p className="text-muted-foreground">hasta bajada</p>
+              </div>
+            </div>
+          )}
+
+          {userRole === 'driver' && tripStatus === 'picked_up' && (
+            <div className="bg-success/20 rounded-lg p-2 text-center text-xs">
+              <p className="font-bold text-success">{dropoffEta ?? '?'} min</p>
+              <p className="text-muted-foreground">hasta bajada del pasajero</p>
+            </div>
+          )}
 
           {/* Route + Price - Combined */}
           <div className="flex items-center justify-between pt-2 border-t border-border/50">

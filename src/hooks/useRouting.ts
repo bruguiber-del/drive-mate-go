@@ -5,6 +5,8 @@ export interface RouteData {
   coordinates: [number, number][]; // [lat, lng] for consistency with previous API
   distance: number; // meters
   duration: number; // seconds
+  /** Duration (s) of each leg between consecutive waypoints */
+  legDurations?: number[];
   steps?: Array<{
     instruction: string;
     distance: number;
@@ -94,6 +96,7 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
         coordinates,
         distance: routeData.distance,
         duration: routeData.duration,
+        legDurations: routeData.legs?.map((leg: any) => leg.duration ?? 0) ?? [],
         steps,
       });
     } catch (err) {
