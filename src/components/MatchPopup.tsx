@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, X, Check, Star, PawPrint, Baby, MapPin } from 'lucide-react';
+import { User, X, Check, Star, PawPrint, Baby, MapPin, Car, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { COMMISSION } from '@/lib/priceCalculator';
 
@@ -21,6 +21,14 @@ interface MatchPopupProps {
     tripPrice?: number; // Auto-calculated price
     origin?: string;
     destination?: string;
+    /** Passenger view only — driver's vehicle info */
+    vehicle?: { brand: string; model: string; color?: string; licensePlate: string };
+    /** Passenger view only — minutes until the driver arrives */
+    etaMinutes?: number;
+    /** Passenger view only — price breakdown */
+    basePrice?: number;
+    commissionAmount?: number;
+    totalPrice?: number;
   };
 }
 
@@ -102,11 +110,40 @@ const MatchPopup = ({ isOpen, onAccept, onReject, isDriverView = true, matchData
                 </div>
               )}
 
+              {/* Vehicle info — SOLO vista pasajero (identificación del coche) */}
+              {!isDriverView && data.vehicle && (
+                <div className="mb-2 flex items-center gap-2 rounded-lg border border-secondary/30 bg-secondary/10 px-2 py-1.5">
+                  <Car className="w-4 h-4 text-secondary shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-foreground truncate">
+                      {data.vehicle.brand} {data.vehicle.model}
+                      {data.vehicle.color ? ` · ${data.vehicle.color}` : ''}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">Identifica el vehículo por su matrícula</p>
+                  </div>
+                  <span className="shrink-0 rounded-md border border-foreground/30 bg-background px-2 py-0.5 font-mono text-sm font-bold tracking-wider text-foreground">
+                    {data.vehicle.licensePlate}
+                  </span>
+                </div>
+              )}
+
               {/* Stats — compact */}
               <div className="flex gap-1.5 mb-2">
                 <div className="flex-1 bg-muted rounded-lg py-1.5 text-center">
-                  <p className="text-sm font-bold text-foreground leading-tight">+{data.detourMinutes} min</p>
-                  <p className="text-[10px] text-muted-foreground">desvío</p>
+                  {isDriverView ? (
+                    <>
+                      <p className="text-sm font-bold text-foreground leading-tight">+{data.detourMinutes} min</p>
+                      <p className="text-[10px] text-muted-foreground">desvío</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm font-bold text-foreground leading-tight flex items-center justify-center gap-1">
+                        <Clock className="w-3 h-3 text-secondary" />
+                        {data.etaMinutes ?? data.detourMinutes} min
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">llega en</p>
+                    </>
+                  )}
                 </div>
                 <div className="flex-1 bg-muted rounded-lg py-1.5 text-center">
                   <p className="text-sm font-bold text-foreground leading-tight">{data.pickupDistance}</p>
@@ -116,7 +153,7 @@ const MatchPopup = ({ isOpen, onAccept, onReject, isDriverView = true, matchData
                   <p className={`text-sm font-bold leading-tight ${isDriverView ? 'text-success' : 'text-secondary'}`}>
                     {isDriverView
                       ? `+${data.compensation.toFixed(2)}€`
-                      : `${(data.compensation * (1 + COMMISSION)).toFixed(2)}€`}
+                      : `${(data.totalPrice ?? data.compensation * (1 + COMMISSION)).toFixed(2)}€`}
                   </p>
                   <p className="text-[10px] text-muted-foreground">
                     {isDriverView ? 'recibes' : 'precio total'}
@@ -124,19 +161,34 @@ const MatchPopup = ({ isOpen, onAccept, onReject, isDriverView = true, matchData
                 </div>
               </div>
 
-              {/* Price breakdown — single line */}
-              <div className="mb-2 px-2 py-1 rounded-md bg-muted/40 border border-border/40 flex items-center justify-between text-[10px]">
-                {isDriverView ? (
-                  <>
-                    <span className="text-muted-foreground">Compensación gastos</span>
-                    <span className="font-medium text-foreground">{data.compensation.toFixed(2)}€</span>
-                  </>
-                ) : (
-                  <span className="text-muted-foreground">
-                    Conductor {data.compensation.toFixed(2)}€ · Comisión {(data.compensation * COMMISSION).toFixed(2)}€
-                  </span>
-                )}
-              </div>
+              {/* Price breakdown */}
+              {isDriverView ? (
+                <div className="mb-2 px-2 py-1 rounded-md bg-muted/40 border border-border/40 flex items-center justify-between text-[10px]">
+                  <span className="text-muted-foreground">Compensación gastos</span>
+                  <span className="font-medium text-foreground">{data.compensation.toFixed(2)}€</span>
+                </div>
+              ) : (
+                <div className="mb-2 px-2 py-1.5 rounded-md bg-muted/40 border border-border/40 space-y-0.5 text-[11px]">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Coste base del trayecto</span>
+                    <span className="text-foreground">
+                      {(data.basePrice ?? data.compensation).toFixed(2)}€
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Comisión VIMATCH (12%)</span>
+                    <span className="text-foreground">
+                      {(data.commissionAmount ?? data.compensation * COMMISSION).toFixed(2)}€
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between border-t border-border/40 pt-0.5 font-bold">
+                    <span className="text-foreground">Total a pagar</span>
+                    <span className="text-secondary">
+                      {(data.totalPrice ?? data.compensation * (1 + COMMISSION)).toFixed(2)}€
+                    </span>
+                  </div>
+                </div>
+              )}
 
               {/* Actions */}
               <div className="flex gap-2 pb-1">
