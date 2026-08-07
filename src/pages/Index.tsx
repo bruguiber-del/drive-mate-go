@@ -21,6 +21,7 @@ import WalletSection from '@/components/WalletSection';
 import HelpSection from '@/components/HelpSection';
 import ActiveTripView from '@/components/ActiveTripView';
 import RatingModal from '@/components/RatingModal';
+import VehicleManager from '@/components/VehicleManager';
 
 // ── Hooks ─────────────────────────────────────────────────────────────────────
 import { useDriverTracking } from '@/hooks/useDriverTracking';
@@ -31,6 +32,7 @@ import { usePassengerSimulation } from '@/hooks/usePassengerSimulation';
 import { useTripLifecycle } from '@/hooks/useTripLifecycle';
 import { useNavigationState } from '@/hooks/useNavigationState';
 import { useUIModals } from '@/hooks/useUIModals';
+import { useVehicles } from '@/hooks/useVehicles';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -53,6 +55,11 @@ const Index = () => {
   const [hasActivePassengerSearch, setHasActivePassengerSearch] = useState(false);
   const [realUserLocation, setRealUserLocation] = useState<[number, number] | null>(null);
   const [showPreview, setShowPreview] = useState(false);
+
+  // ── Vehicles ────────────────────────────────────────────────────────────────
+  const vehicles = useVehicles();
+  const [showVehicleManager, setShowVehicleManager] = useState(false);
+  const [vehicleSelectMode, setVehicleSelectMode] = useState<'manage' | 'select'>('manage');
 
   // ── Modal / section visibility ──────────────────────────────────────────────
   const modals = useUIModals();
@@ -94,6 +101,7 @@ const Index = () => {
     intervalMs: 12000,
     driverRoute: nav.currentRoute?.coordinates ?? null,
     driverDestination: nav.destinationCoords,
+    costPerKm: vehicles.activeVehicle?.costPerKm,
   });
 
   // ── Trip lifecycle ──────────────────────────────────────────────────────────
@@ -286,16 +294,42 @@ const Index = () => {
   // ── Handlers ───────────────────────────────────────────────────────────────
 
   const handleDriverToggle = useCallback(() => {
-    setIsDriverMode(prev => {
-      if (!prev) {
-        toast({
-          title: 'Modo conductor activado',
-          description: 'Navega a tu destino y aparecerán pasajeros cercanos',
-        });
+    if (!isDriverMode) {
+      if (vehicles.vehicles.length === 0) {
+        setVehicleSelectMode('manage');
+        setShowVehicleManager(true);
+        return;
       }
-      return !prev;
+      setVehicleSelectMode('select');
+      setShowVehicleManager(true);
+    } else {
+      setIsDriverMode(false);
+    }
+  }, [isDriverMode, vehicles.vehicles.length]);
+
+  const handleVehicleSelected = useCallback(() => {
+    setShowVehicleManager(false);
+    setIsDriverMode(true);
+    toast({
+      title: 'Modo conductor activado',
+      description: vehicles.activeVehicle
+        ? `Usando ${vehicles.activeVehicle.brand} ${vehicles.activeVehicle.model} · ${vehicles.activeVehicle.licensePlate}`
+        : 'Navega a tu destino y aparecerán pasajeros cercanos',
     });
-  }, [toast]);
+  }, [vehicles.activeVehicle, toast]);
+
+  const handleMenuNavigate = useCallback(
+    (section: string) => {
+      if (section === 'vehicles') {
+        modals.closeSettingsMenu();
+        setVehicleSelectMode('manage');
+        setShowVehicleManager(true);
+        return;
+      }
+      modals.handleMenuNavigate(section);
+    },
+    [modals],
+  );
 
   const handleMatchAcceptAndClose = useCallback(() => {
     setShowPreview(false);
@@ -435,6 +469,7 @@ const Index = () => {
               <span className="text-[11px] font-medium text-foreground">Conductor activo</span>
               <span className="text-[11px] text-muted-foreground">
                 · {driverSettings.seats} plazas · +{driverSettings.maxDetour} min
+                {vehicles.activeVehicle ? ` · ${vehicles.activeVehicle.licensePlate}` : ''}
               </span>
             </div>
           </motion.div>
@@ -687,7 +722,7 @@ const Index = () => {
       <SettingsMenu
         isOpen={modals.showSettingsMenu}
         onClose={modals.closeSettingsMenu}
-        onNavigate={modals.handleMenuNavigate}
+        onNavigate={handleMenuNavigate}
       />
 
       <ProfileSection isOpen={modals.showProfile} onClose={modals.closeProfile} />
@@ -703,6 +738,19 @@ const Index = () => {
         }}
         userName="Ana M."
         tripInfo="Huesca → Zaragoza"
+      />
+
+      <VehicleManager
+        isOpen={showVehicleManager}
+        onClose={() => setShowVehicleManager(false)}
+        vehicles={vehicles.vehicles}
+        activeVehicleId={vehicles.activeVehicleId}
+        onAdd={vehicles.addVehicle}
+        onRemove={vehicles.removeVehicle}
+        onVerify={vehicles.startVerification}
+        onSelect={vehicles.selectActiveVehicle}
+        mode={vehicleSelectMode}
+        onConfirmSelect={handleVehicleSelected}
       />
     </div>
   );

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, History, Wallet, Shield, HelpCircle, LogOut, ChevronRight, X, CheckCircle } from 'lucide-react';
+import { User, History, Wallet, Shield, HelpCircle, LogOut, ChevronRight, X, CheckCircle, Car } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface SettingsMenuProps {
@@ -11,11 +11,13 @@ interface SettingsMenuProps {
 
 const menuItems = [
   { id: 'profile', icon: User, label: 'Mi perfil', description: 'Datos personales y verificación', badge: null },
+  { id: 'vehicles', icon: Car, label: 'Mis vehículos', description: 'Gestiona tus coches y su coste/km', badge: null },
   { id: 'history', icon: History, label: 'Historial', description: 'Viajes anteriores', badge: '79' },
   { id: 'wallet', icon: Wallet, label: 'Pagos', description: 'Cartera y métodos de pago', badge: '€67' },
   { id: 'security', icon: Shield, label: 'Seguridad', description: 'Verificación DNI', badge: 'verified' },
   { id: 'help', icon: HelpCircle, label: 'Ayuda', description: 'Soporte y FAQ', badge: null },
 ];
+
 
 const SettingsMenu = ({ isOpen, onClose, onNavigate }: SettingsMenuProps) => {
   return (
