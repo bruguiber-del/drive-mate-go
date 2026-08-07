@@ -28,7 +28,10 @@ export interface PriceInput {
   passengerCount: 1 | 2 | 3 | 4;
   detourKm?: number;       // extra km the driver does
   traffic?: TrafficFactor;
+  /** Cost per km of the active vehicle; falls back to the generic constant */
+  costPerKm?: number;
 }
+
 
 export interface PriceBreakdown {
   /** Total cost the driver pays (fuel + maintenance) */
