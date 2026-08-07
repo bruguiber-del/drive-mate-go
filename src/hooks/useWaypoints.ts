@@ -26,13 +26,14 @@ export function useWaypoints({ finalDestination }: UseWaypointsOptions = {}) {
     dropoff: { lat: number; lng: number; name: string }
   ) => {
     const mpWaypoint: Waypoint = {
-      id: `meeting-${Date.now()}`,
-      type: 'meeting_point',
+      id: `pickup-${Date.now()}`,
+      type: 'pickup',
       lat: meetingPoint.lat,
       lng: meetingPoint.lng,
       name: meetingPoint.name,
       completed: false,
     };
+
     const dropoffWaypoint: Waypoint = {
       id: `dropoff-${Date.now()}`,
       type: 'dropoff',
