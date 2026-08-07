@@ -100,7 +100,11 @@ export function useTripLifecycle({
   const handleMatchAccept = useCallback(() => {
     const newTripId = crypto.randomUUID();
 
+    console.log('[handleMatchAccept] isDriverMode:', isDriverMode);
+    console.log('[handleMatchAccept] simulatedPassenger:', simulatedPassenger?.id);
+
     if (isDriverMode && simulatedPassenger) {
+      console.log('[handleMatchAccept] → entrando rama DRIVER');
       // ── Driver branch ────────────────────────────────────────────────────
       setActiveTripRole('driver');
       setActiveTripId(newTripId);
@@ -136,6 +140,7 @@ export function useTripLifecycle({
 
       dismissSimPassenger();
     } else {
+      console.log('[handleMatchAccept] → entrando rama PASSENGER');
       // ── Passenger branch ─────────────────────────────────────────────────
       setActiveTripRole('passenger');
       setActiveTripId(newTripId);
@@ -164,6 +169,9 @@ export function useTripLifecycle({
         });
       }
     }
+
+    console.log('[handleMatchAccept] activeTripRole después de set:',
+      isDriverMode && simulatedPassenger ? 'driver' : 'passenger');
 
     // Common to both branches — guaranteed to run
     setTripStatus('waiting');
