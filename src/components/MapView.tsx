@@ -312,6 +312,9 @@ const MapView = ({
       (position) => {
         console.log('GPS position:', position.coords);
         const coords: [number, number] = [position.coords.latitude, position.coords.longitude];
+        try {
+          localStorage.setItem('vimatch_last_pos', JSON.stringify(coords));
+        } catch { /* ignore quota errors */ }
         setRawUserLocation(coords);
         if (position.coords.heading !== null && !isNaN(position.coords.heading)) {
           setUserHeading(position.coords.heading);
