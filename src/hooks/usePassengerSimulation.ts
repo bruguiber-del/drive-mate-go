@@ -156,7 +156,9 @@ function generatePassenger(
     passengerCount: 1,
     detourKm,
     traffic: 'normal',
+    costPerKm,
   });
+
 
   return {
     id: crypto.randomUUID(),
