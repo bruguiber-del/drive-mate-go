@@ -635,6 +635,8 @@ const Index = () => {
           userRole={trip.activeTripRole}
           tripStatus={trip.tripStatus}
           onPickup={trip.handlePickup}
+          pickupEta={pickupEta}
+          dropoffEta={dropoffEta}
         />
       </AnimatePresence>
 
