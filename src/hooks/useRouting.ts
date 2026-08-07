@@ -110,13 +110,19 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
           })) ?? [],
         ) ?? [];
 
-      setRoute({
+      const newRoute: RouteData = {
         coordinates,
         distance: routeData.distance,
         duration: routeData.duration,
         legDurations: routeData.legs?.map((leg: any) => leg.duration ?? 0) ?? [],
         steps,
-      });
+      };
+
+      if (cacheKey) {
+        routeCacheRef.current.set(cacheKey, { route: newRoute, ts: Date.now() });
+      }
+
+      setRoute(newRoute);
     } catch (err) {
       console.error('Routing error:', err);
       setError(err instanceof Error ? err.message : 'Unknown error');
@@ -126,7 +132,7 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
       setIsLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [origin, destination, enabled, waypointsKey]);
+  }, [origin, destination, enabled, waypointsKey, cacheKey]);
 
   useEffect(() => { fetchRoute(); }, [fetchRoute]);
   useEffect(() => { if (!enabled) setRoute(null); }, [enabled]);
