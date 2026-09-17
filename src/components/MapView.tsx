@@ -787,7 +787,7 @@ const MapView = ({
   return (
     <div className="relative w-full h-full overflow-hidden bg-background">
       {/* Map canvas — fully interactive */}
-      <div ref={mapContainer} className="absolute inset-0 z-0" />
+      <div ref={mapContainer} className="absolute inset-0 z-0" style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }} />
       {/* Decorative gradient — non-interactive */}
       <div className="absolute inset-0 pointer-events-none z-10 bg-gradient-to-t from-background/60 via-transparent to-background/40" />
       {/* Children (overlays) — wrapper non-interactive; children opt-in via pointer-events-auto */}
