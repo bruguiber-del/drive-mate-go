@@ -84,7 +84,7 @@ const buildMarkerEl = (color: string, iconPath: string, label?: string, dashed =
       </div>
       ${
         label
-          ? `<span style="
+          ? `<span data-marker-label style="
               margin-top:4px;font-size:10px;font-weight:600;
               padding:2px 8px;border-radius:9999px;color:white;
               background:${color};white-space:nowrap;
@@ -251,6 +251,35 @@ const MapView = ({
   const driverMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const waypointMarkersRef = useRef<mapboxgl.Marker[]>([]);
   const previewMarkersRef = useRef<mapboxgl.Marker[]>([]);
+
+  const updateMarkerLabelVisibility = useCallback(() => {
+    if (!map.current) return;
+
+    const markers = [...waypointMarkersRef.current, ...previewMarkersRef.current];
+    const positioned = markers.map(marker => ({
+      marker,
+      point: map.current?.project(marker.getLngLat()),
+      label: marker.getElement().querySelector<HTMLElement>('[data-marker-label]'),
+    }));
+
+    positioned.forEach(({ label }) => {
+      if (label) label.style.display = '';
+    });
+
+    const COLLISION_DISTANCE_PX = 72;
+    for (let i = 0; i < positioned.length; i += 1) {
+      const first = positioned[i];
+      if (!first.point || !first.label) continue;
+      for (let j = i + 1; j < positioned.length; j += 1) {
+        const second = positioned[j];
+        if (!second.point || !second.label) continue;
+        if (first.point.dist(second.point) < COLLISION_DISTANCE_PX) {
+          first.label.style.display = 'none';
+          second.label.style.display = 'none';
+        }
+      }
+    }
+  }, []);
 
   const watchIdRef = useRef<number | null>(null);
   const isFollowingRef = useRef(true);
@@ -616,6 +645,18 @@ const MapView = ({
     }
   }, [walkingRoute, mapReady]);
 
+  useEffect(() => {
+    if (!map.current || !mapReady) return;
+    const m = map.current;
+    const refreshLabels = () => updateMarkerLabelVisibility();
+    m.on('moveend', refreshLabels);
+    m.on('zoomend', refreshLabels);
+    return () => {
+      m.off('moveend', refreshLabels);
+      m.off('zoomend', refreshLabels);
+    };
+  }, [mapReady, updateMarkerLabelVisibility]);
+
   // ── Waypoint markers (active trip) ────────────────────────────────────────
   useEffect(() => {
     if (!map.current || !mapReady) return;
@@ -637,6 +678,8 @@ const MapView = ({
       waypointMarkersRef.current.push(marker);
     }
 
+    requestAnimationFrame(updateMarkerLabelVisibility);
+
     // Auto-fit to show user + ALL waypoints (including final destination)
     const bounds = new mapboxgl.LngLatBounds();
     const ul = userLocationRef.current;
@@ -650,7 +693,7 @@ const MapView = ({
       });
       isFollowingRef.current = false;
     }
-  }, [waypointMarkers, mapReady]);
+  }, [waypointMarkers, mapReady, updateMarkerLabelVisibility]);
 
   // ── Google-Maps-like 3D camera when navigating ────────────────────────────
   useEffect(() => {
@@ -687,6 +730,8 @@ const MapView = ({
         .addTo(m);
       previewMarkersRef.current.push(marker);
     }
+
+    requestAnimationFrame(updateMarkerLabelVisibility);
 
     const ul = userLocationRef.current;
     if (ul && previewWaypoints.length >= 2) {
@@ -739,7 +784,7 @@ const MapView = ({
       m.fitBounds(bounds, { padding: 80, maxZoom: 13, duration: 800 });
       isFollowingRef.current = false;
     }
-  }, [previewWaypoints, mapReady]);
+  }, [previewWaypoints, mapReady, updateMarkerLabelVisibility]);
 
   // ── Driver marker (passenger view) ────────────────────────────────────────
   useEffect(() => {
