@@ -731,19 +731,7 @@ const Index = () => {
               : undefined
           }
           onDriverArrived={trip.handlePickup}
-          tripData={
-            trip.activeTripRole === "passenger" && driverSim.currentDriver
-              ? {
-                  otherUser: driverSim.currentDriver.name,
-                  otherUserRating: driverSim.currentDriver.rating,
-                  origin: "Tu ubicación",
-                  destination: nav.destination || "Tu destino",
-                  pickupPoint: trip.meetingPoint?.name ?? "Punto de encuentro",
-                  eta: driverSim.currentDriver.etaMinutes,
-                  price: driverSim.currentDriver.totalPrice,
-                }
-              : undefined
-          }
+          tripData={activeTripData}
         />
       </AnimatePresence>
 
