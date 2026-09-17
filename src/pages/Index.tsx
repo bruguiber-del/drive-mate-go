@@ -436,6 +436,7 @@ const Index = () => {
 
   return (
     <div className="h-screen w-screen overflow-hidden">
+      <Suspense fallback={<div className="absolute inset-0 bg-background" />}>
       <MapView
         destination={mapDestination}
         showRoute={nav.isNavigating || (trip.showActiveTrip && trip.activeTripRole === "driver")}
