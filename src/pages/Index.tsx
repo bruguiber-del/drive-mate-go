@@ -27,7 +27,8 @@ import VehicleManager from "@/components/VehicleManager";
 import { useDriverTracking } from "@/hooks/useDriverTracking";
 import { useWaypoints, type TripLeg } from "@/hooks/useWaypoints";
 import { useWalkingRoute } from "@/hooks/useWalkingRoute";
-import { usePassengerSimulation } from "@/hooks/usePassengerSimulation";
+import { usePassengerSimulation, type SimulatedPassenger } from "@/hooks/usePassengerSimulation";
+import { calculatePrice } from "@/lib/priceCalculator";
 // useNavigationSimulation removed: real GPS only for MVP
 import { useTripLifecycle } from "@/hooks/useTripLifecycle";
 import { useNavigationState } from "@/hooks/useNavigationState";
@@ -56,6 +57,8 @@ const Index = () => {
   const [hasActivePassengerSearch, setHasActivePassengerSearch] = useState(false);
   const [realUserLocation, setRealUserLocation] = useState<[number, number] | null>(null);
   const [showPreview, setShowPreview] = useState(false);
+  /** Passenger the driver accepted — powers the real ActiveTripView data */
+  const [acceptedPassenger, setAcceptedPassenger] = useState<SimulatedPassenger | null>(null);
 
   // ── Vehicles ────────────────────────────────────────────────────────────────
   const vehicles = useVehicles();
@@ -82,13 +85,14 @@ const Index = () => {
   });
 
   // ── Passenger simulation ────────────────────────────────────────────────────
-  // Forward-declared via ref to use trip.showActiveTrip without TDZ.
-  const showActiveTripRef = useRef(false);
-  const passengerSimEnabledEarly =
-    isDriverMode && nav.isNavigating && !modals.showMatchPopup && !showActiveTripRef.current;
+  // Single source of truth. NOTE: deliberately NOT tied to showMatchPopup —
+  // the current passenger must stay alive while the popup is open. It is only
+  // cleared explicitly via dismissCurrent / acceptCurrent.
+  const [activeTripOpen, setActiveTripOpen] = useState(false);
+  const passengerSimEnabled = isDriverMode && nav.isNavigating && !activeTripOpen;
 
   const { currentPassenger: simulatedPassenger, dismissCurrent: dismissSimPassenger } = usePassengerSimulation({
-    enabled: passengerSimEnabledEarly,
+    enabled: passengerSimEnabled && !modals.showMatchPopup,
     userLocation: realUserLocation,
     intervalMs: 12000,
     driverRoute: nav.currentRoute?.coordinates ?? null,
@@ -132,13 +136,12 @@ const Index = () => {
     return () => window.removeEventListener("vimatch:gps-denied", handler);
   }, [toast]);
 
-  // Unified flag — single source of truth for passenger simulation gating
-  const passengerSimEnabled = isDriverMode && nav.isNavigating && !trip.showActiveTrip && !modals.showMatchPopup;
-
-  // Keep the ref in sync so the early gate above also sees showActiveTrip
+  // Keep the state in sync so the gate above also sees showActiveTrip
   useEffect(() => {
-    showActiveTripRef.current = trip.showActiveTrip;
+    setActiveTripOpen(trip.showActiveTrip);
+    if (!trip.showActiveTrip) setAcceptedPassenger(null);
   }, [trip.showActiveTrip]);
+
 
   // ── Navigation simulation DISABLED for real-GPS MVP ────────────────────────
   // The user marker must move only when the real device GPS reports a new
@@ -284,6 +287,60 @@ const Index = () => {
     };
   }, [nav.currentRoute, nav.dynamicETA, routeWaypoints]);
 
+  // ── Derived: real data for ActiveTripView (driver & passenger) ─────────────
+  const activeTripData = useMemo(() => {
+    if (trip.activeTripRole === "driver" && acceptedPassenger) {
+      const toRad = (d: number) => (d * Math.PI) / 180;
+      const R = 6371;
+      const dLat = toRad(acceptedPassenger.destination.lat - acceptedPassenger.origin.lat);
+      const dLng = toRad(acceptedPassenger.destination.lng - acceptedPassenger.origin.lng);
+      const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(acceptedPassenger.origin.lat)) *
+          Math.cos(toRad(acceptedPassenger.destination.lat)) *
+          Math.sin(dLng / 2) ** 2;
+      const distanceKm = 2 * R * Math.asin(Math.sqrt(a));
+      const pricing = calculatePrice({
+        distanceKm,
+        passengerCount: 1,
+        traffic: "normal",
+        costPerKm: vehicles.activeVehicle?.costPerKm,
+      });
+      return {
+        otherUser: acceptedPassenger.name,
+        otherUserRating: acceptedPassenger.rating,
+        origin: acceptedPassenger.origin.name,
+        destination: acceptedPassenger.destination.name,
+        pickupPoint: trip.meetingPoint?.name ?? acceptedPassenger.origin.name,
+        eta: pickupEta ?? nav.dynamicETA?.minutes ?? 0,
+        price: pricing.driverIncome,
+        acceptsPets: acceptedPassenger.acceptsPets,
+        hasChildSeat: acceptedPassenger.hasChildSeat,
+      };
+    }
+    if (trip.activeTripRole === "passenger" && driverSim.currentDriver) {
+      return {
+        otherUser: driverSim.currentDriver.name,
+        otherUserRating: driverSim.currentDriver.rating,
+        origin: "Tu ubicación",
+        destination: nav.destination || "Tu destino",
+        pickupPoint: trip.meetingPoint?.name ?? "Punto de encuentro",
+        eta: driverSim.currentDriver.etaMinutes,
+        price: driverSim.currentDriver.totalPrice,
+      };
+    }
+    return undefined;
+  }, [
+    trip.activeTripRole,
+    trip.meetingPoint,
+    acceptedPassenger,
+    vehicles.activeVehicle,
+    pickupEta,
+    nav.dynamicETA,
+    driverSim.currentDriver,
+    nav.destination,
+  ]);
+
   // ── Handlers ───────────────────────────────────────────────────────────────
 
   const handleDriverToggle = useCallback(() => {
@@ -327,8 +384,9 @@ const Index = () => {
   const handleMatchAcceptAndClose = useCallback(() => {
     setShowPreview(false);
     modals.closeMatchPopup();
+    if (isDriverMode && simulatedPassenger) setAcceptedPassenger(simulatedPassenger);
     trip.handleMatchAccept();
-  }, [modals, trip]);
+  }, [modals, trip, isDriverMode, simulatedPassenger]);
 
   const handleMatchReject = useCallback(() => {
     setShowPreview(false);
@@ -674,19 +732,7 @@ const Index = () => {
               : undefined
           }
           onDriverArrived={trip.handlePickup}
-          tripData={
-            trip.activeTripRole === "passenger" && driverSim.currentDriver
-              ? {
-                  otherUser: driverSim.currentDriver.name,
-                  otherUserRating: driverSim.currentDriver.rating,
-                  origin: "Tu ubicación",
-                  destination: nav.destination || "Tu destino",
-                  pickupPoint: trip.meetingPoint?.name ?? "Punto de encuentro",
-                  eta: driverSim.currentDriver.etaMinutes,
-                  price: driverSim.currentDriver.totalPrice,
-                }
-              : undefined
-          }
+          tripData={activeTripData}
         />
       </AnimatePresence>
 
