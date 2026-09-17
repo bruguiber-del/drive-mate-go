@@ -1,47 +1,47 @@
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, Settings, Locate, X, Navigation } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useToast } from '@/components/ui/use-toast';
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Menu, Settings, Locate, X, Navigation } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/use-toast";
 
 // ── UI Components ──────────────────────────────────────────────────────────────
-import MapView from '@/components/MapView';
-import DriverToggle from '@/components/DriverToggle';
-import SearchBar from '@/components/SearchBar';
-import NavigationSearch from '@/components/NavigationSearch';
-import PassengerCard from '@/components/PassengerCard';
-import PassengerSearch from '@/components/PassengerSearch';
-import DriverSettingsSheet from '@/components/DriverSettingsSheet';
-import PassengerSettingsSheet from '@/components/PassengerSettingsSheet';
-import MatchPopup from '@/components/MatchPopup';
-import SettingsMenu from '@/components/SettingsMenu';
-import ProfileSection from '@/components/ProfileSection';
-import TripHistory from '@/components/TripHistory';
-import WalletSection from '@/components/WalletSection';
-import HelpSection from '@/components/HelpSection';
-import ActiveTripView from '@/components/ActiveTripView';
-import RatingModal from '@/components/RatingModal';
-import VehicleManager from '@/components/VehicleManager';
+import MapView from "@/components/MapView";
+import DriverToggle from "@/components/DriverToggle";
+import SearchBar from "@/components/SearchBar";
+import NavigationSearch from "@/components/NavigationSearch";
+import PassengerCard from "@/components/PassengerCard";
+import PassengerSearch from "@/components/PassengerSearch";
+import DriverSettingsSheet from "@/components/DriverSettingsSheet";
+import PassengerSettingsSheet from "@/components/PassengerSettingsSheet";
+import MatchPopup from "@/components/MatchPopup";
+import SettingsMenu from "@/components/SettingsMenu";
+import ProfileSection from "@/components/ProfileSection";
+import TripHistory from "@/components/TripHistory";
+import WalletSection from "@/components/WalletSection";
+import HelpSection from "@/components/HelpSection";
+import ActiveTripView from "@/components/ActiveTripView";
+import RatingModal from "@/components/RatingModal";
+import VehicleManager from "@/components/VehicleManager";
 
 // ── Hooks ─────────────────────────────────────────────────────────────────────
-import { useDriverTracking } from '@/hooks/useDriverTracking';
-import { useWaypoints, type TripLeg } from '@/hooks/useWaypoints';
-import { useWalkingRoute } from '@/hooks/useWalkingRoute';
-import { usePassengerSimulation } from '@/hooks/usePassengerSimulation';
+import { useDriverTracking } from "@/hooks/useDriverTracking";
+import { useWaypoints, type TripLeg } from "@/hooks/useWaypoints";
+import { useWalkingRoute } from "@/hooks/useWalkingRoute";
+import { usePassengerSimulation } from "@/hooks/usePassengerSimulation";
 // useNavigationSimulation removed: real GPS only for MVP
-import { useTripLifecycle } from '@/hooks/useTripLifecycle';
-import { useNavigationState } from '@/hooks/useNavigationState';
-import { useUIModals } from '@/hooks/useUIModals';
-import { useVehicles } from '@/hooks/useVehicles';
-import { useDriverSimulation } from '@/hooks/useDriverSimulation';
+import { useTripLifecycle } from "@/hooks/useTripLifecycle";
+import { useNavigationState } from "@/hooks/useNavigationState";
+import { useUIModals } from "@/hooks/useUIModals";
+import { useVehicles } from "@/hooks/useVehicles";
+import { useDriverSimulation } from "@/hooks/useDriverSimulation";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const LEG_LABELS: Record<TripLeg, string> = {
-  to_meeting_point: 'Ve a recoger al pasajero',
-  to_pickup: 'Ve a recoger al pasajero',
-  to_dropoff: 'Lleva al pasajero a su destino',
-  to_destination: 'Continúa a tu destino',
+  to_meeting_point: "Ve a recoger al pasajero",
+  to_pickup: "Ve a recoger al pasajero",
+  to_dropoff: "Lleva al pasajero a su destino",
+  to_destination: "Continúa a tu destino",
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -61,21 +61,14 @@ const Index = () => {
   const vehicles = useVehicles();
   const driverSim = useDriverSimulation();
   const [showVehicleManager, setShowVehicleManager] = useState(false);
-  const [vehicleSelectMode, setVehicleSelectMode] = useState<'manage' | 'select'>('manage');
+  const [vehicleSelectMode, setVehicleSelectMode] = useState<"manage" | "select">("manage");
 
   // ── Modal / section visibility ──────────────────────────────────────────────
   const modals = useUIModals();
 
   // ── Waypoints ───────────────────────────────────────────────────────────────
   const waypoints = useWaypoints();
-  const {
-    currentLeg,
-    currentTarget,
-    routeWaypoints,
-    hasPassenger,
-    cancelTrip,
-    setFinalDestination,
-  } = waypoints;
+  const { currentLeg, currentTarget, routeWaypoints, hasPassenger, cancelTrip, setFinalDestination } = waypoints;
 
   // ── Cross-hook bridge: nav.onStop must call trip.handleTripEnd which is
   //    declared after nav. Use a ref to break the cycle without TDZ issues.
@@ -94,10 +87,7 @@ const Index = () => {
   const passengerSimEnabledEarly =
     isDriverMode && nav.isNavigating && !modals.showMatchPopup && !showActiveTripRef.current;
 
-  const {
-    currentPassenger: simulatedPassenger,
-    dismissCurrent: dismissSimPassenger,
-  } = usePassengerSimulation({
+  const { currentPassenger: simulatedPassenger, dismissCurrent: dismissSimPassenger } = usePassengerSimulation({
     enabled: passengerSimEnabledEarly,
     userLocation: realUserLocation,
     intervalMs: 12000,
@@ -133,18 +123,17 @@ const Index = () => {
   useEffect(() => {
     const handler = () => {
       toast({
-        title: 'Ubicación denegada',
-        description: 'Activa los permisos de ubicación para usar VIMATCH correctamente.',
-        variant: 'destructive',
+        title: "Ubicación denegada",
+        description: "Activa los permisos de ubicación para usar VIMATCH correctamente.",
+        variant: "destructive",
       });
     };
-    window.addEventListener('vimatch:gps-denied', handler);
-    return () => window.removeEventListener('vimatch:gps-denied', handler);
+    window.addEventListener("vimatch:gps-denied", handler);
+    return () => window.removeEventListener("vimatch:gps-denied", handler);
   }, [toast]);
 
   // Unified flag — single source of truth for passenger simulation gating
-  const passengerSimEnabled =
-    isDriverMode && nav.isNavigating && !trip.showActiveTrip && !modals.showMatchPopup;
+  const passengerSimEnabled = isDriverMode && nav.isNavigating && !trip.showActiveTrip && !modals.showMatchPopup;
 
   // Keep the ref in sync so the early gate above also sees showActiveTrip
   useEffect(() => {
@@ -160,33 +149,24 @@ const Index = () => {
   // ── Driver real-time tracking ──────────────────────────────────────────────
   const { driverLocation, locationHistory } = useDriverTracking({
     tripId: trip.activeTripId,
-    isDriver: trip.activeTripRole === 'driver',
+    isDriver: trip.activeTripRole === "driver",
     enabled: trip.showActiveTrip,
   });
 
   // ── Walking route (passenger → meeting point) ──────────────────────────────
   const passengerWalkingEnabled =
-    trip.activeTripRole === 'passenger' &&
-    trip.meetingPoint !== null &&
-    trip.showActiveTrip &&
-    !isDoorToDoor;
+    trip.activeTripRole === "passenger" && trip.meetingPoint !== null && trip.showActiveTrip && !isDoorToDoor;
 
   const { route: walkingRouteData } = useWalkingRoute({
     origin: realUserLocation,
-    destination: trip.meetingPoint
-      ? { lat: trip.meetingPoint.lat, lng: trip.meetingPoint.lng }
-      : null,
+    destination: trip.meetingPoint ? { lat: trip.meetingPoint.lat, lng: trip.meetingPoint.lng } : null,
     enabled: passengerWalkingEnabled,
   });
 
   // ── Open match popup when a new simulated passenger appears ────────────────
-  const prevPassengerIdRef = useRef('');
+  const prevPassengerIdRef = useRef("");
   useEffect(() => {
-    if (
-      passengerSimEnabled &&
-      simulatedPassenger &&
-      simulatedPassenger.id !== prevPassengerIdRef.current
-    ) {
+    if (passengerSimEnabled && simulatedPassenger && simulatedPassenger.id !== prevPassengerIdRef.current) {
       prevPassengerIdRef.current = simulatedPassenger.id;
       modals.openMatchPopup();
       setShowPreview(true);
@@ -209,8 +189,8 @@ const Index = () => {
         hasChildSeat: d.hasChildSeat,
         doorToDoor: isDoorToDoor,
         doorToDoorSurcharge: isDoorToDoor ? 1.2 : 0,
-        origin: 'Tu ubicación',
-        destination: 'Tu destino',
+        origin: "Tu ubicación",
+        destination: "Tu destino",
         vehicle: d.vehicle,
         etaMinutes: d.etaMinutes,
         basePrice: d.basePrice,
@@ -242,13 +222,13 @@ const Index = () => {
       {
         lat: simulatedPassenger.origin.lat,
         lng: simulatedPassenger.origin.lng,
-        type: 'pickup' as const,
-        name: 'Recogida',
+        type: "pickup" as const,
+        name: "Recogida",
       },
       {
         lat: simulatedPassenger.destination.lat,
         lng: simulatedPassenger.destination.lng,
-        type: 'dropoff' as const,
+        type: "dropoff" as const,
         name: simulatedPassenger.destination.name,
       },
     ];
@@ -259,7 +239,7 @@ const Index = () => {
   // destination; pickups/meeting points are inserted as intermediate stops so
   // the polyline goes: driver → pickup → final_destination.
   const finalDestinationWaypoint = useMemo(
-    () => routeWaypoints.find(w => w.type === 'final_destination'),
+    () => routeWaypoints.find((w) => w.type === "final_destination"),
     [routeWaypoints],
   );
 
@@ -278,41 +258,29 @@ const Index = () => {
   }, [finalDestinationWaypoint, currentTarget, nav.destinationCoords]);
 
   // Intermediate stops to insert in the routing call (everything except final)
-  const intermediateRouteWaypoints = useMemo(
-    () => {
-      const wps = routeWaypoints
-        .filter(w => w.type !== 'final_destination')
-        .map(w => ({ lat: w.lat, lng: w.lng }));
-      console.log('intermediateRouteWaypoints:', wps, 'routeWaypoints:', routeWaypoints);
-      return wps;
-    },
-    [routeWaypoints],
-  );
+  const intermediateRouteWaypoints = useMemo(() => {
+    const wps = routeWaypoints.filter((w) => w.type !== "final_destination").map((w) => ({ lat: w.lat, lng: w.lng }));
+    console.log("intermediateRouteWaypoints:", wps, "routeWaypoints:", routeWaypoints);
+    return wps;
+  }, [routeWaypoints]);
 
   // ── Derived: waypoint markers for map ──────────────────────────────────────
   const mapWaypointMarkers = useMemo(
-    () => routeWaypoints.map(w => ({ lat: w.lat, lng: w.lng, type: w.type, name: w.name })),
+    () => routeWaypoints.map((w) => ({ lat: w.lat, lng: w.lng, type: w.type, name: w.name })),
     [routeWaypoints],
   );
 
   // ── Derived: pickup / dropoff ETAs from the multi-leg route ────────────────
   const { pickupEta, dropoffEta } = useMemo(() => {
     const legs = nav.currentRoute?.legDurations ?? [];
-    const sumTo = (idx: number) =>
-      Math.ceil(legs.slice(0, idx + 1).reduce((a, b) => a + b, 0) / 60);
+    const sumTo = (idx: number) => Math.ceil(legs.slice(0, idx + 1).reduce((a, b) => a + b, 0) / 60);
 
-    const pickupIdx = routeWaypoints.findIndex(
-      w => w.type === 'pickup' || w.type === 'meeting_point',
-    );
-    const dropIdx = routeWaypoints.findIndex(w => w.type === 'dropoff');
+    const pickupIdx = routeWaypoints.findIndex((w) => w.type === "pickup" || w.type === "meeting_point");
+    const dropIdx = routeWaypoints.findIndex((w) => w.type === "dropoff");
 
     return {
-      pickupEta:
-        pickupIdx >= 0 && legs.length > pickupIdx
-          ? sumTo(pickupIdx)
-          : nav.dynamicETA?.minutes,
-      dropoffEta:
-        dropIdx >= 0 && legs.length > dropIdx ? sumTo(dropIdx) : undefined,
+      pickupEta: pickupIdx >= 0 && legs.length > pickupIdx ? sumTo(pickupIdx) : nav.dynamicETA?.minutes,
+      dropoffEta: dropIdx >= 0 && legs.length > dropIdx ? sumTo(dropIdx) : undefined,
     };
   }, [nav.currentRoute, nav.dynamicETA, routeWaypoints]);
 
@@ -321,11 +289,11 @@ const Index = () => {
   const handleDriverToggle = useCallback(() => {
     if (!isDriverMode) {
       if (vehicles.vehicles.length === 0) {
-        setVehicleSelectMode('manage');
+        setVehicleSelectMode("manage");
         setShowVehicleManager(true);
         return;
       }
-      setVehicleSelectMode('select');
+      setVehicleSelectMode("select");
       setShowVehicleManager(true);
     } else {
       setIsDriverMode(false);
@@ -336,18 +304,18 @@ const Index = () => {
     setShowVehicleManager(false);
     setIsDriverMode(true);
     toast({
-      title: 'Modo conductor activado',
+      title: "Modo conductor activado",
       description: vehicles.activeVehicle
         ? `Usando ${vehicles.activeVehicle.brand} ${vehicles.activeVehicle.model} · ${vehicles.activeVehicle.licensePlate}`
-        : 'Navega a tu destino y aparecerán pasajeros cercanos',
+        : "Navega a tu destino y aparecerán pasajeros cercanos",
     });
   }, [vehicles.activeVehicle, toast]);
 
   const handleMenuNavigate = useCallback(
     (section: string) => {
-      if (section === 'vehicles') {
+      if (section === "vehicles") {
         modals.closeSettingsMenu();
-        setVehicleSelectMode('manage');
+        setVehicleSelectMode("manage");
         setShowVehicleManager(true);
         return;
       }
@@ -367,7 +335,7 @@ const Index = () => {
     modals.closeMatchPopup();
     dismissSimPassenger();
     if (!isDriverMode) driverSim.clearDriver();
-    toast({ title: 'Solicitud rechazada', description: 'Seguirás recibiendo nuevas solicitudes' });
+    toast({ title: "Solicitud rechazada", description: "Seguirás recibiendo nuevas solicitudes" });
   }, [modals, dismissSimPassenger, toast, isDriverMode, driverSim]);
 
   const handlePassengerSearch = useCallback(
@@ -375,7 +343,7 @@ const Index = () => {
       setHasActivePassengerSearch(false);
       const driver = driverSim.searchDriver();
       toast({
-        title: 'Conductor encontrado',
+        title: "Conductor encontrado",
         description: `${driver.name} · ${driver.vehicle.brand} ${driver.vehicle.model} · ${driver.vehicle.licensePlate}`,
       });
       modals.openMatchPopup();
@@ -383,7 +351,7 @@ const Index = () => {
     [modals, toast, driverSim],
   );
 
-  const showDriverOnMap = trip.showActiveTrip && trip.activeTripRole === 'passenger';
+  const showDriverOnMap = trip.showActiveTrip && trip.activeTripRole === "passenger";
 
   // ── Current navigation step (turn-by-turn) ──────────────────────────────────
   const currentStep = useMemo(() => {
@@ -410,21 +378,16 @@ const Index = () => {
 
   return (
     <div className="h-screen w-screen overflow-hidden">
-
       <MapView
         destination={mapDestination}
-        showRoute={nav.isNavigating || (trip.showActiveTrip && trip.activeTripRole === 'driver')}
+        showRoute={nav.isNavigating || (trip.showActiveTrip && trip.activeTripRole === "driver")}
         driverLocation={driverLocation}
         driverLocationHistory={locationHistory}
         showDriverMarker={showDriverOnMap}
         isNavigating={nav.isNavigating}
         waypointMarkers={mapWaypointMarkers}
         intermediateRouteWaypoints={intermediateRouteWaypoints}
-        walkingRoute={
-          trip.activeTripRole === 'passenger' && passengerWalkingEnabled
-            ? walkingRouteData
-            : null
-        }
+        walkingRoute={trip.activeTripRole === "passenger" && passengerWalkingEnabled ? walkingRouteData : null}
         onRouteUpdate={nav.setCurrentRoute}
         simulatedPosition={null}
         simulatedHeading={null}
@@ -496,14 +459,14 @@ const Index = () => {
               <span className="text-[11px] font-medium text-foreground">Conductor activo</span>
               <span className="text-[11px] text-muted-foreground">
                 · {driverSettings.seats} plazas · +{driverSettings.maxDetour} min
-                {vehicles.activeVehicle ? ` · ${vehicles.activeVehicle.licensePlate}` : ''}
+                {vehicles.activeVehicle ? ` · ${vehicles.activeVehicle.licensePlate}` : ""}
               </span>
             </div>
           </motion.div>
         )}
 
         {/* Navigation chip — conductor con pasajero */}
-        {trip.showActiveTrip && trip.activeTripRole === 'driver' && hasPassenger && (
+        {trip.showActiveTrip && trip.activeTripRole === "driver" && hasPassenger && (
           <motion.div
             className="absolute top-20 left-4 right-4 pointer-events-none z-10"
             initial={{ opacity: 0, y: -10 }}
@@ -518,9 +481,7 @@ const Index = () => {
                 )}
               </div>
               <div className="text-right shrink-0">
-                {nav.dynamicETA && (
-                  <span className="text-sm font-bold text-primary">{nav.dynamicETA.minutes} min</span>
-                )}
+                {nav.dynamicETA && <span className="text-sm font-bold text-primary">{nav.dynamicETA.minutes} min</span>}
                 {nav.detourMinutes != null && nav.detourMinutes > 0 && (
                   <span className="text-[10px] text-warning ml-1">+{nav.detourMinutes} min desvío</span>
                 )}
@@ -541,11 +502,10 @@ const Index = () => {
                 <Navigation className="w-5 h-5 text-primary" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-foreground leading-tight">
-                  {currentStep.instruction}
-                </p>
+                <p className="text-sm font-bold text-foreground leading-tight">{currentStep.instruction}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  En {currentStep.distance < 1000
+                  En{" "}
+                  {currentStep.distance < 1000
                     ? `${Math.round(currentStep.distance)}m`
                     : `${(currentStep.distance / 1000).toFixed(1)}km`}
                 </p>
@@ -555,7 +515,7 @@ const Index = () => {
         )}
 
         {/* Turn-by-turn banner — conductor CON viaje activo */}
-        {trip.showActiveTrip && trip.activeTripRole === 'driver' && nav.hasStartedDriving && currentStep && (
+        {trip.showActiveTrip && trip.activeTripRole === "driver" && nav.hasStartedDriving && currentStep && (
           <motion.div
             className="absolute top-32 left-4 right-4 pointer-events-none z-10"
             initial={{ opacity: 0, y: -10 }}
@@ -570,7 +530,8 @@ const Index = () => {
                   {currentStep.instruction}
                 </p>
                 <p className="text-[10px] text-muted-foreground">
-                  En {currentStep.distance < 1000
+                  En{" "}
+                  {currentStep.distance < 1000
                     ? `${Math.round(currentStep.distance)}m`
                     : `${(currentStep.distance / 1000).toFixed(1)}km`}
                 </p>
@@ -581,32 +542,31 @@ const Index = () => {
 
         {/* Passenger walking chip — SOLO pasajero */}
         {trip.showActiveTrip &&
-          trip.activeTripRole === 'passenger' &&
+          trip.activeTripRole === "passenger" &&
           trip.meetingPoint !== null &&
           !isDoorToDoor &&
           walkingRouteData && (
-          <motion.div
-            className="absolute top-20 left-4 right-4 pointer-events-none z-10"
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <div className="glass-strong rounded-xl px-3 py-2 flex items-center gap-2 border border-[hsl(280,70%,55%)]/30">
-              <span className="text-lg">🚶</span>
-              <div className="flex-1 min-w-0">
-                <span className="text-xs font-medium text-foreground">Camina al punto de encuentro</span>
+            <motion.div
+              className="absolute top-20 left-4 right-4 pointer-events-none z-10"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <div className="glass-strong rounded-xl px-3 py-2 flex items-center gap-2 border border-[hsl(280,70%,55%)]/30">
+                <span className="text-lg">🚶</span>
+                <div className="flex-1 min-w-0">
+                  <span className="text-xs font-medium text-foreground">Camina al punto de encuentro</span>
+                </div>
+                <div className="text-right shrink-0">
+                  <span className="text-sm font-bold" style={{ color: "hsl(280,70%,55%)" }}>
+                    {Math.ceil(walkingRouteData.duration / 60)} min
+                  </span>
+                  <span className="text-[10px] text-muted-foreground ml-1">
+                    {(walkingRouteData.distance / 1000).toFixed(1)} km
+                  </span>
+                </div>
               </div>
-              <div className="text-right shrink-0">
-                <span className="text-sm font-bold" style={{ color: 'hsl(280,70%,55%)' }}>
-                  {Math.ceil(walkingRouteData.duration / 60)} min
-                </span>
-                <span className="text-[10px] text-muted-foreground ml-1">
-                  {(walkingRouteData.distance / 1000).toFixed(1)} km
-                </span>
-              </div>
-            </div>
-          </motion.div>
-        )}
-
+            </motion.div>
+          )}
 
         {/* Passenger Card */}
         {!trip.showActiveTrip && (
@@ -616,10 +576,7 @@ const Index = () => {
             animate={{ x: 0, opacity: 1 }}
             transition={{ delay: 0.25 }}
           >
-            <PassengerCard
-              onClick={modals.openPassengerSearch}
-              hasActiveSearch={hasActivePassengerSearch}
-            />
+            <PassengerCard onClick={modals.openPassengerSearch} hasActiveSearch={hasActivePassengerSearch} />
           </motion.div>
         )}
 
@@ -631,12 +588,7 @@ const Index = () => {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 30, opacity: 0 }}
           >
-            <Button
-              variant="default"
-              size="lg"
-              className="w-full shadow-float"
-              onClick={nav.startDriving}
-            >
+            <Button variant="default" size="lg" className="w-full shadow-float" onClick={nav.startDriving}>
               <Navigation className="w-5 h-5 mr-2" />
               Iniciar conducción
             </Button>
@@ -655,7 +607,11 @@ const Index = () => {
               <DriverToggle isDriver={isDriverMode} onToggle={handleDriverToggle} />
 
               {isDriverMode && (
-                <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }}>
+                <motion.div
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0, opacity: 0 }}
+                >
                   <Button variant="glass" size="icon" className="w-9 h-9" onClick={modals.openDriverSettings}>
                     <Settings className="w-4 h-4" />
                   </Button>
@@ -678,10 +634,20 @@ const Index = () => {
                 <Button variant="glass" size="icon" className="w-8 h-8" onClick={() => (window as any).__mapZoomIn?.()}>
                   <span className="text-sm font-bold text-foreground">+</span>
                 </Button>
-                <Button variant="glass" size="icon" className="w-8 h-8" onClick={() => (window as any).__mapZoomOut?.()}>
+                <Button
+                  variant="glass"
+                  size="icon"
+                  className="w-8 h-8"
+                  onClick={() => (window as any).__mapZoomOut?.()}
+                >
                   <span className="text-sm font-bold text-foreground">−</span>
                 </Button>
-                <Button variant="glass" size="icon" className="w-8 h-8" onClick={() => (window as any).__mapCenterOnUser?.()}>
+                <Button
+                  variant="glass"
+                  size="icon"
+                  className="w-8 h-8"
+                  onClick={() => (window as any).__mapCenterOnUser?.()}
+                >
                   <Locate className="w-4 h-4 text-primary" />
                 </Button>
               </div>
@@ -700,26 +666,22 @@ const Index = () => {
           onPickup={trip.handlePickup}
           pickupEta={pickupEta}
           dropoffEta={dropoffEta}
-          driverVehicle={
-            trip.activeTripRole === 'passenger' ? driverSim.currentDriver?.vehicle : undefined
-          }
-          driverEta={
-            trip.activeTripRole === 'passenger' ? driverSim.currentDriver?.etaMinutes : undefined
-          }
+          driverVehicle={trip.activeTripRole === "passenger" ? driverSim.currentDriver?.vehicle : undefined}
+          driverEta={trip.activeTripRole === "passenger" ? driverSim.currentDriver?.etaMinutes : undefined}
           walkingMinutes={
-            trip.activeTripRole === 'passenger' && walkingRouteData
+            trip.activeTripRole === "passenger" && walkingRouteData
               ? Math.ceil(walkingRouteData.duration / 60)
               : undefined
           }
           onDriverArrived={trip.handlePickup}
           tripData={
-            trip.activeTripRole === 'passenger' && driverSim.currentDriver
+            trip.activeTripRole === "passenger" && driverSim.currentDriver
               ? {
                   otherUser: driverSim.currentDriver.name,
                   otherUserRating: driverSim.currentDriver.rating,
-                  origin: 'Tu ubicación',
-                  destination: nav.destination || 'Tu destino',
-                  pickupPoint: trip.meetingPoint?.name ?? 'Punto de encuentro',
+                  origin: "Tu ubicación",
+                  destination: nav.destination || "Tu destino",
+                  pickupPoint: trip.meetingPoint?.name ?? "Punto de encuentro",
                   eta: driverSim.currentDriver.etaMinutes,
                   price: driverSim.currentDriver.totalPrice,
                 }
@@ -750,7 +712,7 @@ const Index = () => {
         onClose={modals.closePassengerSettings}
         onSave={(settings) => {
           setIsDoorToDoor(settings.doorToDoor);
-          toast({ title: 'Preferencias aplicadas', description: 'Tus preferencias se usarán en la búsqueda' });
+          toast({ title: "Preferencias aplicadas", description: "Tus preferencias se usarán en la búsqueda" });
         }}
       />
 
@@ -759,7 +721,10 @@ const Index = () => {
         onClose={modals.closeDriverSettings}
         onSave={(settings) => {
           setDriverSettings({ seats: settings.seats, maxDetour: settings.maxDetour });
-          toast({ title: 'Ajustes guardados', description: `${settings.seats} plazas, desvío máx. ${settings.maxDetour} min` });
+          toast({
+            title: "Ajustes guardados",
+            description: `${settings.seats} plazas, desvío máx. ${settings.maxDetour} min`,
+          });
         }}
       />
 
@@ -786,7 +751,10 @@ const Index = () => {
         isOpen={trip.showRating}
         onClose={trip.closeRating}
         onSubmit={() => {
-          toast({ title: '¡Gracias por tu valoración!', description: 'Has obtenido un 10% de descuento en tu próximo viaje' });
+          toast({
+            title: "¡Gracias por tu valoración!",
+            description: "Has obtenido un 10% de descuento en tu próximo viaje",
+          });
         }}
         userName="Ana M."
         tripInfo="Huesca → Zaragoza"
