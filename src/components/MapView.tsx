@@ -40,6 +40,9 @@ const ROUTE_COLOR = 'hsl(199, 89%, 48%)';
 const WALKING_COLOR = 'hsl(280, 70%, 55%)';
 const TRAIL_COLOR = 'hsl(199, 89%, 48%)';
 
+/** Minimum GPS movement (m) before propagating a new position to the app. */
+const MIN_MOVE_METERS = 6;
+
 const WAYPOINT_COLORS: Record<string, string> = {
   meeting_point: 'hsl(280, 70%, 55%)',
   pickup: 'hsl(24, 95%, 53%)',          // 🟧 Naranja — Parada 1 / Recogida
