@@ -498,8 +498,24 @@ const Index = () => {
             </div>
 
             {nav.isNavigating && (
-              <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="pointer-events-auto">
-                <Button variant="destructive" size="icon" onClick={nav.handleStopNavigation}>
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className="pointer-events-auto flex items-center gap-2"
+              >
+                <Button
+                  variant="glass"
+                  size="icon"
+                  onClick={voice.toggleMuted}
+                  aria-label={voice.isMuted ? "Activar voz" : "Silenciar voz"}
+                >
+                  {voice.isMuted ? (
+                    <VolumeX className="w-5 h-5 text-muted-foreground" />
+                  ) : (
+                    <Volume2 className="w-5 h-5 text-primary" />
+                  )}
+                </Button>
+                <Button variant="destructive" size="icon" onClick={handleStopNavigation}>
                   <X className="w-5 h-5" />
                 </Button>
               </motion.div>
