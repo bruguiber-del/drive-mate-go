@@ -80,6 +80,9 @@
 
   html {
     font-family: 'Outfit', sans-serif;
+    /* Evita que Safari en iOS agrande el texto en columnas estrechas */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
 
   body {

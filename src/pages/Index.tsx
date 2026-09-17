@@ -547,7 +547,7 @@ const Index = () => {
         {/* Driver Status Chip */}
         {isDriverMode && !trip.showActiveTrip && (
           <motion.div
-            className="absolute top-20 right-4 pointer-events-none z-10"
+            className="absolute top-24 sm:top-20 right-4 pointer-events-none z-10"
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
           >
@@ -565,7 +565,7 @@ const Index = () => {
         {/* Navigation chip — conductor con pasajero */}
         {trip.showActiveTrip && trip.activeTripRole === "driver" && hasPassenger && (
           <motion.div
-            className="absolute top-20 left-4 right-4 pointer-events-none z-10"
+            className="absolute top-24 sm:top-20 left-4 right-4 pointer-events-none z-10"
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
           >
@@ -590,7 +590,7 @@ const Index = () => {
         {/* Turn-by-turn banner — SOLO cuando navegando SIN viaje activo */}
         {nav.isNavigating && nav.hasStartedDriving && !trip.showActiveTrip && currentStep && (
           <motion.div
-            className="absolute top-20 left-4 right-4 pointer-events-none z-10"
+            className="absolute top-24 sm:top-20 left-4 right-4 pointer-events-none z-10"
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
           >
@@ -614,7 +614,7 @@ const Index = () => {
         {/* Turn-by-turn banner — conductor CON viaje activo */}
         {trip.showActiveTrip && trip.activeTripRole === "driver" && nav.hasStartedDriving && currentStep && (
           <motion.div
-            className="absolute top-32 left-4 right-4 pointer-events-none z-10"
+            className="absolute top-36 sm:top-32 left-4 right-4 pointer-events-none z-10"
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
           >
@@ -644,7 +644,7 @@ const Index = () => {
           !isDoorToDoor &&
           walkingRouteData && (
             <motion.div
-              className="absolute top-20 left-4 right-4 pointer-events-none z-10"
+              className="absolute top-24 sm:top-20 left-4 right-4 pointer-events-none z-10"
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
             >
@@ -668,7 +668,7 @@ const Index = () => {
         {/* Passenger Card */}
         {!trip.showActiveTrip && (
           <motion.div
-            className="absolute top-20 left-4 pointer-events-auto"
+            className="absolute top-24 sm:top-20 left-4 pointer-events-auto"
             initial={{ x: -20, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             transition={{ delay: 0.25 }}

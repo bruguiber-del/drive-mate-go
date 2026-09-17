@@ -24,11 +24,11 @@ const SearchBar = ({ onClick, destination, isNavigating }: SearchBarProps) => {
           <Search className="w-5 h-5 text-muted-foreground" />
         )}
       </div>
-      <div className="flex-1">
-        <p className={`font-medium ${destination ? 'text-foreground' : 'text-muted-foreground'}`}>
+      <div className="flex-1 min-w-0">
+        <p className={`font-medium truncate ${destination ? 'text-foreground' : 'text-muted-foreground'}`}>
           {destination || '¿A dónde vas?'}
         </p>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-muted-foreground truncate">
           {isNavigating ? 'Navegando...' : 'Buscar destino'}
         </p>
       </div>
