@@ -395,6 +395,13 @@ const MapView = ({
         }
         lastPropagatedRef.current = coords;
 
+        // Speed tier (with hysteresis) drives the dynamic camera zoom/pitch.
+        const speedMs = position.coords.speed;
+        if (speedMs != null && !isNaN(speedMs) && speedMs >= 0) {
+          const kmh = speedMs * 3.6;
+          setSpeedTier(prevTier => nextSpeedTier(kmh, prevTier));
+        }
+
         setRawUserLocation(coords);
         if (position.coords.heading !== null && !isNaN(position.coords.heading)) {
           setUserHeading(position.coords.heading);
@@ -537,7 +544,8 @@ const MapView = ({
       return;
     }
 
-    const data = toLineGeoJSON(route.coordinates);
+    // Colour the route by real-time congestion (verde / ámbar / rojo)
+    const data = toCongestionGeoJSON(route.coordinates, route.congestion);
     const src = m.getSource(SRC_ROUTE) as mapboxgl.GeoJSONSource | undefined;
     if (src) {
       src.setData(data);
@@ -549,7 +557,7 @@ const MapView = ({
         source: SRC_ROUTE,
         layout: { 'line-join': 'round', 'line-cap': 'round' },
         paint: {
-          'line-color': ROUTE_COLOR,
+          'line-color': CONGESTION_COLOR_EXPR,
           'line-width': 6,
           'line-opacity': 0.95,
         },
@@ -629,11 +637,13 @@ const MapView = ({
   useEffect(() => {
     if (!map.current || !mapReady) return;
     if (isNavigating) {
-      map.current.easeTo({ pitch: 60, zoom: 17, duration: 800 });
+      // Dynamic camera: the faster you go, the further ahead you see.
+      const { zoom, pitch } = TIER_CAMERA[speedTier];
+      map.current.easeTo({ pitch, zoom, duration: 900 });
     } else {
       map.current.easeTo({ pitch: 0, zoom: 13, duration: 600 });
     }
-  }, [isNavigating, mapReady]);
+  }, [isNavigating, mapReady, speedTier]);
 
   // ── Preview waypoints (before accepting match) — real road route ──────────
   useEffect(() => {
