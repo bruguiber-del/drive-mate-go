@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { motion } from 'framer-motion';
 import { Search, Navigation } from 'lucide-react';
 
@@ -38,4 +39,4 @@ const SearchBar = ({ onClick, destination, isNavigating }: SearchBarProps) => {
   );
 };
 
-export default SearchBar;
+export default memo(SearchBar);

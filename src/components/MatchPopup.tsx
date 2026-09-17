@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { User, X, Check, Star, PawPrint, Baby, MapPin, Car, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -216,4 +217,4 @@ const MatchPopup = ({ isOpen, onAccept, onReject, isDriverView = true, matchData
   );
 };
 
-export default MatchPopup;
+export default memo(MatchPopup);
