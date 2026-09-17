@@ -261,11 +261,10 @@ const Index = () => {
   }, [finalDestinationWaypoint, currentTarget, nav.destinationCoords]);
 
   // Intermediate stops to insert in the routing call (everything except final)
-  const intermediateRouteWaypoints = useMemo(() => {
-    const wps = routeWaypoints.filter((w) => w.type !== "final_destination").map((w) => ({ lat: w.lat, lng: w.lng }));
-    console.log("intermediateRouteWaypoints:", wps, "routeWaypoints:", routeWaypoints);
-    return wps;
-  }, [routeWaypoints]);
+  const intermediateRouteWaypoints = useMemo(
+    () => routeWaypoints.filter((w) => w.type !== "final_destination").map((w) => ({ lat: w.lat, lng: w.lng })),
+    [routeWaypoints],
+  );
 
   // ── Derived: waypoint markers for map ──────────────────────────────────────
   const mapWaypointMarkers = useMemo(
