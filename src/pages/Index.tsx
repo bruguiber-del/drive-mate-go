@@ -713,6 +713,7 @@ const Index = () => {
           </motion.div>
         )}
       </MapView>
+      </Suspense>
 
       {/* Active Trip View */}
       <AnimatePresence>
