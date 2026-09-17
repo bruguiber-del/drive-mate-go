@@ -259,6 +259,7 @@ const MapView = ({
   const [userHeading, setUserHeading] = useState<number | null>(null);
   const [positionHistory, setPositionHistory] = useState<[number, number][]>([]);
   const [mapReady, setMapReady] = useState(false);
+  const [speedTier, setSpeedTier] = useState<SpeedTier>('city');
 
   // The marker position is driven by real GPS (rawUserLocation) by default.
   // simulatedPosition only takes over once the user explicitly starts driving
