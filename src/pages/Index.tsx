@@ -491,7 +491,7 @@ const Index = () => {
               <Menu className="w-5 h-5" />
             </Button>
 
-            <div className="flex-1 pointer-events-auto">
+            <div className="flex-1 min-w-0 pointer-events-auto">
               <SearchBar
                 onClick={() => !nav.isNavigating && modals.openNavigationSearch()}
                 destination={nav.destination}
@@ -503,11 +503,12 @@ const Index = () => {
               <motion.div
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
-                className="pointer-events-auto flex items-center gap-2"
+                className="pointer-events-auto flex shrink-0 items-center gap-2"
               >
                 <Button
                   variant="glass"
                   size="icon"
+                  className="shrink-0"
                   onClick={voice.toggleMuted}
                   aria-label={voice.isMuted ? "Activar voz" : "Silenciar voz"}
                 >
@@ -517,7 +518,7 @@ const Index = () => {
                     <Volume2 className="w-5 h-5 text-primary" />
                   )}
                 </Button>
-                <Button variant="destructive" size="icon" onClick={handleStopNavigation}>
+                <Button className="shrink-0" variant="destructive" size="icon" onClick={handleStopNavigation}>
                   <X className="w-5 h-5" />
                 </Button>
               </motion.div>
@@ -562,8 +563,8 @@ const Index = () => {
           </motion.div>
         )}
 
-        {/* Navigation chip — conductor con pasajero */}
-        {trip.showActiveTrip && trip.activeTripRole === "driver" && hasPassenger && (
+        {/* Estado compacto — conductor con pasajero, sin navegación giro a giro */}
+        {trip.showActiveTrip && trip.activeTripRole === "driver" && hasPassenger && !(nav.hasStartedDriving && currentStep) && (
           <motion.div
             className="absolute top-24 sm:top-20 left-4 right-4 pointer-events-none z-10"
             initial={{ opacity: 0, y: -10 }}
@@ -611,26 +612,29 @@ const Index = () => {
           </motion.div>
         )}
 
-        {/* Turn-by-turn banner — conductor CON viaje activo */}
+        {/* Aviso unificado — maniobra + fase del viaje activo */}
         {trip.showActiveTrip && trip.activeTripRole === "driver" && nav.hasStartedDriving && currentStep && (
           <motion.div
-            className="absolute top-36 sm:top-32 left-4 right-4 pointer-events-none z-10"
+            className="absolute top-24 sm:top-20 left-4 right-4 pointer-events-none z-10"
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
           >
-            <div className="glass-strong rounded-xl px-3 py-2 flex items-center gap-2 border border-primary/10 bg-background/80">
-              <div className="w-7 h-7 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
-                <ManeuverIcon className="w-3.5 h-3.5 text-primary" />
+            <div className="glass-strong rounded-xl px-3 py-2.5 flex items-center gap-2.5 border border-primary/20 bg-background/90">
+              <div className="w-9 h-9 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
+                <ManeuverIcon className="w-4.5 h-4.5 text-primary" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-foreground leading-tight truncate">
+                <p className="text-sm font-semibold text-foreground leading-tight truncate">
                   {currentStep.instruction}
                 </p>
-                <p className="text-[10px] text-muted-foreground">
-                  En{" "}
+                <p className="text-[11px] text-muted-foreground mt-1 truncate">
+                  En {" "}
                   {currentStep.distance < 1000
                     ? `${Math.round(currentStep.distance)}m`
                     : `${(currentStep.distance / 1000).toFixed(1)}km`}
+                  <span className="mx-1">·</span>
+                  {LEG_LABELS[currentLeg]}
+                  {nav.dynamicETA && <span className="text-primary font-semibold"> · {nav.dynamicETA.minutes} min</span>}
                 </p>
               </div>
             </div>
