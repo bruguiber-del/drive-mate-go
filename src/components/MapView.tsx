@@ -656,14 +656,15 @@ const MapView = ({
       driverMarkerRef.current.setLngLat(lngLat);
     }
 
-    if (userLocation) {
+    const ul = userLocationRef.current;
+    if (ul) {
       const bounds = new mapboxgl.LngLatBounds()
-        .extend([userLocation[1], userLocation[0]])
+        .extend([ul[1], ul[0]])
         .extend(lngLat);
       if (destination) bounds.extend([destination.lng, destination.lat]);
       m.fitBounds(bounds, { padding: 60, maxZoom: 16, duration: 600 });
     }
-  }, [driverLocation, driverLocationHistory, showDriverMarker, mapReady, userLocation, destination]);
+  }, [driverLocation, driverLocationHistory, showDriverMarker, mapReady, destination]);
 
   // ── Expose map controls to window for the bottom-bar zoom buttons ─────────
   useEffect(() => {
