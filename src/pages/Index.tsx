@@ -82,13 +82,14 @@ const Index = () => {
   });
 
   // ── Passenger simulation ────────────────────────────────────────────────────
-  // Forward-declared via ref to use trip.showActiveTrip without TDZ.
-  const showActiveTripRef = useRef(false);
-  const passengerSimEnabledEarly =
-    isDriverMode && nav.isNavigating && !modals.showMatchPopup && !showActiveTripRef.current;
+  // Single source of truth. NOTE: deliberately NOT tied to showMatchPopup —
+  // the current passenger must stay alive while the popup is open. It is only
+  // cleared explicitly via dismissCurrent / acceptCurrent.
+  const [activeTripOpen, setActiveTripOpen] = useState(false);
+  const passengerSimEnabled = isDriverMode && nav.isNavigating && !activeTripOpen;
 
   const { currentPassenger: simulatedPassenger, dismissCurrent: dismissSimPassenger } = usePassengerSimulation({
-    enabled: passengerSimEnabledEarly,
+    enabled: passengerSimEnabled && !modals.showMatchPopup,
     userLocation: realUserLocation,
     intervalMs: 12000,
     driverRoute: nav.currentRoute?.coordinates ?? null,
@@ -132,13 +133,11 @@ const Index = () => {
     return () => window.removeEventListener("vimatch:gps-denied", handler);
   }, [toast]);
 
-  // Unified flag — single source of truth for passenger simulation gating
-  const passengerSimEnabled = isDriverMode && nav.isNavigating && !trip.showActiveTrip && !modals.showMatchPopup;
-
-  // Keep the ref in sync so the early gate above also sees showActiveTrip
+  // Keep the state in sync so the gate above also sees showActiveTrip
   useEffect(() => {
-    showActiveTripRef.current = trip.showActiveTrip;
+    setActiveTripOpen(trip.showActiveTrip);
   }, [trip.showActiveTrip]);
+
 
   // ── Navigation simulation DISABLED for real-GPS MVP ────────────────────────
   // The user marker must move only when the real device GPS reports a new
