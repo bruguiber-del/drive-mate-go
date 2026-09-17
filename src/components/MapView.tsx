@@ -244,6 +244,7 @@ const MapView = ({
 }: MapViewProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
 
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const destMarkerRef = useRef<mapboxgl.Marker | null>(null);
