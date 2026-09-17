@@ -139,6 +139,7 @@ const Index = () => {
   // Keep the state in sync so the gate above also sees showActiveTrip
   useEffect(() => {
     setActiveTripOpen(trip.showActiveTrip);
+    if (!trip.showActiveTrip) setAcceptedPassenger(null);
   }, [trip.showActiveTrip]);
 
 

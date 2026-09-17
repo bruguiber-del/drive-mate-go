@@ -122,28 +122,39 @@ function generatePassenger(
   costPerKm?: number,
 ): SimulatedPassenger | null {
 
-  // Passenger pickup must be near the driver (≤ ~2km)
-  const offsetLat = randomInRange(-0.018, 0.018);
-  const offsetLng = randomInRange(-0.022, 0.022);
-  const pickupLat = userLat + offsetLat;
-  const pickupLng = userLng + offsetLng;
+  // Index of the driver's current position along the route
+  let driverIdx = 0;
+  let minD = Infinity;
+  for (let i = 0; i < driverRoute.length; i++) {
+    const d = haversineKm(userLat, userLng, driverRoute[i][0], driverRoute[i][1]);
+    if (d < minD) { minD = d; driverIdx = i; }
+  }
+  // Pickup must come from a point AHEAD of the driver on the route
+  if (driverIdx >= driverRoute.length - 2) return null;
+  const pickupIdx =
+    driverIdx + 1 + Math.floor(Math.random() * Math.max(1, Math.floor((driverRoute.length - driverIdx) * 0.5)));
+  const basePickup = driverRoute[Math.min(pickupIdx, driverRoute.length - 2)];
+  // Small offset so it sits on a nearby street, not exactly on the polyline
+  const pickupLat = basePickup[0] + (Math.random() - 0.5) * 0.006;
+  const pickupLng = basePickup[1] + (Math.random() - 0.5) * 0.008;
 
   // Pickup must be ahead of the driver along their route
   if (!isPickupAheadOnRoute(userLat, userLng, pickupLat, pickupLng, driverRoute)) {
     return null;
   }
 
-  // Max detour: ~8km (~10 min at 50 km/h average)
+  // Max detour: ~8km from the driver's current position
   const detourKmReal = haversineKm(userLat, userLng, pickupLat, pickupLng);
   const maxDetourKm = 8;
   if (detourKmReal > maxDetourKm) return null;
 
-  // Passenger destination must lie on the driver's route (or near final dest)
-  const destPoint = findPointNearRoute(driverRoute);
+  // Passenger destination must lie further along the driver's route
+  const destSlice = driverRoute.slice(Math.min(pickupIdx + 1, driverRoute.length - 1));
+  const destPoint = findPointNearRoute(destSlice);
   if (!destPoint) return null;
 
   const name = PASSENGER_NAMES[Math.floor(Math.random() * PASSENGER_NAMES.length)];
-  const distM = haversineKm(userLat, userLng, pickupLat, pickupLng) * 1000;
+  const distM = detourKmReal * 1000;
   const tripDistanceKm = haversineKm(pickupLat, pickupLng, destPoint.lat, destPoint.lng);
   // Minimum trip length so prices aren't nonsense
   if (tripDistanceKm < 2) return null;
