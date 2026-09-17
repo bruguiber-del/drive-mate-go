@@ -2,5 +2,5 @@
 export const MAPBOX_TOKEN =
   'pk.eyJ1IjoiYnJ1bm82MSIsImEiOiJjbWpoMzA3OGQxZThzM2dzaGFubXN6bnp0In0.46c8NI7GQHeC4WpsoPw9rQ';
 
-// Google-Maps-like streets style.
-export const MAPBOX_STYLE = 'mapbox://styles/mapbox/navigation-night-v1';
+// Dark standard style (more reliable than navigation-night-v1).
+export const MAPBOX_STYLE = 'mapbox://styles/mapbox/dark-v11';
