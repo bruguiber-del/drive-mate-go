@@ -583,11 +583,12 @@ const MapView = ({
       previewMarkersRef.current.push(marker);
     }
 
-    if (userLocation && previewWaypoints.length >= 2) {
+    const ul = userLocationRef.current;
+    if (ul && previewWaypoints.length >= 2) {
       const pickup = previewWaypoints[0];
       const dropoff = previewWaypoints[1];
       const points = [
-        `${userLocation[1]},${userLocation[0]}`,
+        `${ul[1]},${ul[0]}`,
         `${pickup.lng},${pickup.lat}`,
         `${dropoff.lng},${dropoff.lat}`,
       ].join(';');
@@ -627,13 +628,13 @@ const MapView = ({
         .catch(() => {});
 
       const bounds = new mapboxgl.LngLatBounds();
-      bounds.extend([userLocation[1], userLocation[0]]);
+      bounds.extend([ul[1], ul[0]]);
       bounds.extend([pickup.lng, pickup.lat]);
       bounds.extend([dropoff.lng, dropoff.lat]);
       m.fitBounds(bounds, { padding: 80, maxZoom: 13, duration: 800 });
       isFollowingRef.current = false;
     }
-  }, [previewWaypoints, mapReady, userLocation]);
+  }, [previewWaypoints, mapReady]);
 
   // ── Driver marker (passenger view) ────────────────────────────────────────
   useEffect(() => {
