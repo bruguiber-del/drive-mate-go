@@ -29,25 +29,90 @@ interface UseRoutingOptions {
 
 const MAPBOX_DIRECTIONS = 'https://api.mapbox.com/directions/v5/mapbox/driving';
 
+/** Recalculate only when the user strays further than this from the route (m). */
+const OFF_ROUTE_THRESHOLD_M = 70;
+/** Never recalculate more often than this (ms). */
+const MIN_RECALC_INTERVAL_MS = 18000;
+
+const EARTH_R = 6371000;
+const toRad = (d: number) => (d * Math.PI) / 180;
+
+function distanceMeters(a: [number, number], b: [number, number]) {
+  const dLat = toRad(b[0] - a[0]);
+  const dLng = toRad(b[1] - a[1]);
+  const lat1 = toRad(a[0]);
+  const lat2 = toRad(b[0]);
+  const h =
+    Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * EARTH_R * Math.asin(Math.sqrt(h));
+}
+
+/** Rough min distance from a point to the route polyline (vertex sampling). */
+function distanceToRoute(point: [number, number], coords: [number, number][]) {
+  let min = Infinity;
+  const step = coords.length > 400 ? Math.ceil(coords.length / 400) : 1;
+  for (let i = 0; i < coords.length; i += step) {
+    const d = distanceMeters(point, coords[i]);
+    if (d < min) min = d;
+  }
+  return min;
+}
+
 export function useRouting({ origin, destination, intermediateWaypoints, enabled }: UseRoutingOptions) {
   const [route, setRoute] = useState<RouteData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const routeCacheRef = useRef<Map<string, { route: RouteData; ts: number }>>(new Map());
+  const routeRef = useRef<RouteData | null>(null);
+  const lastFetchTsRef = useRef(0);
+  const originRef = useRef<[number, number] | null>(null);
+  originRef.current = origin;
+
+  /** Origin actually used for routing — only bumped when a recalc is needed. */
+  const [routeOrigin, setRouteOrigin] = useState<[number, number] | null>(null);
 
   const waypointsKey = (intermediateWaypoints ?? [])
     .map(w => `${w.lat.toFixed(5)},${w.lng.toFixed(5)}`)
     .join('|');
+  const destKey = destination ? `${destination.lat.toFixed(5)},${destination.lng.toFixed(5)}` : '';
+
+  // Reset the routing origin whenever the destination or the stops change,
+  // or when we first get a position. GPS jitter alone never triggers this.
+  useEffect(() => {
+    if (!enabled || !destination) {
+      setRouteOrigin(null);
+      routeRef.current = null;
+      return;
+    }
+    if (originRef.current) setRouteOrigin(originRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, destKey, waypointsKey]);
+
+  useEffect(() => {
+    if (!enabled || !destination || !origin) return;
+    if (!routeOrigin) {
+      setRouteOrigin(origin);
+      return;
+    }
+    const current = routeRef.current;
+    if (!current || current.coordinates.length === 0) return;
+    if (Date.now() - lastFetchTsRef.current < MIN_RECALC_INTERVAL_MS) return;
+    if (distanceToRoute(origin, current.coordinates) > OFF_ROUTE_THRESHOLD_M) {
+      setRouteOrigin(origin);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [origin, enabled, destination, routeOrigin]);
 
   const cacheKey = useMemo(() => {
-    if (!origin || !destination) return null;
-    return `${origin[0].toFixed(3)},${origin[1].toFixed(3)}|${destination.lat.toFixed(3)},${destination.lng.toFixed(3)}|${waypointsKey}`;
-  }, [origin, destination, waypointsKey]);
+    if (!routeOrigin || !destination) return null;
+    return `${routeOrigin[0].toFixed(3)},${routeOrigin[1].toFixed(3)}|${destKey}|${waypointsKey}`;
+  }, [routeOrigin, destination, destKey, waypointsKey]);
 
   const fetchRoute = useCallback(async () => {
-    if (!origin || !destination || !enabled) {
+    if (!routeOrigin || !destination || !enabled) {
       setRoute(null);
+      routeRef.current = null;
       return;
     }
 
@@ -55,6 +120,7 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
     if (cacheKey) {
       const cached = routeCacheRef.current.get(cacheKey);
       if (cached && Date.now() - cached.ts < 5 * 60 * 1000) {
+        routeRef.current = cached.route;
         setRoute(cached.route);
         setIsLoading(false);
         return;
@@ -63,17 +129,15 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
 
     setIsLoading(true);
     setError(null);
-
+    lastFetchTsRef.current = Date.now();
 
     try {
       // Mapbox expects lng,lat order, semicolon-separated.
-      const points: string[] = [`${origin[1]},${origin[0]}`];
+      const points: string[] = [`${routeOrigin[1]},${routeOrigin[0]}`];
       for (const wp of intermediateWaypoints ?? []) {
         points.push(`${wp.lng},${wp.lat}`);
       }
       points.push(`${destination.lng},${destination.lat}`);
-
-      console.log('Routing URL points:', points);
 
       const url =
         `${MAPBOX_DIRECTIONS}/${points.join(';')}` +
@@ -122,20 +186,26 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
         routeCacheRef.current.set(cacheKey, { route: newRoute, ts: Date.now() });
       }
 
+      routeRef.current = newRoute;
       setRoute(newRoute);
     } catch (err) {
-      console.error('Routing error:', err);
       setError(err instanceof Error ? err.message : 'Unknown error');
       // No straight-line fallback — leave route null so the map draws nothing.
+      routeRef.current = null;
       setRoute(null);
     } finally {
       setIsLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [origin, destination, enabled, waypointsKey, cacheKey]);
+  }, [routeOrigin, destination, enabled, waypointsKey, cacheKey]);
 
   useEffect(() => { fetchRoute(); }, [fetchRoute]);
-  useEffect(() => { if (!enabled) setRoute(null); }, [enabled]);
+  useEffect(() => {
+    if (!enabled) {
+      setRoute(null);
+      routeRef.current = null;
+    }
+  }, [enabled]);
 
   return { route, isLoading, error, refetch: fetchRoute };
 }
