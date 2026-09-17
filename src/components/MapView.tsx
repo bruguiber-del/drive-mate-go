@@ -681,7 +681,7 @@ const MapView = ({
       ].join(';');
 
       fetch(
-        `https://api.mapbox.com/directions/v5/mapbox/driving/${points}` +
+        `https://api.mapbox.com/directions/v5/mapbox/driving-traffic/${points}` +
           `?geometries=geojson&overview=full&access_token=${MAPBOX_TOKEN}`,
       )
         .then(r => r.json())
