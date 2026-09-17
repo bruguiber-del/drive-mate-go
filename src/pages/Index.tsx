@@ -27,7 +27,8 @@ import VehicleManager from "@/components/VehicleManager";
 import { useDriverTracking } from "@/hooks/useDriverTracking";
 import { useWaypoints, type TripLeg } from "@/hooks/useWaypoints";
 import { useWalkingRoute } from "@/hooks/useWalkingRoute";
-import { usePassengerSimulation } from "@/hooks/usePassengerSimulation";
+import { usePassengerSimulation, type SimulatedPassenger } from "@/hooks/usePassengerSimulation";
+import { calculatePrice } from "@/lib/priceCalculator";
 // useNavigationSimulation removed: real GPS only for MVP
 import { useTripLifecycle } from "@/hooks/useTripLifecycle";
 import { useNavigationState } from "@/hooks/useNavigationState";
@@ -56,6 +57,8 @@ const Index = () => {
   const [hasActivePassengerSearch, setHasActivePassengerSearch] = useState(false);
   const [realUserLocation, setRealUserLocation] = useState<[number, number] | null>(null);
   const [showPreview, setShowPreview] = useState(false);
+  /** Passenger the driver accepted — powers the real ActiveTripView data */
+  const [acceptedPassenger, setAcceptedPassenger] = useState<SimulatedPassenger | null>(null);
 
   // ── Vehicles ────────────────────────────────────────────────────────────────
   const vehicles = useVehicles();
@@ -326,8 +329,9 @@ const Index = () => {
   const handleMatchAcceptAndClose = useCallback(() => {
     setShowPreview(false);
     modals.closeMatchPopup();
+    if (isDriverMode && simulatedPassenger) setAcceptedPassenger(simulatedPassenger);
     trip.handleMatchAccept();
-  }, [modals, trip]);
+  }, [modals, trip, isDriverMode, simulatedPassenger]);
 
   const handleMatchReject = useCallback(() => {
     setShowPreview(false);
