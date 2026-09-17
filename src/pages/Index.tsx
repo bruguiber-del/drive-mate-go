@@ -286,6 +286,60 @@ const Index = () => {
     };
   }, [nav.currentRoute, nav.dynamicETA, routeWaypoints]);
 
+  // ── Derived: real data for ActiveTripView (driver & passenger) ─────────────
+  const activeTripData = useMemo(() => {
+    if (trip.activeTripRole === "driver" && acceptedPassenger) {
+      const toRad = (d: number) => (d * Math.PI) / 180;
+      const R = 6371;
+      const dLat = toRad(acceptedPassenger.destination.lat - acceptedPassenger.origin.lat);
+      const dLng = toRad(acceptedPassenger.destination.lng - acceptedPassenger.origin.lng);
+      const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(acceptedPassenger.origin.lat)) *
+          Math.cos(toRad(acceptedPassenger.destination.lat)) *
+          Math.sin(dLng / 2) ** 2;
+      const distanceKm = 2 * R * Math.asin(Math.sqrt(a));
+      const pricing = calculatePrice({
+        distanceKm,
+        passengerCount: 1,
+        traffic: "normal",
+        costPerKm: vehicles.activeVehicle?.costPerKm,
+      });
+      return {
+        otherUser: acceptedPassenger.name,
+        otherUserRating: acceptedPassenger.rating,
+        origin: acceptedPassenger.origin.name,
+        destination: acceptedPassenger.destination.name,
+        pickupPoint: trip.meetingPoint?.name ?? acceptedPassenger.origin.name,
+        eta: pickupEta ?? nav.dynamicETA?.minutes ?? 0,
+        price: pricing.driverIncome,
+        acceptsPets: acceptedPassenger.acceptsPets,
+        hasChildSeat: acceptedPassenger.hasChildSeat,
+      };
+    }
+    if (trip.activeTripRole === "passenger" && driverSim.currentDriver) {
+      return {
+        otherUser: driverSim.currentDriver.name,
+        otherUserRating: driverSim.currentDriver.rating,
+        origin: "Tu ubicación",
+        destination: nav.destination || "Tu destino",
+        pickupPoint: trip.meetingPoint?.name ?? "Punto de encuentro",
+        eta: driverSim.currentDriver.etaMinutes,
+        price: driverSim.currentDriver.totalPrice,
+      };
+    }
+    return undefined;
+  }, [
+    trip.activeTripRole,
+    trip.meetingPoint,
+    acceptedPassenger,
+    vehicles.activeVehicle,
+    pickupEta,
+    nav.dynamicETA,
+    driverSim.currentDriver,
+    nav.destination,
+  ]);
+
   // ── Handlers ───────────────────────────────────────────────────────────────
 
   const handleDriverToggle = useCallback(() => {
