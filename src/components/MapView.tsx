@@ -40,6 +40,9 @@ const ROUTE_COLOR = 'hsl(199, 89%, 48%)';
 const WALKING_COLOR = 'hsl(280, 70%, 55%)';
 const TRAIL_COLOR = 'hsl(199, 89%, 48%)';
 
+/** Minimum GPS movement (m) before propagating a new position to the app. */
+const MIN_MOVE_METERS = 6;
+
 const WAYPOINT_COLORS: Record<string, string> = {
   meeting_point: 'hsl(280, 70%, 55%)',
   pickup: 'hsl(24, 95%, 53%)',          // 🟧 Naranja — Parada 1 / Recogida
@@ -187,6 +190,7 @@ const MapView = ({
 
   const watchIdRef = useRef<number | null>(null);
   const isFollowingRef = useRef(true);
+  const lastPropagatedRef = useRef<[number, number] | null>(null);
 
   const [rawUserLocation, setRawUserLocation] = useState<[number, number] | null>(null);
   const [userHeading, setUserHeading] = useState<number | null>(null);
@@ -199,6 +203,10 @@ const MapView = ({
   const markerLocation = simulatedPosition ?? rawUserLocation;
   // userLocation (used for routing/fitBounds) prefers real GPS too.
   const userLocation = rawUserLocation ?? simulatedPosition;
+
+  // Latest location without forcing effects to depend on every GPS tick.
+  const userLocationRef = useRef<[number, number] | null>(null);
+  userLocationRef.current = userLocation;
 
   useEffect(() => {
     if (rawUserLocation) onUserLocationUpdate?.(rawUserLocation);
@@ -303,23 +311,32 @@ const MapView = ({
     }
 
     if (!('geolocation' in navigator)) {
-      console.warn('Geolocation API not available');
       setRawUserLocation([42.1401, -0.4087]);
       return;
     }
 
     watchIdRef.current = navigator.geolocation.watchPosition(
       (position) => {
-        console.log('GPS position:', position.coords);
         const coords: [number, number] = [position.coords.latitude, position.coords.longitude];
         try {
           localStorage.setItem('vimatch_last_pos', JSON.stringify(coords));
         } catch { /* ignore quota errors */ }
+
+        // Filter GPS jitter: ignore micro-movements so the whole app doesn't
+        // re-render on every tick. Marker still updates on real movement.
+        const prev = lastPropagatedRef.current;
+        if (prev) {
+          const dLat = (coords[0] - prev[0]) * 111320;
+          const dLng = (coords[1] - prev[1]) * 111320 * Math.cos((coords[0] * Math.PI) / 180);
+          if (Math.hypot(dLat, dLng) < MIN_MOVE_METERS) return;
+        }
+        lastPropagatedRef.current = coords;
+
         setRawUserLocation(coords);
         if (position.coords.heading !== null && !isNaN(position.coords.heading)) {
           setUserHeading(position.coords.heading);
         }
-        setPositionHistory(prev => [...prev, coords].slice(-50));
+        setPositionHistory(prev2 => [...prev2, coords].slice(-50));
       },
       (error) => {
         console.error('Geolocation error:', error);
@@ -341,7 +358,6 @@ const MapView = ({
 
   // ── User marker + auto-follow during navigation ───────────────────────────
   useEffect(() => {
-    console.log('[marker effect] markerLocation=', markerLocation, 'rawUserLocation=', rawUserLocation, 'simulatedPosition=', simulatedPosition, 'mapReady=', mapReady);
     if (!map.current || !markerLocation) return;
 
     const tryMount = () => {
@@ -434,13 +450,14 @@ const MapView = ({
         .addTo(m);
     }
 
-    if (!showRoute && userLocation) {
+    const ul = userLocationRef.current;
+    if (!showRoute && ul) {
       const bounds = new mapboxgl.LngLatBounds()
-        .extend([userLocation[1], userLocation[0]])
+        .extend([ul[1], ul[0]])
         .extend([destination.lng, destination.lat]);
       m.fitBounds(bounds, { padding: 80, maxZoom: 15, duration: 600 });
     }
-  }, [destination, userLocation, mapReady, showRoute]);
+  }, [destination, mapReady, showRoute]);
 
   // ── Driving route line (real Mapbox geometry, on road) ────────────────────
   useEffect(() => {
@@ -513,7 +530,6 @@ const MapView = ({
   useEffect(() => {
     if (!map.current || !mapReady) return;
     const m = map.current;
-    console.log('waypointMarkers received:', waypointMarkers);
 
     waypointMarkersRef.current.forEach(mk => mk.remove());
     waypointMarkersRef.current = [];
@@ -533,7 +549,8 @@ const MapView = ({
 
     // Auto-fit to show user + ALL waypoints (including final destination)
     const bounds = new mapboxgl.LngLatBounds();
-    if (userLocation) bounds.extend([userLocation[1], userLocation[0]]);
+    const ul = userLocationRef.current;
+    if (ul) bounds.extend([ul[1], ul[0]]);
     waypointMarkers.forEach(wp => bounds.extend([wp.lng, wp.lat]));
     if (!bounds.isEmpty()) {
       m.fitBounds(bounds, {
@@ -543,7 +560,7 @@ const MapView = ({
       });
       isFollowingRef.current = false;
     }
-  }, [waypointMarkers, mapReady, userLocation]);
+  }, [waypointMarkers, mapReady]);
 
   // ── Google-Maps-like 3D camera when navigating ────────────────────────────
   useEffect(() => {
@@ -579,11 +596,12 @@ const MapView = ({
       previewMarkersRef.current.push(marker);
     }
 
-    if (userLocation && previewWaypoints.length >= 2) {
+    const ul = userLocationRef.current;
+    if (ul && previewWaypoints.length >= 2) {
       const pickup = previewWaypoints[0];
       const dropoff = previewWaypoints[1];
       const points = [
-        `${userLocation[1]},${userLocation[0]}`,
+        `${ul[1]},${ul[0]}`,
         `${pickup.lng},${pickup.lat}`,
         `${dropoff.lng},${dropoff.lat}`,
       ].join(';');
@@ -623,13 +641,13 @@ const MapView = ({
         .catch(() => {});
 
       const bounds = new mapboxgl.LngLatBounds();
-      bounds.extend([userLocation[1], userLocation[0]]);
+      bounds.extend([ul[1], ul[0]]);
       bounds.extend([pickup.lng, pickup.lat]);
       bounds.extend([dropoff.lng, dropoff.lat]);
       m.fitBounds(bounds, { padding: 80, maxZoom: 13, duration: 800 });
       isFollowingRef.current = false;
     }
-  }, [previewWaypoints, mapReady, userLocation]);
+  }, [previewWaypoints, mapReady]);
 
   // ── Driver marker (passenger view) ────────────────────────────────────────
   useEffect(() => {
@@ -652,14 +670,15 @@ const MapView = ({
       driverMarkerRef.current.setLngLat(lngLat);
     }
 
-    if (userLocation) {
+    const ul = userLocationRef.current;
+    if (ul) {
       const bounds = new mapboxgl.LngLatBounds()
-        .extend([userLocation[1], userLocation[0]])
+        .extend([ul[1], ul[0]])
         .extend(lngLat);
       if (destination) bounds.extend([destination.lng, destination.lat]);
       m.fitBounds(bounds, { padding: 60, maxZoom: 16, duration: 600 });
     }
-  }, [driverLocation, driverLocationHistory, showDriverMarker, mapReady, userLocation, destination]);
+  }, [driverLocation, driverLocationHistory, showDriverMarker, mapReady, destination]);
 
   // ── Expose map controls to window for the bottom-bar zoom buttons ─────────
   useEffect(() => {

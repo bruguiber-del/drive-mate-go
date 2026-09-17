@@ -1,11 +1,12 @@
-import { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef, lazy, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, Settings, Locate, X, Navigation } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 
 // ── UI Components ──────────────────────────────────────────────────────────────
-import MapView from "@/components/MapView";
+// Mapbox GL is heavy — load it lazily so the rest of the UI paints immediately.
+const MapView = lazy(() => import("@/components/MapView"));
 import DriverToggle from "@/components/DriverToggle";
 import SearchBar from "@/components/SearchBar";
 import NavigationSearch from "@/components/NavigationSearch";
@@ -261,11 +262,10 @@ const Index = () => {
   }, [finalDestinationWaypoint, currentTarget, nav.destinationCoords]);
 
   // Intermediate stops to insert in the routing call (everything except final)
-  const intermediateRouteWaypoints = useMemo(() => {
-    const wps = routeWaypoints.filter((w) => w.type !== "final_destination").map((w) => ({ lat: w.lat, lng: w.lng }));
-    console.log("intermediateRouteWaypoints:", wps, "routeWaypoints:", routeWaypoints);
-    return wps;
-  }, [routeWaypoints]);
+  const intermediateRouteWaypoints = useMemo(
+    () => routeWaypoints.filter((w) => w.type !== "final_destination").map((w) => ({ lat: w.lat, lng: w.lng })),
+    [routeWaypoints],
+  );
 
   // ── Derived: waypoint markers for map ──────────────────────────────────────
   const mapWaypointMarkers = useMemo(
@@ -436,6 +436,7 @@ const Index = () => {
 
   return (
     <div className="h-screen w-screen overflow-hidden">
+      <Suspense fallback={<div className="absolute inset-0 bg-background" />}>
       <MapView
         destination={mapDestination}
         showRoute={nav.isNavigating || (trip.showActiveTrip && trip.activeTripRole === "driver")}
@@ -713,6 +714,7 @@ const Index = () => {
           </motion.div>
         )}
       </MapView>
+      </Suspense>
 
       {/* Active Trip View */}
       <AnimatePresence>

@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { motion } from 'framer-motion';
 import { Phone, MessageCircle, MapPin, Clock, Star, Navigation, User, Car, Footprints } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -219,4 +220,4 @@ const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onP
   );
 };
 
-export default ActiveTripView;
+export default memo(ActiveTripView);
