@@ -307,23 +307,32 @@ const MapView = ({
     }
 
     if (!('geolocation' in navigator)) {
-      console.warn('Geolocation API not available');
       setRawUserLocation([42.1401, -0.4087]);
       return;
     }
 
     watchIdRef.current = navigator.geolocation.watchPosition(
       (position) => {
-        console.log('GPS position:', position.coords);
         const coords: [number, number] = [position.coords.latitude, position.coords.longitude];
         try {
           localStorage.setItem('vimatch_last_pos', JSON.stringify(coords));
         } catch { /* ignore quota errors */ }
+
+        // Filter GPS jitter: ignore micro-movements so the whole app doesn't
+        // re-render on every tick. Marker still updates on real movement.
+        const prev = lastPropagatedRef.current;
+        if (prev) {
+          const dLat = (coords[0] - prev[0]) * 111320;
+          const dLng = (coords[1] - prev[1]) * 111320 * Math.cos((coords[0] * Math.PI) / 180);
+          if (Math.hypot(dLat, dLng) < MIN_MOVE_METERS) return;
+        }
+        lastPropagatedRef.current = coords;
+
         setRawUserLocation(coords);
         if (position.coords.heading !== null && !isNaN(position.coords.heading)) {
           setUserHeading(position.coords.heading);
         }
-        setPositionHistory(prev => [...prev, coords].slice(-50));
+        setPositionHistory(prev2 => [...prev2, coords].slice(-50));
       },
       (error) => {
         console.error('Geolocation error:', error);
