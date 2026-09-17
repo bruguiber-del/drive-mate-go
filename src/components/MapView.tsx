@@ -200,6 +200,10 @@ const MapView = ({
   // userLocation (used for routing/fitBounds) prefers real GPS too.
   const userLocation = rawUserLocation ?? simulatedPosition;
 
+  // Latest location without forcing effects to depend on every GPS tick.
+  const userLocationRef = useRef<[number, number] | null>(null);
+  userLocationRef.current = userLocation;
+
   useEffect(() => {
     if (rawUserLocation) onUserLocationUpdate?.(rawUserLocation);
   }, [rawUserLocation, onUserLocationUpdate]);
