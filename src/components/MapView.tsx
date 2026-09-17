@@ -358,6 +358,15 @@ const MapView = ({
 
     map.current.on('load', () => {
       setMapReady(true);
+      // If the canvas was created with a wrong size (deferred mount), keep it
+      // in sync with the container so it never stays frozen/black.
+      resizeObserverRef.current = new ResizeObserver(() => {
+        map.current?.resize();
+      });
+      if (mapContainer.current) {
+        resizeObserverRef.current.observe(mapContainer.current);
+      }
+      map.current.resize();
     });
     map.current.on('style.load', () => {
       setMapReady(true);
@@ -367,6 +376,8 @@ const MapView = ({
     map.current.on('dragstart', () => { isFollowingRef.current = false; });
 
     return () => {
+      resizeObserverRef.current?.disconnect();
+      resizeObserverRef.current = null;
       map.current?.remove();
       map.current = null;
     };
