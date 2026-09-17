@@ -155,6 +155,7 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
         `${MAPBOX_DIRECTIONS}/${points.join(';')}` +
         `?geometries=geojson&overview=full&steps=true` +
         `&voice_instructions=true&banner_instructions=true` +
+        `&annotations=congestion&voice_units=metric` +
         `&language=es&access_token=${MAPBOX_TOKEN}`;
 
       const response = await fetch(url);
