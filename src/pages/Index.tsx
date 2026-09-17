@@ -547,7 +547,7 @@ const Index = () => {
         {/* Driver Status Chip */}
         {isDriverMode && !trip.showActiveTrip && (
           <motion.div
-            className="absolute top-20 right-4 pointer-events-none z-10"
+            className="absolute top-24 sm:top-20 right-4 pointer-events-none z-10"
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
           >
@@ -565,7 +565,7 @@ const Index = () => {
         {/* Navigation chip — conductor con pasajero */}
         {trip.showActiveTrip && trip.activeTripRole === "driver" && hasPassenger && (
           <motion.div
-            className="absolute top-20 left-4 right-4 pointer-events-none z-10"
+            className="absolute top-24 sm:top-20 left-4 right-4 pointer-events-none z-10"
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
           >
