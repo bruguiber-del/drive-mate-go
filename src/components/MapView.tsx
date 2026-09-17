@@ -244,6 +244,7 @@ const MapView = ({
 }: MapViewProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
 
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const destMarkerRef = useRef<mapboxgl.Marker | null>(null);
@@ -333,9 +334,15 @@ const MapView = ({
       pitch: 0,
       bearing: 0,
       antialias: true,
+      preserveDrawingBuffer: true,
       attributionControl: false,
       pitchWithRotate: false,
     });
+
+    // If the map was initialized while its container had no real size yet
+    // (e.g. deferred lazy mount), force a canvas resize right away.
+    requestAnimationFrame(() => { map.current?.resize(); });
+    setTimeout(() => { map.current?.resize(); }, 100);
 
     map.current.addControl(
       new mapboxgl.NavigationControl({
@@ -352,6 +359,15 @@ const MapView = ({
 
     map.current.on('load', () => {
       setMapReady(true);
+      // If the canvas was created with a wrong size (deferred mount), keep it
+      // in sync with the container so it never stays frozen/black.
+      resizeObserverRef.current = new ResizeObserver(() => {
+        map.current?.resize();
+      });
+      if (mapContainer.current) {
+        resizeObserverRef.current.observe(mapContainer.current);
+      }
+      map.current.resize();
     });
     map.current.on('style.load', () => {
       setMapReady(true);
@@ -361,6 +377,8 @@ const MapView = ({
     map.current.on('dragstart', () => { isFollowingRef.current = false; });
 
     return () => {
+      resizeObserverRef.current?.disconnect();
+      resizeObserverRef.current = null;
       map.current?.remove();
       map.current = null;
     };
