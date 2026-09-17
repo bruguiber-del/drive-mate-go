@@ -1,6 +1,8 @@
 import { useState, useCallback, useMemo, useEffect, useRef, lazy, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, Settings, Locate, X, Navigation } from "lucide-react";
+import { Menu, Settings, Locate, X, Navigation, Volume2, VolumeX } from "lucide-react";
+import { getManeuverIcon } from "@/lib/maneuverIcons";
+import { useVoiceGuidance } from "@/hooks/useVoiceGuidance";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -432,6 +434,24 @@ const Index = () => {
     return closest;
   }, [nav.currentRoute, realUserLocation]);
 
+  // Icono de flecha según la maniobra actual (tipo Waze)
+  const ManeuverIcon = useMemo(
+    () => getManeuverIcon(currentStep?.maneuver?.type, currentStep?.maneuver?.modifier),
+    [currentStep],
+  );
+
+  // ── Guía por voz (Web Speech API) ───────────────────────────────────────────
+  const voice = useVoiceGuidance({
+    steps: nav.currentRoute?.steps,
+    userLocation: realUserLocation,
+    enabled: nav.isNavigating && nav.hasStartedDriving,
+  });
+
+  const handleStopNavigation = useCallback(() => {
+    voice.cancelSpeech();
+    nav.handleStopNavigation();
+  }, [voice, nav]);
+
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -478,8 +498,24 @@ const Index = () => {
             </div>
 
             {nav.isNavigating && (
-              <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="pointer-events-auto">
-                <Button variant="destructive" size="icon" onClick={nav.handleStopNavigation}>
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className="pointer-events-auto flex items-center gap-2"
+              >
+                <Button
+                  variant="glass"
+                  size="icon"
+                  onClick={voice.toggleMuted}
+                  aria-label={voice.isMuted ? "Activar voz" : "Silenciar voz"}
+                >
+                  {voice.isMuted ? (
+                    <VolumeX className="w-5 h-5 text-muted-foreground" />
+                  ) : (
+                    <Volume2 className="w-5 h-5 text-primary" />
+                  )}
+                </Button>
+                <Button variant="destructive" size="icon" onClick={handleStopNavigation}>
                   <X className="w-5 h-5" />
                 </Button>
               </motion.div>
@@ -558,7 +594,7 @@ const Index = () => {
           >
             <div className="glass-strong rounded-xl px-4 py-3 flex items-center gap-3 border border-primary/30 bg-background/90">
               <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center shrink-0">
-                <Navigation className="w-5 h-5 text-primary" />
+                <ManeuverIcon className="w-5 h-5 text-primary" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold text-foreground leading-tight">{currentStep.instruction}</p>
@@ -582,7 +618,7 @@ const Index = () => {
           >
             <div className="glass-strong rounded-xl px-3 py-2 flex items-center gap-2 border border-primary/10 bg-background/80">
               <div className="w-7 h-7 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
-                <Navigation className="w-3.5 h-3.5 text-primary" />
+                <ManeuverIcon className="w-3.5 h-3.5 text-primary" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-foreground leading-tight truncate">

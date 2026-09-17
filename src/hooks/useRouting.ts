@@ -1,22 +1,33 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { MAPBOX_TOKEN } from '@/lib/mapboxConfig';
 
+export interface VoiceInstruction {
+  /** Distance (m) before the maneuver at which this should be announced */
+  distanceAlongGeometry: number;
+  announcement: string;
+}
+
+export interface RouteStep {
+  instruction: string;
+  distance: number;
+  duration: number;
+  maneuver: {
+    type: string;
+    modifier?: string;
+    location: [number, number];
+  };
+  voiceInstructions?: VoiceInstruction[];
+}
+
 export interface RouteData {
   coordinates: [number, number][]; // [lat, lng] for consistency with previous API
   distance: number; // meters
   duration: number; // seconds
   /** Duration (s) of each leg between consecutive waypoints */
   legDurations?: number[];
-  steps?: Array<{
-    instruction: string;
-    distance: number;
-    duration: number;
-    maneuver: {
-      type: string;
-      modifier?: string;
-      location: [number, number];
-    };
-  }>;
+  /** Congestion level per coordinate segment ('low' | 'moderate' | 'heavy' | 'severe' | 'unknown') */
+  congestion?: string[];
+  steps?: RouteStep[];
 }
 
 interface UseRoutingOptions {
@@ -27,7 +38,8 @@ interface UseRoutingOptions {
   enabled: boolean;
 }
 
-const MAPBOX_DIRECTIONS = 'https://api.mapbox.com/directions/v5/mapbox/driving';
+// driving-traffic → duraciones y congestión con tráfico real
+const MAPBOX_DIRECTIONS = 'https://api.mapbox.com/directions/v5/mapbox/driving-traffic';
 
 /** Recalculate only when the user strays further than this from the route (m). */
 const OFF_ROUTE_THRESHOLD_M = 70;
@@ -143,6 +155,7 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
         `${MAPBOX_DIRECTIONS}/${points.join(';')}` +
         `?geometries=geojson&overview=full&steps=true` +
         `&voice_instructions=true&banner_instructions=true` +
+        `&annotations=congestion&voice_units=metric` +
         `&language=es&access_token=${MAPBOX_TOKEN}`;
 
       const response = await fetch(url);
@@ -171,14 +184,24 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
               modifier: s.maneuver?.modifier,
               location: s.maneuver?.location,
             },
+            voiceInstructions: (s.voiceInstructions ?? []).map((v: any) => ({
+              distanceAlongGeometry: v.distanceAlongGeometry ?? 0,
+              announcement: v.announcement ?? '',
+            })),
           })) ?? [],
         ) ?? [];
+
+      // Congestion annotation: one entry per coordinate pair, concatenated
+      // across legs so it lines up with the full geometry.
+      const congestion: string[] =
+        routeData.legs?.flatMap((leg: any) => leg.annotation?.congestion ?? []) ?? [];
 
       const newRoute: RouteData = {
         coordinates,
         distance: routeData.distance,
         duration: routeData.duration,
         legDurations: routeData.legs?.map((leg: any) => leg.duration ?? 0) ?? [],
+        congestion,
         steps,
       };
 
