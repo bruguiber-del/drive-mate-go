@@ -1,22 +1,33 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { MAPBOX_TOKEN } from '@/lib/mapboxConfig';
 
+export interface VoiceInstruction {
+  /** Distance (m) before the maneuver at which this should be announced */
+  distanceAlongGeometry: number;
+  announcement: string;
+}
+
+export interface RouteStep {
+  instruction: string;
+  distance: number;
+  duration: number;
+  maneuver: {
+    type: string;
+    modifier?: string;
+    location: [number, number];
+  };
+  voiceInstructions?: VoiceInstruction[];
+}
+
 export interface RouteData {
   coordinates: [number, number][]; // [lat, lng] for consistency with previous API
   distance: number; // meters
   duration: number; // seconds
   /** Duration (s) of each leg between consecutive waypoints */
   legDurations?: number[];
-  steps?: Array<{
-    instruction: string;
-    distance: number;
-    duration: number;
-    maneuver: {
-      type: string;
-      modifier?: string;
-      location: [number, number];
-    };
-  }>;
+  /** Congestion level per coordinate segment ('low' | 'moderate' | 'heavy' | 'severe' | 'unknown') */
+  congestion?: string[];
+  steps?: RouteStep[];
 }
 
 interface UseRoutingOptions {
@@ -27,7 +38,8 @@ interface UseRoutingOptions {
   enabled: boolean;
 }
 
-const MAPBOX_DIRECTIONS = 'https://api.mapbox.com/directions/v5/mapbox/driving';
+// driving-traffic → duraciones y congestión con tráfico real
+const MAPBOX_DIRECTIONS = 'https://api.mapbox.com/directions/v5/mapbox/driving-traffic';
 
 /** Recalculate only when the user strays further than this from the route (m). */
 const OFF_ROUTE_THRESHOLD_M = 70;
