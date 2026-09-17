@@ -517,7 +517,6 @@ const MapView = ({
   useEffect(() => {
     if (!map.current || !mapReady) return;
     const m = map.current;
-    console.log('waypointMarkers received:', waypointMarkers);
 
     waypointMarkersRef.current.forEach(mk => mk.remove());
     waypointMarkersRef.current = [];
@@ -537,7 +536,8 @@ const MapView = ({
 
     // Auto-fit to show user + ALL waypoints (including final destination)
     const bounds = new mapboxgl.LngLatBounds();
-    if (userLocation) bounds.extend([userLocation[1], userLocation[0]]);
+    const ul = userLocationRef.current;
+    if (ul) bounds.extend([ul[1], ul[0]]);
     waypointMarkers.forEach(wp => bounds.extend([wp.lng, wp.lat]));
     if (!bounds.isEmpty()) {
       m.fitBounds(bounds, {
@@ -547,7 +547,7 @@ const MapView = ({
       });
       isFollowingRef.current = false;
     }
-  }, [waypointMarkers, mapReady, userLocation]);
+  }, [waypointMarkers, mapReady]);
 
   // ── Google-Maps-like 3D camera when navigating ────────────────────────────
   useEffect(() => {
