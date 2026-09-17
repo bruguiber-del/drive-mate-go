@@ -190,6 +190,7 @@ const MapView = ({
 
   const watchIdRef = useRef<number | null>(null);
   const isFollowingRef = useRef(true);
+  const lastPropagatedRef = useRef<[number, number] | null>(null);
 
   const [rawUserLocation, setRawUserLocation] = useState<[number, number] | null>(null);
   const [userHeading, setUserHeading] = useState<number | null>(null);
