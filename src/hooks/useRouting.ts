@@ -184,14 +184,24 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
               modifier: s.maneuver?.modifier,
               location: s.maneuver?.location,
             },
+            voiceInstructions: (s.voiceInstructions ?? []).map((v: any) => ({
+              distanceAlongGeometry: v.distanceAlongGeometry ?? 0,
+              announcement: v.announcement ?? '',
+            })),
           })) ?? [],
         ) ?? [];
+
+      // Congestion annotation: one entry per coordinate pair, concatenated
+      // across legs so it lines up with the full geometry.
+      const congestion: string[] =
+        routeData.legs?.flatMap((leg: any) => leg.annotation?.congestion ?? []) ?? [];
 
       const newRoute: RouteData = {
         coordinates,
         distance: routeData.distance,
         duration: routeData.duration,
         legDurations: routeData.legs?.map((leg: any) => leg.duration ?? 0) ?? [],
+        congestion,
         steps,
       };
 
