@@ -438,13 +438,14 @@ const MapView = ({
         .addTo(m);
     }
 
-    if (!showRoute && userLocation) {
+    const ul = userLocationRef.current;
+    if (!showRoute && ul) {
       const bounds = new mapboxgl.LngLatBounds()
-        .extend([userLocation[1], userLocation[0]])
+        .extend([ul[1], ul[0]])
         .extend([destination.lng, destination.lat]);
       m.fitBounds(bounds, { padding: 80, maxZoom: 15, duration: 600 });
     }
-  }, [destination, userLocation, mapReady, showRoute]);
+  }, [destination, mapReady, showRoute]);
 
   // ── Driving route line (real Mapbox geometry, on road) ────────────────────
   useEffect(() => {
