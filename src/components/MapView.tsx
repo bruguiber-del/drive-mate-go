@@ -345,7 +345,6 @@ const MapView = ({
 
   // ── User marker + auto-follow during navigation ───────────────────────────
   useEffect(() => {
-    console.log('[marker effect] markerLocation=', markerLocation, 'rawUserLocation=', rawUserLocation, 'simulatedPosition=', simulatedPosition, 'mapReady=', mapReady);
     if (!map.current || !markerLocation) return;
 
     const tryMount = () => {
