@@ -1,6 +1,8 @@
 import { useState, useCallback, useMemo, useEffect, useRef, lazy, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, Settings, Locate, X, Navigation } from "lucide-react";
+import { Menu, Settings, Locate, X, Navigation, Volume2, VolumeX } from "lucide-react";
+import { getManeuverIcon } from "@/lib/maneuverIcons";
+import { useVoiceGuidance } from "@/hooks/useVoiceGuidance";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -431,6 +433,24 @@ const Index = () => {
     }
     return closest;
   }, [nav.currentRoute, realUserLocation]);
+
+  // Icono de flecha según la maniobra actual (tipo Waze)
+  const ManeuverIcon = useMemo(
+    () => getManeuverIcon(currentStep?.maneuver?.type, currentStep?.maneuver?.modifier),
+    [currentStep],
+  );
+
+  // ── Guía por voz (Web Speech API) ───────────────────────────────────────────
+  const voice = useVoiceGuidance({
+    steps: nav.currentRoute?.steps,
+    userLocation: realUserLocation,
+    enabled: nav.isNavigating && nav.hasStartedDriving,
+  });
+
+  const handleStopNavigation = useCallback(() => {
+    voice.cancelSpeech();
+    nav.handleStopNavigation();
+  }, [voice, nav]);
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
