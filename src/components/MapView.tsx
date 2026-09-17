@@ -333,9 +333,15 @@ const MapView = ({
       pitch: 0,
       bearing: 0,
       antialias: true,
+      preserveDrawingBuffer: true,
       attributionControl: false,
       pitchWithRotate: false,
     });
+
+    // If the map was initialized while its container had no real size yet
+    // (e.g. deferred lazy mount), force a canvas resize right away.
+    requestAnimationFrame(() => { map.current?.resize(); });
+    setTimeout(() => { map.current?.resize(); }, 100);
 
     map.current.addControl(
       new mapboxgl.NavigationControl({
