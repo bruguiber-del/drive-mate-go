@@ -8,6 +8,7 @@ import { useToast } from "@/components/ui/use-toast";
 
 // ── UI Components ──────────────────────────────────────────────────────────────
 // Mapbox GL is heavy — load it lazily so the rest of the UI paints immediately.
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 const MapView = lazy(() => import("@/components/MapView"));
 import DriverToggle from "@/components/DriverToggle";
 import SearchBar from "@/components/SearchBar";
@@ -456,6 +457,7 @@ const Index = () => {
 
   return (
     <div className="h-screen w-screen overflow-hidden">
+      <ErrorBoundary>
       <Suspense fallback={<div className="absolute inset-0 bg-background" />}>
       <MapView
         destination={mapDestination}
@@ -751,6 +753,7 @@ const Index = () => {
         )}
       </MapView>
       </Suspense>
+      </ErrorBoundary>
 
       {/* Active Trip View */}
       <AnimatePresence>
