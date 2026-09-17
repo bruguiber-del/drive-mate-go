@@ -1,11 +1,12 @@
-import { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef, lazy, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, Settings, Locate, X, Navigation } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 
 // ── UI Components ──────────────────────────────────────────────────────────────
-import MapView from "@/components/MapView";
+// Mapbox GL is heavy — load it lazily so the rest of the UI paints immediately.
+const MapView = lazy(() => import("@/components/MapView"));
 import DriverToggle from "@/components/DriverToggle";
 import SearchBar from "@/components/SearchBar";
 import NavigationSearch from "@/components/NavigationSearch";
