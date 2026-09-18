@@ -361,6 +361,8 @@ const Index = () => {
 
   const handleVehicleSelected = useCallback(() => {
     setShowVehicleManager(false);
+    setIsPassengerMode(false);
+    driverSim.clearDriver();
     setIsDriverMode(true);
     toast({
       title: "Modo conductor activado",
