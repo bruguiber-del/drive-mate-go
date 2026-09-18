@@ -786,6 +786,7 @@ const Index = () => {
         isOpen={modals.showNavigationSearch}
         onClose={modals.closeNavigationSearch}
         onNavigate={nav.handleNavigate}
+        userLocation={realUserLocation}
       />
 
       <PassengerSearch

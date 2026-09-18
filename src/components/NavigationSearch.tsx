@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, Navigation, X, Clock, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -8,12 +8,16 @@ interface NavigationSearchProps {
   isOpen: boolean;
   onClose: () => void;
   onNavigate: (destination: string, coords: { lng: number; lat: number }) => void;
+  /** Ubicación real del usuario [lat, lng] — se usa para priorizar resultados cercanos */
+  userLocation?: [number, number] | null;
 }
 
 interface SearchResult {
   id: string;
+  /** mapbox_id de la Search Box API (necesario para /retrieve) */
+  mapboxId: string;
+  name: string;
   place_name: string;
-  center: [number, number];
 }
 
 const recentDestinations = [
@@ -22,11 +26,21 @@ const recentDestinations = [
   { name: 'Huesca', address: 'Huesca, Aragón', coords: { lng: -0.4087, lat: 42.1401 }, icon: '🏠' },
 ];
 
-const NavigationSearch = ({ isOpen, onClose, onNavigate }: NavigationSearchProps) => {
+const newSessionToken = () =>
+  (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`);
+
+const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation }: NavigationSearchProps) => {
   const [destination, setDestination] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedResult, setSelectedResult] = useState<SearchResult | null>(null);
+  const [selectedCoords, setSelectedCoords] = useState<{ lng: number; lat: number } | null>(null);
+  const sessionTokenRef = useRef<string>(newSessionToken());
+
+  // Nueva sesión de autocompletado cada vez que se abre el buscador
+  useEffect(() => {
+    if (isOpen) sessionTokenRef.current = newSessionToken();
+  }, [isOpen]);
 
   useEffect(() => {
     if (!destination.trim()) {
@@ -34,42 +48,90 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate }: NavigationSearchProps
       return;
     }
 
+    let cancelled = false;
     const timeoutId = setTimeout(async () => {
       setIsSearching(true);
       try {
+        const params = new URLSearchParams({
+          q: destination,
+          access_token: MAPBOX_TOKEN,
+          session_token: sessionTokenRef.current,
+          language: 'es',
+          country: 'es',
+          limit: '8',
+          types: 'poi,address,place',
+        });
+        if (userLocation) {
+          params.set('proximity', `${userLocation[1]},${userLocation[0]}`);
+        }
+
         const response = await fetch(
-          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(destination)}.json?access_token=${MAPBOX_TOKEN}&country=es&limit=5&language=es`
+          `https://api.mapbox.com/search/searchbox/v1/suggest?${params.toString()}`
         );
         const data = await response.json();
-        if (data.features) {
-          setSearchResults(data.features.map((f: any) => ({
-            id: f.id,
-            place_name: f.place_name,
-            center: f.center,
-          })));
+        if (cancelled) return;
+
+        if (Array.isArray(data.suggestions)) {
+          setSearchResults(
+            data.suggestions.map((s: any, i: number) => ({
+              id: `${s.mapbox_id}-${i}`,
+              mapboxId: s.mapbox_id,
+              name: s.name,
+              place_name: [s.name, s.full_address ?? s.place_formatted].filter(Boolean).join(' · '),
+            }))
+          );
+        } else {
+          setSearchResults([]);
         }
       } catch (error) {
         console.error('Search error:', error);
       } finally {
-        setIsSearching(false);
+        if (!cancelled) setIsSearching(false);
       }
     }, 300);
 
-    return () => clearTimeout(timeoutId);
-  }, [destination]);
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [destination, userLocation]);
 
-  const handleSelectResult = (result: SearchResult) => {
+  const handleSelectResult = async (result: SearchResult) => {
     setSelectedResult(result);
     setDestination(result.place_name);
     setSearchResults([]);
+    setSelectedCoords(null);
+    setIsSearching(true);
+    try {
+      const params = new URLSearchParams({
+        access_token: MAPBOX_TOKEN,
+        session_token: sessionTokenRef.current,
+        language: 'es',
+      });
+      const response = await fetch(
+        `https://api.mapbox.com/search/searchbox/v1/retrieve/${encodeURIComponent(result.mapboxId)}?${params.toString()}`
+      );
+      const data = await response.json();
+      const coords = data?.features?.[0]?.geometry?.coordinates;
+      if (Array.isArray(coords)) {
+        setSelectedCoords({ lng: coords[0], lat: coords[1] });
+      }
+    } catch (error) {
+      console.error('Retrieve error:', error);
+    } finally {
+      setIsSearching(false);
+      // El token de sesión se retira tras el retrieve
+      sessionTokenRef.current = newSessionToken();
+    }
   };
 
   const handleNavigate = () => {
-    if (selectedResult) {
-      onNavigate(selectedResult.place_name, { lng: selectedResult.center[0], lat: selectedResult.center[1] });
+    if (selectedResult && selectedCoords) {
+      onNavigate(selectedResult.place_name, selectedCoords);
       onClose();
       setDestination('');
       setSelectedResult(null);
+      setSelectedCoords(null);
     }
   };
 
@@ -105,11 +167,12 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate }: NavigationSearchProps
                 <div className="absolute left-4 top-1/2 -translate-y-1/2 w-3 h-3 bg-primary rounded-full" />
                 <input
                   type="text"
-                  placeholder="Buscar destino..."
+                  placeholder="Buscar destino, restaurante, tienda..."
                   value={destination}
                   onChange={(e) => {
                     setDestination(e.target.value);
                     setSelectedResult(null);
+                    setSelectedCoords(null);
                   }}
                   autoFocus
                   className="w-full pl-10 pr-12 py-4 bg-muted rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary text-lg"
@@ -125,6 +188,7 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate }: NavigationSearchProps
                     onClick={() => {
                       setDestination('');
                       setSelectedResult(null);
+                      setSelectedCoords(null);
                     }}
                   >
                     <X className="w-4 h-4" />
@@ -135,7 +199,7 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate }: NavigationSearchProps
 
             {/* Search Results */}
             {searchResults.length > 0 && (
-              <div className="px-4 pb-4">
+              <div className="px-4 pb-4 overflow-auto">
                 <div className="glass-strong rounded-xl overflow-hidden">
                   {searchResults.map((result, index) => (
                     <motion.button
@@ -197,6 +261,7 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate }: NavigationSearchProps
                   size="xl" 
                   className="w-full"
                   onClick={handleNavigate}
+                  disabled={!selectedCoords}
                 >
                   <Navigation className="w-5 h-5" />
                   Iniciar navegación
