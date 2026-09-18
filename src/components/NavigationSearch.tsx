@@ -26,6 +26,48 @@ const recentDestinations = [
   { name: 'Huesca', address: 'Huesca, Aragón', coords: { lng: -0.4087, lat: 42.1401 }, icon: '🏠' },
 ];
 
+/**
+ * Categorías de "lugar importante" (infraestructura de transporte y sanitaria).
+ * Se colocan por delante de negocios genéricos con nombre parecido
+ * (alquiler de coches, transporte privado, agencias de viaje...).
+ */
+const MAJOR_POI_CATEGORIES = [
+  'airport',
+  'international_airport',
+  'airport_terminal',
+  'train_station',
+  'railway_station',
+  'bus_station',
+  'transit_station',
+  'ferry_terminal',
+  'port',
+  'harbor',
+  'hospital',
+  'medical_clinic',
+  'emergency_room',
+];
+
+const GENERIC_BUSINESS_CATEGORIES = [
+  'car_rental',
+  'rental_car_agency',
+  'ridesharing',
+  'taxi',
+  'travel_agency',
+  'parking_lot',
+  'parking',
+  'office',
+  'shop',
+  'store',
+];
+
+/** 0 = lugar importante, 1 = normal, 2 = negocio genérico. */
+const categoryRank = (categories: string[]): number => {
+  const normalized = categories.map((c) => String(c).toLowerCase());
+  if (normalized.some((c) => MAJOR_POI_CATEGORIES.some((m) => c === m || c.includes(m)))) return 0;
+  if (normalized.some((c) => GENERIC_BUSINESS_CATEGORIES.some((g) => c === g || c.includes(g)))) return 2;
+  return 1;
+};
+
 const newSessionToken = () =>
   (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`);
 
@@ -33,8 +75,6 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation }: Navigat
   const [destination, setDestination] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [selectedResult, setSelectedResult] = useState<SearchResult | null>(null);
-  const [selectedCoords, setSelectedCoords] = useState<{ lng: number; lat: number } | null>(null);
   const sessionTokenRef = useRef<string>(newSessionToken());
 
   // Nueva sesión de autocompletado cada vez que se abre el buscador
@@ -72,13 +112,24 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation }: Navigat
         if (cancelled) return;
 
         if (Array.isArray(data.suggestions)) {
+          const mapped = data.suggestions.map((s: any, i: number) => ({
+            id: `${s.mapbox_id}-${i}`,
+            mapboxId: s.mapbox_id,
+            name: s.name,
+            place_name: [s.name, s.full_address ?? s.place_formatted].filter(Boolean).join(' · '),
+            rank: categoryRank([
+              ...(Array.isArray(s.poi_category) ? s.poi_category : s.poi_category ? [s.poi_category] : []),
+              ...(Array.isArray(s.poi_category_ids) ? s.poi_category_ids : []),
+            ]),
+            order: i,
+          }));
+
+          // Estable: lugares importantes primero, negocios genéricos al final,
+          // conservando el orden de relevancia de Mapbox dentro de cada grupo.
+          mapped.sort((a: any, b: any) => a.rank - b.rank || a.order - b.order);
+
           setSearchResults(
-            data.suggestions.map((s: any, i: number) => ({
-              id: `${s.mapbox_id}-${i}`,
-              mapboxId: s.mapbox_id,
-              name: s.name,
-              place_name: [s.name, s.full_address ?? s.place_formatted].filter(Boolean).join(' · '),
-            }))
+            mapped.map(({ id, mapboxId, name, place_name }: any) => ({ id, mapboxId, name, place_name }))
           );
         } else {
           setSearchResults([]);
@@ -96,11 +147,10 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation }: Navigat
     };
   }, [destination, userLocation]);
 
+  /** Al pulsar un resultado se resuelven sus coordenadas y se navega al instante. */
   const handleSelectResult = async (result: SearchResult) => {
-    setSelectedResult(result);
     setDestination(result.place_name);
     setSearchResults([]);
-    setSelectedCoords(null);
     setIsSearching(true);
     try {
       const params = new URLSearchParams({
@@ -114,7 +164,9 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation }: Navigat
       const data = await response.json();
       const coords = data?.features?.[0]?.geometry?.coordinates;
       if (Array.isArray(coords)) {
-        setSelectedCoords({ lng: coords[0], lat: coords[1] });
+        onNavigate(result.place_name, { lng: coords[0], lat: coords[1] });
+        setDestination('');
+        onClose();
       }
     } catch (error) {
       console.error('Retrieve error:', error);
@@ -122,16 +174,6 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation }: Navigat
       setIsSearching(false);
       // El token de sesión se retira tras el retrieve
       sessionTokenRef.current = newSessionToken();
-    }
-  };
-
-  const handleNavigate = () => {
-    if (selectedResult && selectedCoords) {
-      onNavigate(selectedResult.place_name, selectedCoords);
-      onClose();
-      setDestination('');
-      setSelectedResult(null);
-      setSelectedCoords(null);
     }
   };
 
@@ -169,11 +211,7 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation }: Navigat
                   type="text"
                   placeholder="Buscar destino, restaurante, tienda..."
                   value={destination}
-                  onChange={(e) => {
-                    setDestination(e.target.value);
-                    setSelectedResult(null);
-                    setSelectedCoords(null);
-                  }}
+                  onChange={(e) => setDestination(e.target.value)}
                   autoFocus
                   className="w-full pl-10 pr-12 py-4 bg-muted rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary text-lg"
                 />
@@ -185,11 +223,7 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation }: Navigat
                     variant="ghost" 
                     size="icon-sm" 
                     className="absolute right-2 top-1/2 -translate-y-1/2"
-                    onClick={() => {
-                      setDestination('');
-                      setSelectedResult(null);
-                      setSelectedCoords(null);
-                    }}
+                    onClick={() => setDestination('')}
                   >
                     <X className="w-4 h-4" />
                   </Button>
@@ -249,25 +283,6 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation }: Navigat
               </div>
             )}
 
-            {/* Navigate Button */}
-            {selectedResult && (
-              <motion.div 
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                className="p-4 border-t border-border mt-auto"
-              >
-                <Button 
-                  variant="default" 
-                  size="xl" 
-                  className="w-full"
-                  onClick={handleNavigate}
-                  disabled={!selectedCoords}
-                >
-                  <Navigation className="w-5 h-5" />
-                  Iniciar navegación
-                </Button>
-              </motion.div>
-            )}
           </div>
         </motion.div>
       )}

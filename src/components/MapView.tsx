@@ -539,14 +539,22 @@ const MapView = ({
         cur.innerHTML = el.innerHTML;
       }
 
-      if (isNavigating && isFollowingRef.current) {
-        m.easeTo({
-          center: [markerLocation[1], markerLocation[0]],
-          bearing: simulatedHeading ?? heading ?? 0,
-          pitch: 45,
-          zoom: Math.max(m.getZoom(), 16),
-          duration: 500,
-        });
+      if (isFollowingRef.current) {
+        if (isNavigating) {
+          m.easeTo({
+            center: [markerLocation[1], markerLocation[0]],
+            bearing: simulatedHeading ?? heading ?? 0,
+            pitch: 45,
+            zoom: Math.max(m.getZoom(), 16),
+            duration: 500,
+          });
+        } else {
+          // Idle follow: keep the blue dot centred without forcing zoom/pitch/bearing.
+          m.easeTo({
+            center: [markerLocation[1], markerLocation[0]],
+            duration: 500,
+          });
+        }
       }
     };
 
