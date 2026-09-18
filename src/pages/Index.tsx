@@ -795,15 +795,6 @@ const Index = () => {
         userLocation={realUserLocation}
       />
 
-      <PassengerSearch
-        isOpen={modals.showPassengerSearch}
-        onClose={modals.closePassengerSearch}
-        onSearch={handlePassengerSearch}
-        onOpenSettings={() => {
-          modals.closePassengerSearch();
-          modals.openPassengerSettings();
-        }}
-      />
 
       <PassengerSettingsSheet
         isOpen={modals.showPassengerSettings}
