@@ -19,9 +19,42 @@ const Auth = () => {
   const navigate = useNavigate();
   const next = safeNext(params.get('next'));
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [method, setMethod] = useState<'email' | 'phone'>('email');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [phone, setPhone] = useState('');
+  const [otp, setOtp] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  const handleSendOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const { error } = await supabase.auth.signInWithOtp({ phone });
+      if (error) throw error;
+      setOtpSent(true);
+      toast.success('Te hemos enviado un código por SMS');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo enviar el código');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const { error } = await supabase.auth.verifyOtp({ phone, token: otp, type: 'sms' });
+      if (error) throw error;
+      window.location.replace(next);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Código incorrecto');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
