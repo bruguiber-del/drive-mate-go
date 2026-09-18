@@ -131,7 +131,11 @@ const WalletSection = ({ isOpen, onClose }: WalletSectionProps) => {
             {/* Recent Transactions */}
             <div className="space-y-3">
               <h4 className="font-semibold text-foreground">Movimientos recientes</h4>
-              
+
+              {transactions.length === 0 && (
+                <p className="text-sm text-muted-foreground py-3">Todavía no tienes movimientos.</p>
+              )}
+
               {transactions.map((tx) => (
                 <div key={tx.id} className="flex items-center gap-3 py-3 border-b border-border last:border-0">
                   <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
