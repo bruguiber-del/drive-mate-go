@@ -59,6 +59,16 @@ const Index = () => {
   const [isDoorToDoor, setIsDoorToDoor] = useState(false);
   const [isPassengerMode, setIsPassengerMode] = useState(false);
   const [realUserLocation, setRealUserLocation] = useState<[number, number] | null>(null);
+  /** Origen editable, viaje para otra persona y programación (PassengerSettingsSheet) */
+  const [passengerTripSetup, setPassengerTripSetup] = useState<{
+    originText: string;
+    isForOther: boolean;
+    otherPersonName: string;
+    otherPersonPickup: string;
+    scheduledAt: string | null;
+  }>({ originText: "", isForOther: false, otherPersonName: "", otherPersonPickup: "", scheduledAt: null });
+  /** Tick para reevaluar si ya llegó la hora del viaje programado */
+  const [scheduleTick, setScheduleTick] = useState(0);
   const [showPreview, setShowPreview] = useState(false);
   /** Passenger the driver accepted — powers the real ActiveTripView data */
   const [acceptedPassenger, setAcceptedPassenger] = useState<SimulatedPassenger | null>(null);
