@@ -112,13 +112,24 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation }: Navigat
         if (cancelled) return;
 
         if (Array.isArray(data.suggestions)) {
+          const mapped = data.suggestions.map((s: any, i: number) => ({
+            id: `${s.mapbox_id}-${i}`,
+            mapboxId: s.mapbox_id,
+            name: s.name,
+            place_name: [s.name, s.full_address ?? s.place_formatted].filter(Boolean).join(' · '),
+            rank: categoryRank([
+              ...(Array.isArray(s.poi_category) ? s.poi_category : s.poi_category ? [s.poi_category] : []),
+              ...(Array.isArray(s.poi_category_ids) ? s.poi_category_ids : []),
+            ]),
+            order: i,
+          }));
+
+          // Estable: lugares importantes primero, negocios genéricos al final,
+          // conservando el orden de relevancia de Mapbox dentro de cada grupo.
+          mapped.sort((a: any, b: any) => a.rank - b.rank || a.order - b.order);
+
           setSearchResults(
-            data.suggestions.map((s: any, i: number) => ({
-              id: `${s.mapbox_id}-${i}`,
-              mapboxId: s.mapbox_id,
-              name: s.name,
-              place_name: [s.name, s.full_address ?? s.place_formatted].filter(Boolean).join(' · '),
-            }))
+            mapped.map(({ id, mapboxId, name, place_name }: any) => ({ id, mapboxId, name, place_name }))
           );
         } else {
           setSearchResults([]);
@@ -136,11 +147,10 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation }: Navigat
     };
   }, [destination, userLocation]);
 
+  /** Al pulsar un resultado se resuelven sus coordenadas y se navega al instante. */
   const handleSelectResult = async (result: SearchResult) => {
-    setSelectedResult(result);
     setDestination(result.place_name);
     setSearchResults([]);
-    setSelectedCoords(null);
     setIsSearching(true);
     try {
       const params = new URLSearchParams({
@@ -154,7 +164,9 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation }: Navigat
       const data = await response.json();
       const coords = data?.features?.[0]?.geometry?.coordinates;
       if (Array.isArray(coords)) {
-        setSelectedCoords({ lng: coords[0], lat: coords[1] });
+        onNavigate(result.place_name, { lng: coords[0], lat: coords[1] });
+        setDestination('');
+        onClose();
       }
     } catch (error) {
       console.error('Retrieve error:', error);
@@ -162,16 +174,6 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation }: Navigat
       setIsSearching(false);
       // El token de sesión se retira tras el retrieve
       sessionTokenRef.current = newSessionToken();
-    }
-  };
-
-  const handleNavigate = () => {
-    if (selectedResult && selectedCoords) {
-      onNavigate(selectedResult.place_name, selectedCoords);
-      onClose();
-      setDestination('');
-      setSelectedResult(null);
-      setSelectedCoords(null);
     }
   };
 
