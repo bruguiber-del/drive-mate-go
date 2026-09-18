@@ -283,6 +283,8 @@ const MapView = ({
 
   const watchIdRef = useRef<number | null>(null);
   const isFollowingRef = useRef(true);
+  // Timer to resume following after a fitBounds shows user + waypoints together.
+  const resumeFollowTimerRef = useRef<number | null>(null);
   const lastPropagatedRef = useRef<[number, number] | null>(null);
 
   const [rawUserLocation, setRawUserLocation] = useState<[number, number] | null>(null);
