@@ -80,7 +80,7 @@ const WalletSection = ({ isOpen, onClose }: WalletSectionProps) => {
                   <Wallet className="w-5 h-5" />
                   <span className="text-sm font-medium">Saldo disponible</span>
                 </div>
-                <p className="text-4xl font-bold text-primary-foreground mt-2">€67.42</p>
+                <p className="text-4xl font-bold text-primary-foreground mt-2">€{balance.toFixed(2)}</p>
                 
                 <div className="flex gap-3 mt-6">
                   <Button variant="secondary" size="sm" className="flex-1">
