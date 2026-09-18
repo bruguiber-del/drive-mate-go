@@ -50,6 +50,78 @@ export type Database = {
         }
         Relationships: []
       }
+      trips: {
+        Row: {
+          created_at: string
+          driver_id: string
+          id: string
+          passenger_id: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          driver_id: string
+          id?: string
+          passenger_id?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          driver_id?: string
+          id?: string
+          passenger_id?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
+      vehicles: {
+        Row: {
+          brand: string
+          category: string
+          cost_per_km: number
+          created_at: string
+          estimated_consumption: number
+          fuel_type: string
+          id: string
+          is_active: boolean
+          license_plate: string
+          model: string
+          user_id: string
+          verification_status: string
+          year: number
+        }
+        Insert: {
+          brand: string
+          category: string
+          cost_per_km?: number
+          created_at?: string
+          estimated_consumption?: number
+          fuel_type: string
+          id?: string
+          is_active?: boolean
+          license_plate: string
+          model: string
+          user_id: string
+          verification_status?: string
+          year: number
+        }
+        Update: {
+          brand?: string
+          category?: string
+          cost_per_km?: number
+          created_at?: string
+          estimated_consumption?: number
+          fuel_type?: string
+          id?: string
+          is_active?: boolean
+          license_plate?: string
+          model?: string
+          user_id?: string
+          verification_status?: string
+          year?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

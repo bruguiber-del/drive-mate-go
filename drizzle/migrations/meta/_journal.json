@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1789726264915,
+      "tag": "0000_trips_vehicles_and_location_rls",
+      "breakpoints": true
+    }
+  ]
+}
