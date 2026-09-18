@@ -1,6 +1,7 @@
-import { useState, useCallback } from 'react';
-import { Users, PawPrint, Baby, MapPin, User, Info } from 'lucide-react';
+import { useState, useCallback, useEffect } from 'react';
+import { Users, PawPrint, Baby, MapPin, User, Info, Clock, Navigation2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import {
   Drawer,
@@ -23,18 +24,30 @@ export interface PassengerSettingsData {
   needsChildSeat: boolean;
   doorToDoor: boolean;
   genderPreference: 'none' | 'women' | 'men';
+  /** Origen editable (por defecto el GPS real del usuario) */
+  originText: string;
+  /** El viaje es para otra persona */
+  isForOther: boolean;
+  otherPersonName: string;
+  otherPersonPickup: string;
+  /** 'now' busca conductor al instante; 'scheduled' espera a la hora */
+  scheduleMode: 'now' | 'scheduled';
+  /** ISO string cuando scheduleMode === 'scheduled' */
+  scheduledAt: string | null;
 }
 
 interface PassengerSettingsSheetProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (settings: PassengerSettingsData) => void;
+  /** GPS real del usuario [lat, lng] — rellena "Tu ubicación" automáticamente */
+  userLocation?: [number, number] | null;
 }
 
 const PET_SURCHARGE = 2.00;
 const CHILD_SEAT_SURCHARGE = 1.00;
 
-const PassengerSettingsSheet = ({ isOpen, onClose, onSave }: PassengerSettingsSheetProps) => {
+const PassengerSettingsSheet = ({ isOpen, onClose, onSave, userLocation }: PassengerSettingsSheetProps) => {
   const [spacePreference, setSpacePreference] = useState<'none' | 'spacious-car' | 'spacious-front'>('none');
   const [seatsNeeded, setSeatsNeeded] = useState(1);
   const [hasPet, setHasPet] = useState(false);
@@ -42,10 +55,48 @@ const PassengerSettingsSheet = ({ isOpen, onClose, onSave }: PassengerSettingsSh
   const [doorToDoor, setDoorToDoor] = useState(false);
   const [genderPreference, setGenderPreference] = useState<'none' | 'women' | 'men'>('none');
 
+  // ── Origen / para otra persona / programar ────────────────────────────────
+  const [originText, setOriginText] = useState('');
+  const [originEdited, setOriginEdited] = useState(false);
+  const [isForOther, setIsForOther] = useState(false);
+  const [otherPersonName, setOtherPersonName] = useState('');
+  const [otherPersonPickup, setOtherPersonPickup] = useState('');
+  const [scheduleMode, setScheduleMode] = useState<'now' | 'scheduled'>('now');
+  const [scheduledDate, setScheduledDate] = useState('');
+  const [scheduledTime, setScheduledTime] = useState('');
+
+  // Autorrelleno con el GPS real mientras el usuario no lo haya editado a mano
+  useEffect(() => {
+    if (originEdited || !userLocation) return;
+    setOriginText(`${userLocation[0].toFixed(5)}, ${userLocation[1].toFixed(5)}`);
+  }, [userLocation, originEdited]);
+
   const handleSave = useCallback(() => {
-    onSave({ spacePreference, seatsNeeded, hasPet, needsChildSeat, doorToDoor, genderPreference });
+    let scheduledAt: string | null = null;
+    if (scheduleMode === 'scheduled' && scheduledDate && scheduledTime) {
+      const parsed = new Date(`${scheduledDate}T${scheduledTime}`);
+      if (!isNaN(parsed.getTime())) scheduledAt = parsed.toISOString();
+    }
+    onSave({
+      spacePreference,
+      seatsNeeded,
+      hasPet,
+      needsChildSeat,
+      doorToDoor,
+      genderPreference,
+      originText,
+      isForOther,
+      otherPersonName,
+      otherPersonPickup,
+      scheduleMode: scheduledAt ? 'scheduled' : 'now',
+      scheduledAt,
+    });
     onClose();
-  }, [spacePreference, seatsNeeded, hasPet, needsChildSeat, doorToDoor, genderPreference, onSave, onClose]);
+  }, [
+    spacePreference, seatsNeeded, hasPet, needsChildSeat, doorToDoor, genderPreference,
+    originText, isForOther, otherPersonName, otherPersonPickup, scheduleMode,
+    scheduledDate, scheduledTime, onSave, onClose,
+  ]);
 
   return (
     <Drawer open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -55,8 +106,109 @@ const PassengerSettingsSheet = ({ isOpen, onClose, onSave }: PassengerSettingsSh
             <DrawerTitle className="text-lg font-bold text-foreground">Preferencias de viaje</DrawerTitle>
           </DrawerHeader>
 
+          {/* Section 0: Origen, para quién y cuándo */}
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Tu viaje</p>
+
+          <div className="mb-3">
+            <label htmlFor="passenger-origin" className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-1.5">
+              <Navigation2 className="w-3.5 h-3.5" />
+              Tu ubicación
+            </label>
+            <Input
+              id="passenger-origin"
+              value={originText}
+              placeholder="Detectando tu ubicación…"
+              onChange={(e) => { setOriginEdited(true); setOriginText(e.target.value); }}
+            />
+            <p className="text-[10px] text-muted-foreground mt-1 px-1">
+              Se rellena con tu GPS, pero puedes escribir otra dirección.
+            </p>
+          </div>
+
+          <button
+            onClick={() => setIsForOther(!isForOther)}
+            className={cn(
+              "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl mb-1.5 transition-all",
+              isForOther ? "bg-primary/10 border border-primary/30" : "bg-muted/50 border border-transparent"
+            )}
+          >
+            <User className={cn("w-4 h-4 shrink-0", isForOther ? "text-primary" : "text-muted-foreground")} />
+            <div className="flex-1 text-left min-w-0">
+              <p className="text-sm font-medium text-foreground leading-tight">Es para otra persona</p>
+              <p className="text-[11px] text-muted-foreground">
+                {isForOther ? 'Pediremos el viaje a nombre de otra persona' : 'El viaje es para ti'}
+              </p>
+            </div>
+            <div className={cn(
+              "w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all",
+              isForOther ? "border-primary bg-primary" : "border-muted-foreground/40"
+            )}>
+              {isForOther && <div className="w-2.5 h-2.5 bg-primary-foreground rounded-full" />}
+            </div>
+          </button>
+
+          {isForOther && (
+            <div className="space-y-2 mb-3 px-1">
+              <Input
+                aria-label="Nombre de la persona"
+                placeholder="Nombre de la persona"
+                value={otherPersonName}
+                onChange={(e) => setOtherPersonName(e.target.value)}
+              />
+              <Input
+                aria-label="Punto de recogida"
+                placeholder="Punto de recogida"
+                value={otherPersonPickup}
+                onChange={(e) => setOtherPersonPickup(e.target.value)}
+              />
+            </div>
+          )}
+
+          <div className="mb-4">
+            <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-1.5">
+              <Clock className="w-3.5 h-3.5" />
+              ¿Cuándo?
+            </label>
+            <div className="flex gap-1.5 bg-muted/50 rounded-lg p-1">
+              {([
+                { value: 'now' as const, label: 'Ahora' },
+                { value: 'scheduled' as const, label: 'Programar' },
+              ]).map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => setScheduleMode(option.value)}
+                  className={cn(
+                    "flex-1 py-2 rounded-md text-sm font-bold transition-all",
+                    scheduleMode === option.value
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            {scheduleMode === 'scheduled' && (
+              <div className="flex gap-2 mt-2">
+                <Input
+                  aria-label="Fecha"
+                  type="date"
+                  value={scheduledDate}
+                  onChange={(e) => setScheduledDate(e.target.value)}
+                />
+                <Input
+                  aria-label="Hora"
+                  type="time"
+                  value={scheduledTime}
+                  onChange={(e) => setScheduledTime(e.target.value)}
+                />
+              </div>
+            )}
+          </div>
+
           {/* Section 1: Comfort Preferences */}
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Preferencias de comodidad</p>
+
 
           <div className="flex flex-col gap-1.5 mb-4">
             {[
