@@ -1,13 +1,22 @@
 import { motion } from 'framer-motion';
 import { X, Wallet, CreditCard, ArrowUpRight, ArrowDownLeft, Plus, ChevronRight, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useUserTrips } from '@/hooks/useUserTrips';
 
 interface WalletSectionProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-const transactions = [
+interface WalletTx {
+  id: string | number;
+  type: 'earning' | 'expense' | 'withdrawal';
+  description: string;
+  amount: number;
+  date: string;
+}
+
+const sampleTransactions: WalletTx[] = [
   { id: 1, type: 'earning', description: 'Viaje Huesca → Zaragoza', amount: 10.62, date: '15 Dic' },
   { id: 2, type: 'expense', description: 'Viaje Zaragoza → Huesca', amount: -6.00, date: '14 Dic' },
   { id: 3, type: 'earning', description: 'Viaje Huesca → Jaca', amount: 6.80, date: '12 Dic' },
@@ -15,6 +24,24 @@ const transactions = [
 ];
 
 const WalletSection = ({ isOpen, onClose }: WalletSectionProps) => {
+  const { trips, isAuthenticated } = useUserTrips(isOpen);
+
+  const transactions: WalletTx[] = isAuthenticated
+    ? trips
+        .filter((t) => t.price !== null)
+        .map((t) => ({
+          id: t.id,
+          type: t.role === 'driver' ? ('earning' as const) : ('expense' as const),
+          description: `Viaje ${t.originName ?? 'Origen'} → ${t.destinationName ?? 'Destino'}`,
+          amount: t.role === 'driver' ? (t.price ?? 0) : -(t.price ?? 0),
+          date: new Date(t.createdAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }),
+        }))
+    : sampleTransactions;
+
+  const balance = isAuthenticated
+    ? transactions.reduce((sum, tx) => sum + tx.amount, 0)
+    : 67.42;
+
   if (!isOpen) return null;
 
   return (
@@ -53,7 +80,7 @@ const WalletSection = ({ isOpen, onClose }: WalletSectionProps) => {
                   <Wallet className="w-5 h-5" />
                   <span className="text-sm font-medium">Saldo disponible</span>
                 </div>
-                <p className="text-4xl font-bold text-primary-foreground mt-2">€67.42</p>
+                <p className="text-4xl font-bold text-primary-foreground mt-2">€{balance.toFixed(2)}</p>
                 
                 <div className="flex gap-3 mt-6">
                   <Button variant="secondary" size="sm" className="flex-1">
@@ -104,7 +131,11 @@ const WalletSection = ({ isOpen, onClose }: WalletSectionProps) => {
             {/* Recent Transactions */}
             <div className="space-y-3">
               <h4 className="font-semibold text-foreground">Movimientos recientes</h4>
-              
+
+              {transactions.length === 0 && (
+                <p className="text-sm text-muted-foreground py-3">Todavía no tienes movimientos.</p>
+              )}
+
               {transactions.map((tx) => (
                 <div key={tx.id} className="flex items-center gap-3 py-3 border-b border-border last:border-0">
                   <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${

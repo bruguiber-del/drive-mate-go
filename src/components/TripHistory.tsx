@@ -1,60 +1,52 @@
 import { motion } from 'framer-motion';
 import { X, MapPin, Clock, Star, Car, User, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useUserTrips, formatTripDate, formatTripTime } from '@/hooks/useUserTrips';
 
 interface TripHistoryProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-const trips = [
-  {
-    id: 1,
-    type: 'driver',
-    origin: 'Huesca',
-    destination: 'Zaragoza',
-    date: '15 Dic 2024',
-    time: '08:30',
-    passengers: 2,
-    earnings: 12.50,
-    rating: 5,
-  },
-  {
-    id: 2,
-    type: 'passenger',
-    origin: 'Zaragoza',
-    destination: 'Huesca',
-    date: '14 Dic 2024',
-    time: '18:00',
-    driver: 'María L.',
-    cost: 6.00,
-    rating: 5,
-  },
-  {
-    id: 3,
-    type: 'driver',
-    origin: 'Huesca',
-    destination: 'Jaca',
-    date: '12 Dic 2024',
-    time: '09:00',
-    passengers: 1,
-    earnings: 8.00,
-    rating: 4,
-  },
-  {
-    id: 4,
-    type: 'passenger',
-    origin: 'Jaca',
-    destination: 'Huesca',
-    date: '12 Dic 2024',
-    time: '17:30',
-    driver: 'Pedro S.',
-    cost: 7.50,
-    rating: 5,
-  },
+interface DisplayTrip {
+  id: string | number;
+  type: 'driver' | 'passenger';
+  origin: string;
+  destination: string;
+  date: string;
+  time: string;
+  rating: number;
+  amount: number;
+}
+
+const sampleTrips: DisplayTrip[] = [
+  { id: 1, type: 'driver', origin: 'Huesca', destination: 'Zaragoza', date: '15 Dic 2024', time: '08:30', rating: 5, amount: 12.5 },
+  { id: 2, type: 'passenger', origin: 'Zaragoza', destination: 'Huesca', date: '14 Dic 2024', time: '18:00', rating: 5, amount: 6.0 },
+  { id: 3, type: 'driver', origin: 'Huesca', destination: 'Jaca', date: '12 Dic 2024', time: '09:00', rating: 4, amount: 8.0 },
+  { id: 4, type: 'passenger', origin: 'Jaca', destination: 'Huesca', date: '12 Dic 2024', time: '17:30', rating: 5, amount: 7.5 },
 ];
 
 const TripHistory = ({ isOpen, onClose }: TripHistoryProps) => {
+  const { trips: realTrips, isAuthenticated } = useUserTrips(isOpen);
+
+  const trips: DisplayTrip[] = isAuthenticated
+    ? realTrips.map((t) => ({
+        id: t.id,
+        type: t.role,
+        origin: t.originName ?? 'Origen',
+        destination: t.destinationName ?? 'Destino',
+        date: formatTripDate(t.createdAt),
+        time: formatTripTime(t.createdAt),
+        rating: t.rating ?? 0,
+        amount: t.price ?? 0,
+      }))
+    : sampleTrips;
+
+  const totalTrips = trips.length;
+  const driverEarnings = trips
+    .filter((t) => t.type === 'driver')
+    .reduce((sum, t) => sum + t.amount, 0);
+
   if (!isOpen) return null;
 
   return (
@@ -86,14 +78,23 @@ const TripHistory = ({ isOpen, onClose }: TripHistoryProps) => {
             {/* Stats Summary */}
             <div className="grid grid-cols-2 gap-3 mb-4">
               <div className="glass rounded-xl p-4 text-center">
-                <p className="text-2xl font-bold text-primary">79</p>
+                <p className="text-2xl font-bold text-primary">{isAuthenticated ? totalTrips : 79}</p>
                 <p className="text-sm text-muted-foreground">Viajes totales</p>
               </div>
               <div className="glass rounded-xl p-4 text-center">
-                <p className="text-2xl font-bold text-success">€234.50</p>
-                <p className="text-sm text-muted-foreground">Ganado como conductor</p>
+                <p className="text-2xl font-bold text-success">
+                  €{(isAuthenticated ? driverEarnings : 234.5).toFixed(2)}
+                </p>
+                <p className="text-sm text-muted-foreground">Compensación como conductor</p>
               </div>
             </div>
+
+            {isAuthenticated && trips.length === 0 && (
+              <div className="glass rounded-xl p-6 text-center">
+                <MapPin className="w-6 h-6 text-muted-foreground mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">Todavía no tienes viajes registrados.</p>
+              </div>
+            )}
 
             {/* Trip List */}
             {trips.map((trip, index) => (
@@ -143,9 +144,9 @@ const TripHistory = ({ isOpen, onClose }: TripHistoryProps) => {
                       </div>
                       
                       {trip.type === 'driver' ? (
-                        <span className="text-sm font-bold text-success">+€{trip.earnings.toFixed(2)}</span>
+                        <span className="text-sm font-bold text-success">+€{trip.amount.toFixed(2)}</span>
                       ) : (
-                        <span className="text-sm font-medium text-foreground">-€{trip.cost.toFixed(2)}</span>
+                        <span className="text-sm font-medium text-foreground">-€{trip.amount.toFixed(2)}</span>
                       )}
                     </div>
                   </div>

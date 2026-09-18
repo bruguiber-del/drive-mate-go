@@ -15,7 +15,8 @@ import SearchBar from "@/components/SearchBar";
 import NavigationSearch from "@/components/NavigationSearch";
 import PassengerToggle from "@/components/PassengerToggle";
 import DriverSettingsSheet from "@/components/DriverSettingsSheet";
-import PassengerSettingsSheet from "@/components/PassengerSettingsSheet";
+import PassengerSettingsSheet, { type PassengerSettingsData } from "@/components/PassengerSettingsSheet";
+import { supabase } from "@/integrations/supabase/client";
 import MatchPopup from "@/components/MatchPopup";
 import SettingsMenu from "@/components/SettingsMenu";
 import ProfileSection from "@/components/ProfileSection";
@@ -59,6 +60,16 @@ const Index = () => {
   const [isDoorToDoor, setIsDoorToDoor] = useState(false);
   const [isPassengerMode, setIsPassengerMode] = useState(false);
   const [realUserLocation, setRealUserLocation] = useState<[number, number] | null>(null);
+  /** Origen editable, viaje para otra persona y programación (PassengerSettingsSheet) */
+  const [passengerTripSetup, setPassengerTripSetup] = useState<{
+    originText: string;
+    isForOther: boolean;
+    otherPersonName: string;
+    otherPersonPickup: string;
+    scheduledAt: string | null;
+  }>({ originText: "", isForOther: false, otherPersonName: "", otherPersonPickup: "", scheduledAt: null });
+  /** Tick para reevaluar si ya llegó la hora del viaje programado */
+  const [scheduleTick, setScheduleTick] = useState(0);
   const [showPreview, setShowPreview] = useState(false);
   /** Passenger the driver accepted — powers the real ActiveTripView data */
   const [acceptedPassenger, setAcceptedPassenger] = useState<SimulatedPassenger | null>(null);
@@ -416,8 +427,75 @@ const Index = () => {
     });
   }, [toast, driverSim]);
 
+  // ── Guardado de ajustes del pasajero (origen, para otra persona, programar) ─
+  const handlePassengerSettingsSave = useCallback(
+    async (settings: PassengerSettingsData) => {
+      setIsDoorToDoor(settings.doorToDoor);
+      setPassengerTripSetup({
+        originText: settings.originText,
+        isForOther: settings.isForOther,
+        otherPersonName: settings.otherPersonName,
+        otherPersonPickup: settings.otherPersonPickup,
+        scheduledAt: settings.scheduledAt,
+      });
+
+      if (settings.scheduledAt) {
+        // Guarda el viaje programado en la nube si hay sesión iniciada
+        try {
+          const { data: userData } = await supabase.auth.getUser();
+          const uid = userData?.user?.id;
+          if (uid) {
+            await supabase.from("trips").insert({
+              driver_id: uid,
+              passenger_id: uid,
+              status: "scheduled",
+              scheduled_at: settings.scheduledAt,
+              origin_name: settings.originText || null,
+              origin_lat: realUserLocation?.[0] ?? null,
+              origin_lng: realUserLocation?.[1] ?? null,
+              destination_name: nav.destination || null,
+              destination_lat: nav.destinationCoords?.lat ?? null,
+              destination_lng: nav.destinationCoords?.lng ?? null,
+            });
+          }
+        } catch {
+          /* el viaje programado sigue funcionando en local si falla la nube */
+        }
+        const when = new Date(settings.scheduledAt).toLocaleString("es-ES", {
+          day: "numeric",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        toast({ title: "Viaje programado", description: `Buscaremos conductor cerca de las ${when}` });
+        return;
+      }
+
+      toast({ title: "Preferencias aplicadas", description: "Tus preferencias se usarán en la búsqueda" });
+    },
+    [toast, realUserLocation, nav.destination, nav.destinationCoords],
+  );
+
+
+
+  // ── Viaje programado: no buscar conductor hasta que se acerque la hora ──────
+  const SCHEDULE_LEAD_MS = 5 * 60 * 1000;
+  const isScheduledPending = useMemo(() => {
+    void scheduleTick;
+    const iso = passengerTripSetup.scheduledAt;
+    if (!iso) return false;
+    const t = new Date(iso).getTime();
+    return !isNaN(t) && t - Date.now() > SCHEDULE_LEAD_MS;
+  }, [passengerTripSetup.scheduledAt, scheduleTick, SCHEDULE_LEAD_MS]);
+
+  useEffect(() => {
+    if (!passengerTripSetup.scheduledAt) return;
+    const id = setInterval(() => setScheduleTick((t) => t + 1), 30000);
+    return () => clearInterval(id);
+  }, [passengerTripSetup.scheduledAt]);
+
   // ── Driver search while in passenger mode (mirrors passenger simulation) ────
-  const driverSearchEnabled = isPassengerMode && nav.isNavigating && !trip.showActiveTrip;
+  const driverSearchEnabled = isPassengerMode && nav.isNavigating && !trip.showActiveTrip && !isScheduledPending;
   useEffect(() => {
     if (!driverSearchEnabled || modals.showMatchPopup || driverSim.currentDriver) return;
     const timer = setTimeout(() => {
@@ -815,10 +893,8 @@ const Index = () => {
       <PassengerSettingsSheet
         isOpen={modals.showPassengerSettings}
         onClose={modals.closePassengerSettings}
-        onSave={(settings) => {
-          setIsDoorToDoor(settings.doorToDoor);
-          toast({ title: "Preferencias aplicadas", description: "Tus preferencias se usarán en la búsqueda" });
-        }}
+        userLocation={realUserLocation}
+        onSave={handlePassengerSettingsSave}
       />
 
       <DriverSettingsSheet
