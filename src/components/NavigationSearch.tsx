@@ -211,11 +211,7 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation }: Navigat
                   type="text"
                   placeholder="Buscar destino, restaurante, tienda..."
                   value={destination}
-                  onChange={(e) => {
-                    setDestination(e.target.value);
-                    setSelectedResult(null);
-                    setSelectedCoords(null);
-                  }}
+                  onChange={(e) => setDestination(e.target.value)}
                   autoFocus
                   className="w-full pl-10 pr-12 py-4 bg-muted rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary text-lg"
                 />
