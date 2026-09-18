@@ -223,11 +223,7 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation }: Navigat
                     variant="ghost" 
                     size="icon-sm" 
                     className="absolute right-2 top-1/2 -translate-y-1/2"
-                    onClick={() => {
-                      setDestination('');
-                      setSelectedResult(null);
-                      setSelectedCoords(null);
-                    }}
+                    onClick={() => setDestination('')}
                   >
                     <X className="w-4 h-4" />
                   </Button>
