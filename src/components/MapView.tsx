@@ -3,6 +3,24 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { useRouting, RouteData } from '@/hooks/useRouting';
 import { MAPBOX_TOKEN, MAPBOX_STYLE } from '@/lib/mapboxConfig';
+import {
+  MIN_MOVE_METERS,
+  approxMetersBetween,
+  cumulativeDistanceExceeds,
+  computeBearing,
+  nextSpeedTier,
+  TIER_CAMERA,
+  type SpeedTier,
+} from '@/lib/mapGeo';
+import { ROUTE_COLOR, toLineGeoJSON, toCongestionGeoJSON, CONGESTION_COLOR_EXPR } from '@/lib/mapGeoJSON';
+import {
+  WAYPOINT_COLORS,
+  WAYPOINT_LABELS,
+  WAYPOINT_ICONS,
+  buildMarkerEl,
+  buildUserMarkerEl,
+  buildDriverMarkerEl,
+} from '@/lib/mapMarkerElements';
 
 mapboxgl.accessToken = MAPBOX_TOKEN;
 
@@ -36,111 +54,8 @@ interface MapViewProps {
 }
 
 // ── Visual constants ─────────────────────────────────────────────────────────
-const ROUTE_COLOR = 'hsl(199, 89%, 48%)';
 const WALKING_COLOR = 'hsl(280, 70%, 55%)';
 const TRAIL_COLOR = 'hsl(199, 89%, 48%)';
-
-/** Minimum GPS movement (m) before propagating a new position to the app. */
-const MIN_MOVE_METERS = 6;
-
-const WAYPOINT_COLORS: Record<string, string> = {
-  meeting_point: 'hsl(280, 70%, 55%)',
-  pickup: 'hsl(24, 95%, 53%)',          // 🟧 Naranja — Parada 1 / Recogida
-  dropoff: 'hsl(142, 71%, 45%)',         // 🟩 Verde — Destino pasajero (bandera)
-  final_destination: 'hsl(199, 89%, 48%)',
-};
-
-const WAYPOINT_LABELS: Record<string, string> = {
-  meeting_point: 'Punto de encuentro',
-  pickup: 'Parada 1 — Recogida',
-  dropoff: 'Destino pasajero',
-  final_destination: 'Destino',
-};
-
-const WAYPOINT_ICONS: Record<string, string> = {
-  meeting_point:
-    '<path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 4.5a2.5 2.5 0 010 5 2.5 2.5 0 010-5z"/>',
-  // Person icon for pickup (Parada 1)
-  pickup:
-    '<path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>',
-  // Flag icon for dropoff
-  dropoff: '<path d="M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6z"/>',
-  final_destination: '<path d="M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6z"/>',
-};
-
-const buildMarkerEl = (color: string, iconPath: string, label?: string, dashed = false) => {
-  const el = document.createElement('div');
-  el.style.pointerEvents = 'auto';
-  el.innerHTML = `
-    <div style="display:flex;flex-direction:column;align-items:center;${dashed ? 'opacity:0.85;' : ''}">
-      <div style="
-        width:34px;height:34px;border-radius:9999px;
-        display:flex;align-items:center;justify-content:center;
-        background:${color};
-        box-shadow:0 4px 14px rgba(0,0,0,0.4);
-        ${dashed ? 'border:2px dashed white;' : 'border:2px solid white;'}
-      ">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="white">${iconPath}</svg>
-      </div>
-      ${
-        label
-          ? `<span data-marker-label style="
-              margin-top:4px;font-size:10px;font-weight:600;
-              padding:2px 8px;border-radius:9999px;color:white;
-              background:${color};white-space:nowrap;
-              box-shadow:0 2px 6px rgba(0,0,0,0.3);
-            ">${label}</span>`
-          : ''
-      }
-    </div>`;
-  return el;
-};
-
-const buildUserMarkerEl = (showRoute: boolean, heading: number) => {
-  const el = document.createElement('div');
-  el.style.pointerEvents = 'none';
-  if (showRoute) {
-    el.innerHTML = `
-      <div style="transform: rotate(${heading}deg);">
-        <div style="
-          width:30px;height:30px;border-radius:9999px;
-          background:${ROUTE_COLOR};border:2px solid white;
-          box-shadow:0 4px 12px rgba(0,0,0,0.5);
-          display:flex;align-items:center;justify-content:center;
-        ">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
-            <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/>
-          </svg>
-        </div>
-      </div>`;
-  } else {
-    el.innerHTML = `
-      <div style="position:relative;">
-        <div style="
-          width:20px;height:20px;border-radius:9999px;
-          background:${ROUTE_COLOR};border:2px solid white;
-          box-shadow:0 4px 12px rgba(0,0,0,0.5);
-        "></div>
-      </div>`;
-  }
-  return el;
-};
-
-const buildDriverMarkerEl = () => {
-  const el = document.createElement('div');
-  el.innerHTML = `
-    <div style="
-      width:40px;height:40px;border-radius:9999px;
-      background:hsl(142,71%,45%);border:3px solid white;
-      box-shadow:0 4px 14px rgba(0,0,0,0.5);
-      display:flex;align-items:center;justify-content:center;
-    ">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-        <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/>
-      </svg>
-    </div>`;
-  return el;
-};
 
 // ── Source/layer IDs ─────────────────────────────────────────────────────────
 const SRC_ROUTE = 'vm-route';
@@ -151,79 +66,6 @@ const SRC_TRAIL = 'vm-trail';
 const LYR_TRAIL = 'vm-trail-line';
 const SRC_PREVIEW = 'vm-preview';
 const LYR_PREVIEW = 'vm-preview-line';
-
-const toLineGeoJSON = (coords: [number, number][]): GeoJSON.Feature<GeoJSON.LineString> => ({
-  type: 'Feature',
-  properties: {},
-  geometry: {
-    type: 'LineString',
-    // Convert [lat, lng] -> [lng, lat] for GeoJSON
-    coordinates: coords.map(([lat, lng]) => [lng, lat]),
-  },
-});
-
-// ── Traffic congestion ───────────────────────────────────────────────────────
-const CONGESTION_COLORS = {
-  low: 'hsl(142, 71%, 45%)',       // verde — fluido
-  moderate: 'hsl(38, 95%, 55%)',   // ámbar — moderado
-  heavy: 'hsl(0, 84%, 55%)',       // rojo — denso
-  severe: 'hsl(0, 72%, 40%)',      // rojo oscuro — atascado
-  unknown: ROUTE_COLOR,
-};
-
-/** Split the route into per-segment features carrying their congestion level. */
-const toCongestionGeoJSON = (
-  coords: [number, number][],
-  congestion?: string[],
-): GeoJSON.FeatureCollection<GeoJSON.LineString> => {
-  const features: GeoJSON.Feature<GeoJSON.LineString>[] = [];
-  for (let i = 0; i < coords.length - 1; i++) {
-    const level = congestion?.[i] ?? 'unknown';
-    features.push({
-      type: 'Feature',
-      properties: { congestion: level },
-      geometry: {
-        type: 'LineString',
-        coordinates: [
-          [coords[i][1], coords[i][0]],
-          [coords[i + 1][1], coords[i + 1][0]],
-        ],
-      },
-    });
-  }
-  return { type: 'FeatureCollection', features };
-};
-
-const CONGESTION_COLOR_EXPR: any = [
-  'match',
-  ['get', 'congestion'],
-  'low', CONGESTION_COLORS.low,
-  'moderate', CONGESTION_COLORS.moderate,
-  'heavy', CONGESTION_COLORS.heavy,
-  'severe', CONGESTION_COLORS.severe,
-  CONGESTION_COLORS.unknown,
-];
-
-/** Speed tiers (km/h) with hysteresis so the zoom doesn't flicker. */
-type SpeedTier = 'city' | 'medium' | 'highway';
-const TIER_CAMERA: Record<SpeedTier, { zoom: number; pitch: number }> = {
-  city: { zoom: 17.5, pitch: 60 },
-  medium: { zoom: 16, pitch: 55 },
-  highway: { zoom: 14.5, pitch: 45 },
-};
-
-const nextSpeedTier = (kmh: number, current: SpeedTier): SpeedTier => {
-  // Upward thresholds 20/80, downward 15/70 → margen de histéresis
-  if (current === 'city') return kmh > 20 ? (kmh > 80 ? 'highway' : 'medium') : 'city';
-  if (current === 'medium') {
-    if (kmh > 80) return 'highway';
-    if (kmh < 15) return 'city';
-    return 'medium';
-  }
-  if (kmh < 15) return 'city';
-  if (kmh < 70) return 'medium';
-  return 'highway';
-};
 
 const MapView = ({
   children,
@@ -321,16 +163,7 @@ const MapView = ({
   /** ¿Hay movimiento real suficiente para fiarse del rumbo del GPS? (~30 m) */
   const hasReliableMovement = useMemo(() => {
     if (positionHistory.length < 3) return false;
-    let meters = 0;
-    for (let i = 1; i < positionHistory.length; i += 1) {
-      const a = positionHistory[i - 1];
-      const b = positionHistory[i];
-      const dLat = (b[0] - a[0]) * 111320;
-      const dLng = (b[1] - a[1]) * 111320 * Math.cos((a[0] * Math.PI) / 180);
-      meters += Math.hypot(dLat, dLng);
-      if (meters > 30) return true;
-    }
-    return false;
+    return cumulativeDistanceExceeds(positionHistory, 30);
   }, [positionHistory]);
 
   /** Rumbo inicial (great-circle) en línea recta hacia el próximo destino. */
@@ -338,13 +171,7 @@ const MapView = ({
     const from = userLocationRef.current;
     const target = waypointMarkers?.[0] ?? destination;
     if (!from || !target) return null;
-    const toRad = (d: number) => (d * Math.PI) / 180;
-    const φ1 = toRad(from[0]);
-    const φ2 = toRad(target.lat);
-    const Δλ = toRad(target.lng - from[1]);
-    const y = Math.sin(Δλ) * Math.cos(φ2);
-    const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
-    return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+    return computeBearing(from, target);
     // rawUserLocation fuerza el recálculo al moverse el usuario
   }, [waypointMarkers, destination, rawUserLocation]);
 
@@ -487,11 +314,7 @@ const MapView = ({
         // Filter GPS jitter: ignore micro-movements so the whole app doesn't
         // re-render on every tick. Marker still updates on real movement.
         const prev = lastPropagatedRef.current;
-        if (prev) {
-          const dLat = (coords[0] - prev[0]) * 111320;
-          const dLng = (coords[1] - prev[1]) * 111320 * Math.cos((coords[0] * Math.PI) / 180);
-          if (Math.hypot(dLat, dLng) < MIN_MOVE_METERS) return;
-        }
+        if (prev && approxMetersBetween(prev, coords) < MIN_MOVE_METERS) return;
         lastPropagatedRef.current = coords;
 
         // Speed tier (with hysteresis) drives the dynamic camera zoom/pitch.
