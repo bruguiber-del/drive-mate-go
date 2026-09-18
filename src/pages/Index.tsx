@@ -13,8 +13,7 @@ const MapView = lazy(() => import("@/components/MapView"));
 import DriverToggle from "@/components/DriverToggle";
 import SearchBar from "@/components/SearchBar";
 import NavigationSearch from "@/components/NavigationSearch";
-import PassengerCard from "@/components/PassengerCard";
-import PassengerSearch from "@/components/PassengerSearch";
+import PassengerToggle from "@/components/PassengerToggle";
 import DriverSettingsSheet from "@/components/DriverSettingsSheet";
 import PassengerSettingsSheet from "@/components/PassengerSettingsSheet";
 import MatchPopup from "@/components/MatchPopup";
@@ -58,7 +57,7 @@ const Index = () => {
   const [isDriverMode, setIsDriverMode] = useState(false);
   const [driverSettings, setDriverSettings] = useState({ seats: 3, maxDetour: 5 });
   const [isDoorToDoor, setIsDoorToDoor] = useState(false);
-  const [hasActivePassengerSearch, setHasActivePassengerSearch] = useState(false);
+  const [isPassengerMode, setIsPassengerMode] = useState(false);
   const [realUserLocation, setRealUserLocation] = useState<[number, number] | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   /** Passenger the driver accepted — powers the real ActiveTripView data */
@@ -362,6 +361,8 @@ const Index = () => {
 
   const handleVehicleSelected = useCallback(() => {
     setShowVehicleManager(false);
+    setIsPassengerMode(false);
+    driverSim.clearDriver();
     setIsDriverMode(true);
     toast({
       title: "Modo conductor activado",
@@ -369,7 +370,7 @@ const Index = () => {
         ? `Usando ${vehicles.activeVehicle.brand} ${vehicles.activeVehicle.model} · ${vehicles.activeVehicle.licensePlate}`
         : "Navega a tu destino y aparecerán pasajeros cercanos",
     });
-  }, [vehicles.activeVehicle, toast]);
+  }, [vehicles.activeVehicle, toast, driverSim]);
 
   const handleMenuNavigate = useCallback(
     (section: string) => {
@@ -399,18 +400,36 @@ const Index = () => {
     toast({ title: "Solicitud rechazada", description: "Seguirás recibiendo nuevas solicitudes" });
   }, [modals, dismissSimPassenger, toast, isDriverMode, driverSim]);
 
-  const handlePassengerSearch = useCallback(
-    (data: { destination: string }) => {
-      setHasActivePassengerSearch(false);
+  const handlePassengerToggle = useCallback(() => {
+    setIsPassengerMode((prev) => {
+      const next = !prev;
+      if (next) {
+        setIsDriverMode(false);
+        toast({
+          title: "Modo pasajero activado",
+          description: "Elige tu destino arriba y buscaremos un conductor que vaya en esa dirección",
+        });
+      } else {
+        driverSim.clearDriver();
+      }
+      return next;
+    });
+  }, [toast, driverSim]);
+
+  // ── Driver search while in passenger mode (mirrors passenger simulation) ────
+  const driverSearchEnabled = isPassengerMode && nav.isNavigating && !trip.showActiveTrip;
+  useEffect(() => {
+    if (!driverSearchEnabled || modals.showMatchPopup || driverSim.currentDriver) return;
+    const timer = setTimeout(() => {
       const driver = driverSim.searchDriver();
       toast({
         title: "Conductor encontrado",
         description: `${driver.name} · ${driver.vehicle.brand} ${driver.vehicle.model} · ${driver.vehicle.licensePlate}`,
       });
       modals.openMatchPopup();
-    },
-    [modals, toast, driverSim],
-  );
+    }, 6000);
+    return () => clearTimeout(timer);
+  }, [driverSearchEnabled, modals, driverSim, toast]);
 
   const showDriverOnMap = trip.showActiveTrip && trip.activeTripRole === "passenger";
 
@@ -669,17 +688,6 @@ const Index = () => {
             </motion.div>
           )}
 
-        {/* Passenger Card */}
-        {!trip.showActiveTrip && (
-          <motion.div
-            className="absolute top-24 sm:top-20 left-4 pointer-events-auto"
-            initial={{ x: -20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ delay: 0.25 }}
-          >
-            <PassengerCard onClick={modals.openPassengerSearch} hasActiveSearch={hasActivePassengerSearch} />
-          </motion.div>
-        )}
 
         {/* "Iniciar conducción" CTA — only when route exists but user hasn't moved yet */}
         {nav.isNavigating && !nav.hasStartedDriving && !trip.showActiveTrip && (
@@ -714,6 +722,20 @@ const Index = () => {
                   exit={{ scale: 0, opacity: 0 }}
                 >
                   <Button variant="glass" size="icon" className="w-9 h-9" onClick={modals.openDriverSettings}>
+                    <Settings className="w-4 h-4" />
+                  </Button>
+                </motion.div>
+              )}
+
+              <PassengerToggle isPassenger={isPassengerMode} onToggle={handlePassengerToggle} />
+
+              {isPassengerMode && (
+                <motion.div
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0, opacity: 0 }}
+                >
+                  <Button variant="glass" size="icon" className="w-9 h-9" onClick={modals.openPassengerSettings}>
                     <Settings className="w-4 h-4" />
                   </Button>
                 </motion.div>
@@ -789,15 +811,6 @@ const Index = () => {
         userLocation={realUserLocation}
       />
 
-      <PassengerSearch
-        isOpen={modals.showPassengerSearch}
-        onClose={modals.closePassengerSearch}
-        onSearch={handlePassengerSearch}
-        onOpenSettings={() => {
-          modals.closePassengerSearch();
-          modals.openPassengerSettings();
-        }}
-      />
 
       <PassengerSettingsSheet
         isOpen={modals.showPassengerSettings}
