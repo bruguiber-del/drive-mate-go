@@ -135,9 +135,9 @@ const TripHistory = ({ isOpen, onClose }: TripHistoryProps) => {
                       </div>
                       
                       {trip.type === 'driver' ? (
-                        <span className="text-sm font-bold text-success">+€{trip.earnings.toFixed(2)}</span>
+                        <span className="text-sm font-bold text-success">+€{trip.amount.toFixed(2)}</span>
                       ) : (
-                        <span className="text-sm font-medium text-foreground">-€{trip.cost.toFixed(2)}</span>
+                        <span className="text-sm font-medium text-foreground">-€{trip.amount.toFixed(2)}</span>
                       )}
                     </div>
                   </div>
