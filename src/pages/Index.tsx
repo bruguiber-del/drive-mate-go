@@ -426,8 +426,24 @@ const Index = () => {
     });
   }, [toast, driverSim]);
 
+  // ── Viaje programado: no buscar conductor hasta que se acerque la hora ──────
+  const SCHEDULE_LEAD_MS = 5 * 60 * 1000;
+  const isScheduledPending = useMemo(() => {
+    void scheduleTick;
+    const iso = passengerTripSetup.scheduledAt;
+    if (!iso) return false;
+    const t = new Date(iso).getTime();
+    return !isNaN(t) && t - Date.now() > SCHEDULE_LEAD_MS;
+  }, [passengerTripSetup.scheduledAt, scheduleTick, SCHEDULE_LEAD_MS]);
+
+  useEffect(() => {
+    if (!passengerTripSetup.scheduledAt) return;
+    const id = setInterval(() => setScheduleTick((t) => t + 1), 30000);
+    return () => clearInterval(id);
+  }, [passengerTripSetup.scheduledAt]);
+
   // ── Driver search while in passenger mode (mirrors passenger simulation) ────
-  const driverSearchEnabled = isPassengerMode && nav.isNavigating && !trip.showActiveTrip;
+  const driverSearchEnabled = isPassengerMode && nav.isNavigating && !trip.showActiveTrip && !isScheduledPending;
   useEffect(() => {
     if (!driverSearchEnabled || modals.showMatchPopup || driverSim.currentDriver) return;
     const timer = setTimeout(() => {
