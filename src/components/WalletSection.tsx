@@ -1,13 +1,22 @@
 import { motion } from 'framer-motion';
 import { X, Wallet, CreditCard, ArrowUpRight, ArrowDownLeft, Plus, ChevronRight, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useUserTrips } from '@/hooks/useUserTrips';
 
 interface WalletSectionProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-const transactions = [
+interface WalletTx {
+  id: string | number;
+  type: 'earning' | 'expense' | 'withdrawal';
+  description: string;
+  amount: number;
+  date: string;
+}
+
+const sampleTransactions: WalletTx[] = [
   { id: 1, type: 'earning', description: 'Viaje Huesca → Zaragoza', amount: 10.62, date: '15 Dic' },
   { id: 2, type: 'expense', description: 'Viaje Zaragoza → Huesca', amount: -6.00, date: '14 Dic' },
   { id: 3, type: 'earning', description: 'Viaje Huesca → Jaca', amount: 6.80, date: '12 Dic' },
@@ -15,6 +24,24 @@ const transactions = [
 ];
 
 const WalletSection = ({ isOpen, onClose }: WalletSectionProps) => {
+  const { trips, isAuthenticated } = useUserTrips(isOpen);
+
+  const transactions: WalletTx[] = isAuthenticated
+    ? trips
+        .filter((t) => t.price !== null)
+        .map((t) => ({
+          id: t.id,
+          type: t.role === 'driver' ? ('earning' as const) : ('expense' as const),
+          description: `Viaje ${t.originName ?? 'Origen'} → ${t.destinationName ?? 'Destino'}`,
+          amount: t.role === 'driver' ? (t.price ?? 0) : -(t.price ?? 0),
+          date: new Date(t.createdAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }),
+        }))
+    : sampleTransactions;
+
+  const balance = isAuthenticated
+    ? transactions.reduce((sum, tx) => sum + tx.amount, 0)
+    : 67.42;
+
   if (!isOpen) return null;
 
   return (
