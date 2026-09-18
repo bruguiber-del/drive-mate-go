@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Navigation, X, Clock, Loader2 } from 'lucide-react';
+import { MapPin, Navigation, X, Clock, Loader2, Plane } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MAPBOX_TOKEN } from '@/lib/mapboxConfig';
+import { findMatchingAirport } from '@/lib/majorAirports';
 
 interface NavigationSearchProps {
   isOpen: boolean;
@@ -14,10 +15,14 @@ interface NavigationSearchProps {
 
 interface SearchResult {
   id: string;
-  /** mapbox_id de la Search Box API (necesario para /retrieve) */
+  /** mapbox_id de la Search Box API (necesario para /retrieve). Vacío para
+   *  resultados locales (aeropuertos) que ya traen sus coordenadas. */
   mapboxId: string;
   name: string;
   place_name: string;
+  /** Presente solo en resultados locales (lista de aeropuertos) — evita
+   *  tener que llamar a /retrieve, ya que las coordenadas ya se conocen. */
+  localCoords?: { lat: number; lng: number };
 }
 
 const recentDestinations = [
@@ -128,9 +133,29 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation }: Navigat
           // conservando el orden de relevancia de Mapbox dentro de cada grupo.
           mapped.sort((a: any, b: any) => a.rank - b.rank || a.order - b.order);
 
-          setSearchResults(
-            mapped.map(({ id, mapboxId, name, place_name }: any) => ({ id, mapboxId, name, place_name }))
-          );
+          const results: SearchResult[] = mapped.map(({ id, mapboxId, name, place_name }: any) => ({
+            id,
+            mapboxId,
+            name,
+            place_name,
+          }));
+
+          // Mapbox no tiene bien cargados algunos aeropuertos regionales
+          // como entrada propia — solo devuelve negocios dentro de ellos.
+          // Si la búsqueda coincide con un aeropuerto conocido, lo ponemos
+          // el primero, con coordenadas ya verificadas de la terminal.
+          const airport = findMatchingAirport(destination, userLocation);
+          if (airport) {
+            results.unshift({
+              id: `airport-${airport.name}`,
+              mapboxId: '',
+              name: airport.name,
+              place_name: airport.name,
+              localCoords: { lat: airport.lat, lng: airport.lng },
+            });
+          }
+
+          setSearchResults(results);
         } else {
           setSearchResults([]);
         }
@@ -151,6 +176,16 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation }: Navigat
   const handleSelectResult = async (result: SearchResult) => {
     setDestination(result.place_name);
     setSearchResults([]);
+
+    // Resultado local (aeropuerto de la lista propia) — ya trae coordenadas,
+    // no hace falta llamar a Mapbox para resolverlas.
+    if (result.localCoords) {
+      onNavigate(result.place_name, { lng: result.localCoords.lng, lat: result.localCoords.lat });
+      setDestination('');
+      onClose();
+      return;
+    }
+
     setIsSearching(true);
     try {
       const params = new URLSearchParams({
@@ -244,7 +279,11 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation }: Navigat
                       onClick={() => handleSelectResult(result)}
                       className="w-full flex items-center gap-4 p-4 hover:bg-muted/50 transition-colors border-b border-border/50 last:border-0"
                     >
-                      <MapPin className="w-5 h-5 text-primary shrink-0" />
+                      {result.localCoords ? (
+                        <Plane className="w-5 h-5 text-primary shrink-0" />
+                      ) : (
+                        <MapPin className="w-5 h-5 text-primary shrink-0" />
+                      )}
                       <p className="text-left text-foreground text-sm line-clamp-2">{result.place_name}</p>
                     </motion.button>
                   ))}

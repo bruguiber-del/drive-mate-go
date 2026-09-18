@@ -152,8 +152,8 @@ const NavigationOverlays = ({
               <ManeuverIcon className="w-4.5 h-4.5 text-primary" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-foreground leading-tight truncate">{currentStep.instruction}</p>
-              <p className="text-[11px] text-muted-foreground mt-1 truncate">
+              <p className="text-sm font-semibold text-foreground leading-tight line-clamp-2">{currentStep.instruction}</p>
+              <p className="text-[11px] text-muted-foreground mt-1 line-clamp-2">
                 En {formatDistance(currentStep.distance)}
                 <span className="mx-1">·</span>
                 {LEG_LABELS[currentLeg]}
