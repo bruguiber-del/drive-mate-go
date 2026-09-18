@@ -1,8 +1,6 @@
 import { useState, useCallback, useMemo, useEffect, useRef, lazy, Suspense } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Navigation } from "lucide-react";
+import { AnimatePresence } from "framer-motion";
 import { getManeuverIcon } from "@/lib/maneuverIcons";
-import { formatDistance } from "@/lib/format";
 import { useVoiceGuidance } from "@/hooks/useVoiceGuidance";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -11,6 +9,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 const MapView = lazy(() => import("@/components/MapView"));
 import NavTopBar from "@/components/NavTopBar";
+import NavigationOverlays from "@/components/NavigationOverlays";
 import BottomActionBar from "@/components/BottomActionBar";
 import NavigationSearch from "@/components/NavigationSearch";
 import DriverSettingsSheet from "@/components/DriverSettingsSheet";
@@ -28,7 +27,7 @@ import VehicleManager from "@/components/VehicleManager";
 
 // ── Hooks ─────────────────────────────────────────────────────────────────────
 import { useDriverTracking } from "@/hooks/useDriverTracking";
-import { useWaypoints, type TripLeg } from "@/hooks/useWaypoints";
+import { useWaypoints } from "@/hooks/useWaypoints";
 import { useWalkingRoute } from "@/hooks/useWalkingRoute";
 import { usePassengerSimulation, type SimulatedPassenger } from "@/hooks/usePassengerSimulation";
 import { calculatePrice } from "@/lib/priceCalculator";
@@ -38,15 +37,6 @@ import { useNavigationState } from "@/hooks/useNavigationState";
 import { useUIModals } from "@/hooks/useUIModals";
 import { useVehicles } from "@/hooks/useVehicles";
 import { useDriverSimulation } from "@/hooks/useDriverSimulation";
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const LEG_LABELS: Record<TripLeg, string> = {
-  to_meeting_point: "Ve a recoger al pasajero",
-  to_pickup: "Ve a recoger al pasajero",
-  to_dropoff: "Lleva al pasajero a su destino",
-  to_destination: "Continúa a tu destino",
-};
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -582,142 +572,26 @@ const Index = () => {
           onStopNavigation={handleStopNavigation}
         />
 
-        {/* Logo */}
-        <AnimatePresence>
-          {!nav.isNavigating && !trip.showActiveTrip && (
-            <motion.div
-              className="absolute top-24 left-1/2 -translate-x-1/2 pointer-events-none"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ delay: 0.4 }}
-            >
-              <h1 className="text-3xl font-extrabold tracking-tight">
-                <span className="text-gradient">VI</span>
-                <span className="text-foreground">MATCH</span>
-              </h1>
-              <p className="text-center text-sm text-muted-foreground mt-1">El navegador social</p>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Driver Status Chip */}
-        {isDriverMode && !trip.showActiveTrip && (
-          <motion.div
-            className="absolute top-24 sm:top-20 right-4 pointer-events-none z-10"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-          >
-            <div className="glass-strong rounded-full px-3 py-1.5 flex items-center gap-1.5 border border-success/30">
-              <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
-              <span className="text-[11px] font-medium text-foreground">Conductor activo</span>
-              <span className="text-[11px] text-muted-foreground">
-                · {driverSettings.seats} plazas · +{driverSettings.maxDetour} min
-                {vehicles.activeVehicle ? ` · ${vehicles.activeVehicle.licensePlate}` : ""}
-              </span>
-            </div>
-          </motion.div>
-        )}
-
-        {/* Estado compacto — conductor con pasajero, sin navegación giro a giro */}
-        {trip.showActiveTrip && trip.activeTripRole === "driver" && hasPassenger && !(nav.hasStartedDriving && currentStep) && (
-          <motion.div
-            className="absolute top-24 sm:top-20 left-4 right-4 pointer-events-none z-10"
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <div className="glass-strong rounded-xl px-3 py-2 flex items-center gap-2 border border-primary/20">
-              <Navigation className="w-4 h-4 text-primary shrink-0" />
-              <div className="flex-1 min-w-0">
-                <span className="text-xs font-medium text-foreground">{LEG_LABELS[currentLeg]}</span>
-                {currentTarget && (
-                  <span className="text-xs text-muted-foreground ml-1 truncate">· {currentTarget.name}</span>
-                )}
-              </div>
-              <div className="text-right shrink-0">
-                {nav.dynamicETA && <span className="text-sm font-bold text-primary">{nav.dynamicETA.minutes} min</span>}
-                {nav.detourMinutes != null && nav.detourMinutes > 0 && (
-                  <span className="text-[10px] text-warning ml-1">+{nav.detourMinutes} min desvío</span>
-                )}
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {/* Turn-by-turn banner — SOLO cuando navegando SIN viaje activo */}
-        {nav.isNavigating && nav.hasStartedDriving && !trip.showActiveTrip && currentStep && (
-          <motion.div
-            className="absolute top-24 sm:top-20 left-4 right-4 pointer-events-none z-10"
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <div className="glass-strong rounded-xl px-4 py-3 flex items-center gap-3 border border-primary/30 bg-background/90">
-              <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center shrink-0">
-                <ManeuverIcon className="w-5 h-5 text-primary" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-foreground leading-tight">{currentStep.instruction}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  En {formatDistance(currentStep.distance)}
-                </p>
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {/* Aviso unificado — maniobra + fase del viaje activo */}
-        {trip.showActiveTrip && trip.activeTripRole === "driver" && nav.hasStartedDriving && currentStep && (
-          <motion.div
-            className="absolute top-24 sm:top-20 left-4 right-4 pointer-events-none z-10"
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <div className="glass-strong rounded-xl px-3 py-2.5 flex items-center gap-2.5 border border-primary/20 bg-background/90">
-              <div className="w-9 h-9 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
-                <ManeuverIcon className="w-4.5 h-4.5 text-primary" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-foreground leading-tight truncate">
-                  {currentStep.instruction}
-                </p>
-                <p className="text-[11px] text-muted-foreground mt-1 truncate">
-                  En {formatDistance(currentStep.distance)}
-                  <span className="mx-1">·</span>
-                  {LEG_LABELS[currentLeg]}
-                  {nav.dynamicETA && <span className="text-primary font-semibold"> · {nav.dynamicETA.minutes} min</span>}
-                </p>
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {/* Passenger walking chip — SOLO pasajero */}
-        {trip.showActiveTrip &&
-          trip.activeTripRole === "passenger" &&
-          trip.meetingPoint !== null &&
-          !isDoorToDoor &&
-          walkingRouteData && (
-            <motion.div
-              className="absolute top-24 sm:top-20 left-4 right-4 pointer-events-none z-10"
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-            >
-              <div className="glass-strong rounded-xl px-3 py-2 flex items-center gap-2 border border-[hsl(280,70%,55%)]/30">
-                <span className="text-lg">🚶</span>
-                <div className="flex-1 min-w-0">
-                  <span className="text-xs font-medium text-foreground">Camina al punto de encuentro</span>
-                </div>
-                <div className="text-right shrink-0">
-                  <span className="text-sm font-bold" style={{ color: "hsl(280,70%,55%)" }}>
-                    {Math.ceil(walkingRouteData.duration / 60)} min
-                  </span>
-                  <span className="text-[10px] text-muted-foreground ml-1">
-                    {(walkingRouteData.distance / 1000).toFixed(1)} km
-                  </span>
-                </div>
-              </div>
-            </motion.div>
-          )}
+        <NavigationOverlays
+          isNavigating={nav.isNavigating}
+          showActiveTrip={trip.showActiveTrip}
+          isDriverMode={isDriverMode}
+          activeTripRole={trip.activeTripRole}
+          hasPassenger={hasPassenger}
+          hasStartedDriving={nav.hasStartedDriving}
+          currentStep={currentStep}
+          ManeuverIcon={ManeuverIcon}
+          currentLeg={currentLeg}
+          currentTargetName={currentTarget?.name ?? null}
+          dynamicETA={nav.dynamicETA}
+          detourMinutes={nav.detourMinutes}
+          driverSeats={driverSettings.seats}
+          driverMaxDetour={driverSettings.maxDetour}
+          activeVehiclePlate={vehicles.activeVehicle?.licensePlate}
+          isDoorToDoor={isDoorToDoor}
+          hasMeetingPoint={trip.meetingPoint !== null}
+          walkingRouteData={walkingRouteData}
+        />
 
 
         <BottomActionBar
