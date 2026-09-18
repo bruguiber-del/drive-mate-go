@@ -50,26 +50,83 @@ export type Database = {
         }
         Relationships: []
       }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          average_rating: number
+          created_at: string
+          full_name: string | null
+          id: string
+          phone: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          average_rating?: number
+          created_at?: string
+          full_name?: string | null
+          id: string
+          phone?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          average_rating?: number
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          phone?: string | null
+        }
+        Relationships: []
+      }
       trips: {
         Row: {
+          completed_at: string | null
           created_at: string
+          destination_lat: number | null
+          destination_lng: number | null
+          destination_name: string | null
           driver_id: string
           id: string
+          origin_lat: number | null
+          origin_lng: number | null
+          origin_name: string | null
           passenger_id: string | null
+          price: number | null
+          rating: number | null
+          scheduled_at: string | null
           status: string
         }
         Insert: {
+          completed_at?: string | null
           created_at?: string
+          destination_lat?: number | null
+          destination_lng?: number | null
+          destination_name?: string | null
           driver_id: string
           id?: string
+          origin_lat?: number | null
+          origin_lng?: number | null
+          origin_name?: string | null
           passenger_id?: string | null
+          price?: number | null
+          rating?: number | null
+          scheduled_at?: string | null
           status?: string
         }
         Update: {
+          completed_at?: string | null
           created_at?: string
+          destination_lat?: number | null
+          destination_lng?: number | null
+          destination_name?: string | null
           driver_id?: string
           id?: string
+          origin_lat?: number | null
+          origin_lng?: number | null
+          origin_name?: string | null
           passenger_id?: string | null
+          price?: number | null
+          rating?: number | null
+          scheduled_at?: string | null
           status?: string
         }
         Relationships: []
