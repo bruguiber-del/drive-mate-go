@@ -118,31 +118,98 @@ const Auth = () => {
           {mode === 'signin' ? 'Inicia sesión para continuar' : 'Crea tu cuenta'}
         </p>
 
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="email">Correo electrónico</Label>
-            <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="password">Contraseña</Label>
-            <Input id="password" type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} />
-          </div>
-          <Button type="submit" className="w-full" disabled={busy}>
-            {mode === 'signin' ? 'Entrar' : 'Registrarme'}
-          </Button>
-        </form>
+        <div className="flex gap-1.5 bg-muted/50 rounded-lg p-1 mb-4">
+          {([
+            { value: 'email' as const, label: 'Correo' },
+            { value: 'phone' as const, label: 'Teléfono' },
+          ]).map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => setMethod(option.value)}
+              className={`flex-1 py-2 rounded-md text-sm font-semibold transition-all ${
+                method === option.value
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+
+        {method === 'email' ? (
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="email">Correo electrónico</Label>
+              <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="password">Contraseña</Label>
+              <Input id="password" type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} />
+            </div>
+            <Button type="submit" className="w-full" disabled={busy}>
+              {mode === 'signin' ? 'Entrar' : 'Registrarme'}
+            </Button>
+          </form>
+        ) : !otpSent ? (
+          <form onSubmit={handleSendOtp} className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="phone">Número de teléfono</Label>
+              <Input
+                id="phone"
+                type="tel"
+                required
+                placeholder="+34600000000"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+              />
+              <p className="text-[11px] text-muted-foreground">Incluye el prefijo del país, por ejemplo +34.</p>
+            </div>
+            <Button type="submit" className="w-full" disabled={busy}>
+              Enviarme el código
+            </Button>
+          </form>
+        ) : (
+          <form onSubmit={handleVerifyOtp} className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="otp">Código de verificación</Label>
+              <Input
+                id="otp"
+                inputMode="numeric"
+                required
+                placeholder="123456"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value)}
+              />
+              <p className="text-[11px] text-muted-foreground">Enviado por SMS a {phone}.</p>
+            </div>
+            <Button type="submit" className="w-full" disabled={busy}>
+              Verificar y entrar
+            </Button>
+            <button
+              type="button"
+              className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => { setOtpSent(false); setOtp(''); }}
+            >
+              Cambiar de número
+            </button>
+          </form>
+        )}
 
         <Button variant="outline" className="w-full mt-3" onClick={handleGoogle} disabled={busy}>
           Continuar con Google
         </Button>
 
-        <button
-          type="button"
-          className="w-full mt-4 text-xs text-muted-foreground hover:text-foreground transition-colors"
-          onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}
-        >
-          {mode === 'signin' ? '¿No tienes cuenta? Regístrate' : '¿Ya tienes cuenta? Inicia sesión'}
-        </button>
+        {method === 'email' && (
+          <button
+            type="button"
+            className="w-full mt-4 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}
+          >
+            {mode === 'signin' ? '¿No tienes cuenta? Regístrate' : '¿Ya tienes cuenta? Inicia sesión'}
+          </button>
+        )}
 
         <button
           type="button"
