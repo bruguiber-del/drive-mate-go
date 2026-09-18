@@ -426,6 +426,57 @@ const Index = () => {
     });
   }, [toast, driverSim]);
 
+  // ── Guardado de ajustes del pasajero (origen, para otra persona, programar) ─
+  const handlePassengerSettingsSave = useCallback(
+    async (settings: PassengerSettingsData) => {
+      setIsDoorToDoor(settings.doorToDoor);
+      setPassengerTripSetup({
+        originText: settings.originText,
+        isForOther: settings.isForOther,
+        otherPersonName: settings.otherPersonName,
+        otherPersonPickup: settings.otherPersonPickup,
+        scheduledAt: settings.scheduledAt,
+      });
+
+      if (settings.scheduledAt) {
+        // Guarda el viaje programado en la nube si hay sesión iniciada
+        try {
+          const { data: userData } = await supabase.auth.getUser();
+          const uid = userData?.user?.id;
+          if (uid) {
+            await supabase.from("trips").insert({
+              driver_id: uid,
+              passenger_id: uid,
+              status: "scheduled",
+              scheduled_at: settings.scheduledAt,
+              origin_name: settings.originText || null,
+              origin_lat: realUserLocation?.[0] ?? null,
+              origin_lng: realUserLocation?.[1] ?? null,
+              destination_name: nav.destination || null,
+              destination_lat: nav.destinationCoords?.lat ?? null,
+              destination_lng: nav.destinationCoords?.lng ?? null,
+            });
+          }
+        } catch {
+          /* el viaje programado sigue funcionando en local si falla la nube */
+        }
+        const when = new Date(settings.scheduledAt).toLocaleString("es-ES", {
+          day: "numeric",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        toast({ title: "Viaje programado", description: `Buscaremos conductor cerca de las ${when}` });
+        return;
+      }
+
+      toast({ title: "Preferencias aplicadas", description: "Tus preferencias se usarán en la búsqueda" });
+    },
+    [toast, realUserLocation, nav.destination, nav.destinationCoords],
+  );
+
+
+
   // ── Viaje programado: no buscar conductor hasta que se acerque la hora ──────
   const SCHEDULE_LEAD_MS = 5 * 60 * 1000;
   const isScheduledPending = useMemo(() => {
