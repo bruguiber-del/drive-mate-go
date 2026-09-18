@@ -686,17 +686,6 @@ const Index = () => {
             </motion.div>
           )}
 
-        {/* Passenger Card */}
-        {!trip.showActiveTrip && (
-          <motion.div
-            className="absolute top-24 sm:top-20 left-4 pointer-events-auto"
-            initial={{ x: -20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ delay: 0.25 }}
-          >
-            <PassengerCard onClick={modals.openPassengerSearch} hasActiveSearch={hasActivePassengerSearch} />
-          </motion.div>
-        )}
 
         {/* "Iniciar conducción" CTA — only when route exists but user hasn't moved yet */}
         {nav.isNavigating && !nav.hasStartedDriving && !trip.showActiveTrip && (
