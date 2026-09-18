@@ -78,14 +78,23 @@ const TripHistory = ({ isOpen, onClose }: TripHistoryProps) => {
             {/* Stats Summary */}
             <div className="grid grid-cols-2 gap-3 mb-4">
               <div className="glass rounded-xl p-4 text-center">
-                <p className="text-2xl font-bold text-primary">79</p>
+                <p className="text-2xl font-bold text-primary">{isAuthenticated ? totalTrips : 79}</p>
                 <p className="text-sm text-muted-foreground">Viajes totales</p>
               </div>
               <div className="glass rounded-xl p-4 text-center">
-                <p className="text-2xl font-bold text-success">€234.50</p>
-                <p className="text-sm text-muted-foreground">Ganado como conductor</p>
+                <p className="text-2xl font-bold text-success">
+                  €{(isAuthenticated ? driverEarnings : 234.5).toFixed(2)}
+                </p>
+                <p className="text-sm text-muted-foreground">Compensación como conductor</p>
               </div>
             </div>
+
+            {isAuthenticated && trips.length === 0 && (
+              <div className="glass rounded-xl p-6 text-center">
+                <MapPin className="w-6 h-6 text-muted-foreground mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">Todavía no tienes viajes registrados.</p>
+              </div>
+            )}
 
             {/* Trip List */}
             {trips.map((trip, index) => (
