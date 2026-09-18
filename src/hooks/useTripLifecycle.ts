@@ -99,7 +99,7 @@ export function useTripLifecycle({
    *     can silently fall through without activating the trip view.
    */
   const handleMatchAccept = useCallback(async () => {
-    let newTripId = crypto.randomUUID();
+    let newTripId: string = crypto.randomUUID();
 
     if (isDriverMode && simulatedPassenger) {
       // Persist a real trip row when the driver is signed in
