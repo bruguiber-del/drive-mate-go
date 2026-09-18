@@ -27,10 +27,13 @@ export function useDriverBroadcast({ tripId, enabled }: { tripId: string | null;
     lastLocationRef.current = position;
 
     try {
+      const { data: userData } = await supabase.auth.getUser();
+      const driverId = userData?.user?.id ?? 'guest-driver';
+
       // Use any to bypass type checking since table was just created
       await (supabase.from('driver_locations') as any).insert({
         trip_id: tripId,
-        driver_id: 'demo-driver', // In production, use auth.uid()
+        driver_id: driverId,
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
         heading: position.coords.heading,

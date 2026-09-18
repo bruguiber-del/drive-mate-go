@@ -1,6 +1,7 @@
 import { defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { supabaseForUser } from "../supabase";
+import { assertTripParticipant } from "../tripAccess";
 
 export default defineTool({
   name: "get_driver_position_history",
@@ -16,6 +17,10 @@ export default defineTool({
       return { content: [{ type: "text", text: "No autenticado" }], isError: true };
     }
     const supabase = supabaseForUser(ctx);
+
+    const denial = await assertTripParticipant(supabase, trip_id);
+    if (denial) return denial;
+
     const { data, error } = await supabase
       .from("driver_locations")
       .select("latitude, longitude, created_at")
