@@ -745,7 +745,16 @@ const MapView = ({
         maxZoom: 14,
         duration: 1000,
       });
+      // Temporarily stop following to show user + waypoints together, then
+      // automatically resume continuous following once the animation is done.
       isFollowingRef.current = false;
+      if (resumeFollowTimerRef.current !== null) {
+        window.clearTimeout(resumeFollowTimerRef.current);
+      }
+      resumeFollowTimerRef.current = window.setTimeout(() => {
+        isFollowingRef.current = true;
+        resumeFollowTimerRef.current = null;
+      }, 2500);
     }
   }, [waypointMarkers, mapReady, updateMarkerLabelVisibility]);
 
