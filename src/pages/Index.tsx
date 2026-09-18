@@ -725,6 +725,20 @@ const Index = () => {
                 </motion.div>
               )}
 
+              <PassengerToggle isPassenger={isPassengerMode} onToggle={handlePassengerToggle} />
+
+              {isPassengerMode && (
+                <motion.div
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0, opacity: 0 }}
+                >
+                  <Button variant="glass" size="icon" className="w-9 h-9" onClick={modals.openPassengerSettings}>
+                    <Settings className="w-4 h-4" />
+                  </Button>
+                </motion.div>
+              )}
+
               {nav.isNavigating && nav.dynamicETA ? (
                 <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="flex-1 min-w-0">
                   <div className="glass-strong rounded-lg px-2 py-1.5 flex items-center gap-2">
