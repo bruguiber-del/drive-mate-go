@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { useWaypoints } from '@/hooks/useWaypoints';
 import type { SimulatedPassenger } from '@/hooks/usePassengerSimulation';
@@ -97,10 +98,26 @@ export function useTripLifecycle({
    *  4. setTripStatus / setShowActiveTrip are called in both branches — nothing
    *     can silently fall through without activating the trip view.
    */
-  const handleMatchAccept = useCallback(() => {
-    const newTripId = crypto.randomUUID();
+  const handleMatchAccept = useCallback(async () => {
+    let newTripId = crypto.randomUUID();
 
     if (isDriverMode && simulatedPassenger) {
+      // Persist a real trip row when the driver is signed in
+      try {
+        const { data: userData } = await supabase.auth.getUser();
+        const driverId = userData?.user?.id;
+        if (driverId) {
+          const { data, error } = await supabase
+            .from('trips')
+            .insert({ driver_id: driverId, status: 'active' })
+            .select('id')
+            .single();
+          if (!error && data?.id) newTripId = data.id;
+        }
+      } catch {
+        /* keep the local UUID if the trip could not be persisted */
+      }
+
 
       // ── Driver branch ────────────────────────────────────────────────────
       setActiveTripRole('driver');
