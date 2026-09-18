@@ -452,6 +452,10 @@ const MapView = ({
     map.current.on('dragstart', () => { isFollowingRef.current = false; });
 
     return () => {
+      if (resumeFollowTimerRef.current !== null) {
+        window.clearTimeout(resumeFollowTimerRef.current);
+        resumeFollowTimerRef.current = null;
+      }
       resizeObserverRef.current?.disconnect();
       resizeObserverRef.current = null;
       map.current?.remove();
