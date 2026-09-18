@@ -159,10 +159,12 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
         `&language=es&access_token=${MAPBOX_TOKEN}`;
 
       const response = await fetch(url);
-      if (!response.ok) throw new Error('Failed to fetch route');
-
-      const data = await response.json();
-      if (!data.routes || data.routes.length === 0) throw new Error('No route found');
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        const detail = data?.message ? `: ${data.message}` : '';
+        throw new Error(`Failed to fetch route (HTTP ${response.status}${detail})`);
+      }
+      if (!data?.routes || data.routes.length === 0) throw new Error('No route found');
 
       const routeData = data.routes[0];
 
@@ -212,7 +214,9 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
       routeRef.current = newRoute;
       setRoute(newRoute);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      console.error('useRouting: route fetch failed:', message, { routeOrigin, destination });
+      setError(message);
       // No straight-line fallback — leave route null so the map draws nothing.
       routeRef.current = null;
       setRoute(null);

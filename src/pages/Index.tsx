@@ -345,6 +345,23 @@ const Index = () => {
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
+  // Surface Directions API failures — antes fallaban en silencio, sin
+  // ninguna pista de por qué no aparecía la ruta.
+  const lastRouteErrorRef = useRef<string | null>(null);
+  const handleRouteError = useCallback(
+    (error: string | null) => {
+      if (error === lastRouteErrorRef.current) return;
+      lastRouteErrorRef.current = error;
+      if (!error) return;
+      toast({
+        title: "No se pudo calcular la ruta",
+        description: error,
+        variant: "destructive",
+      });
+    },
+    [toast],
+  );
+
   const handleDriverToggle = useCallback(() => {
     if (!isDriverMode) {
       if (vehicles.vehicles.length === 0) {
@@ -556,6 +573,7 @@ const Index = () => {
         intermediateRouteWaypoints={intermediateRouteWaypoints}
         walkingRoute={trip.activeTripRole === "passenger" && passengerWalkingEnabled ? walkingRouteData : null}
         onRouteUpdate={nav.setCurrentRoute}
+        onRouteError={handleRouteError}
         simulatedPosition={null}
         simulatedHeading={null}
         onUserLocationUpdate={setRealUserLocation}
