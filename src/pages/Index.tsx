@@ -398,18 +398,36 @@ const Index = () => {
     toast({ title: "Solicitud rechazada", description: "Seguirás recibiendo nuevas solicitudes" });
   }, [modals, dismissSimPassenger, toast, isDriverMode, driverSim]);
 
-  const handlePassengerSearch = useCallback(
-    (data: { destination: string }) => {
-      setHasActivePassengerSearch(false);
+  const handlePassengerToggle = useCallback(() => {
+    setIsPassengerMode((prev) => {
+      const next = !prev;
+      if (next) {
+        setIsDriverMode(false);
+        toast({
+          title: "Modo pasajero activado",
+          description: "Elige tu destino arriba y buscaremos un conductor que vaya en esa dirección",
+        });
+      } else {
+        driverSim.clearDriver();
+      }
+      return next;
+    });
+  }, [toast, driverSim]);
+
+  // ── Driver search while in passenger mode (mirrors passenger simulation) ────
+  const driverSearchEnabled = isPassengerMode && nav.isNavigating && !trip.showActiveTrip;
+  useEffect(() => {
+    if (!driverSearchEnabled || modals.showMatchPopup || driverSim.currentDriver) return;
+    const timer = setTimeout(() => {
       const driver = driverSim.searchDriver();
       toast({
         title: "Conductor encontrado",
         description: `${driver.name} · ${driver.vehicle.brand} ${driver.vehicle.model} · ${driver.vehicle.licensePlate}`,
       });
       modals.openMatchPopup();
-    },
-    [modals, toast, driverSim],
-  );
+    }, 6000);
+    return () => clearTimeout(timer);
+  }, [driverSearchEnabled, modals, driverSim, toast]);
 
   const showDriverOnMap = trip.showActiveTrip && trip.activeTripRole === "passenger";
 
