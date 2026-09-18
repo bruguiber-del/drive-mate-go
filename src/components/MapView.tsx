@@ -316,8 +316,52 @@ const MapView = ({
 
   useEffect(() => { onRouteUpdate?.(route); }, [route, onRouteUpdate]);
 
+  /** ¿Hay movimiento real suficiente para fiarse del rumbo del GPS? (~30 m) */
+  const hasReliableMovement = useMemo(() => {
+    if (positionHistory.length < 3) return false;
+    let meters = 0;
+    for (let i = 1; i < positionHistory.length; i += 1) {
+      const a = positionHistory[i - 1];
+      const b = positionHistory[i];
+      const dLat = (b[0] - a[0]) * 111320;
+      const dLng = (b[1] - a[1]) * 111320 * Math.cos((a[0] * Math.PI) / 180);
+      meters += Math.hypot(dLat, dLng);
+      if (meters > 30) return true;
+    }
+    return false;
+  }, [positionHistory]);
+
+  /** Rumbo inicial (great-circle) en línea recta hacia el próximo destino. */
+  const bearingToTarget = useMemo(() => {
+    const from = userLocationRef.current;
+    const target = waypointMarkers?.[0] ?? destination;
+    if (!from || !target) return null;
+    const toRad = (d: number) => (d * Math.PI) / 180;
+    const φ1 = toRad(from[0]);
+    const φ2 = toRad(target.lat);
+    const Δλ = toRad(target.lng - from[1]);
+    const y = Math.sin(Δλ) * Math.cos(φ2);
+    const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+    return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+    // rawUserLocation fuerza el recálculo al moverse el usuario
+  }, [waypointMarkers, destination, rawUserLocation]);
+
   const getHeading = useCallback((): number => {
     if (simulatedHeading != null) return simulatedHeading;
+
+    // Con movimiento real fiable, manda siempre el rumbo del GPS.
+    if (hasReliableMovement) {
+      if (userHeading !== null) return userHeading;
+      const prev = positionHistory[positionHistory.length - 2];
+      const curr = positionHistory[positionHistory.length - 1];
+      const dLng = curr[1] - prev[1];
+      const dLat = curr[0] - prev[0];
+      return (Math.atan2(dLng, dLat) * 180) / Math.PI;
+    }
+
+    // Aún parado o recién arrancando: orienta hacia el destino trazado.
+    if (showRoute && bearingToTarget !== null) return bearingToTarget;
+
     if (userHeading !== null) return userHeading;
     if (positionHistory.length >= 2) {
       const prev = positionHistory[positionHistory.length - 2];
@@ -327,7 +371,7 @@ const MapView = ({
       return (Math.atan2(dLng, dLat) * 180) / Math.PI;
     }
     return 0;
-  }, [simulatedHeading, userHeading, positionHistory]);
+  }, [simulatedHeading, userHeading, positionHistory, hasReliableMovement, bearingToTarget, showRoute]);
 
   const centerOnUser = useCallback(() => {
     if (!map.current || !userLocation) return;
