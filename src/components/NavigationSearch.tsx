@@ -291,25 +291,6 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation }: Navigat
               </div>
             )}
 
-            {/* Navigate Button */}
-            {selectedResult && (
-              <motion.div 
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                className="p-4 border-t border-border mt-auto"
-              >
-                <Button 
-                  variant="default" 
-                  size="xl" 
-                  className="w-full"
-                  onClick={handleNavigate}
-                  disabled={!selectedCoords}
-                >
-                  <Navigation className="w-5 h-5" />
-                  Iniciar navegación
-                </Button>
-              </motion.div>
-            )}
           </div>
         </motion.div>
       )}
