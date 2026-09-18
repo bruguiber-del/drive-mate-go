@@ -351,7 +351,11 @@ const MapView = ({
   const getHeading = useCallback((): number => {
     if (simulatedHeading != null) return simulatedHeading;
 
-    // Con movimiento real fiable, manda siempre el rumbo del GPS.
+    // Con ruta activa hacia un destino: orienta SIEMPRE hacia él,
+    // haya movimiento o no — la app muestra la línea recta al destino.
+    if (showRoute && bearingToTarget !== null) return bearingToTarget;
+
+    // Sin ruta/destino activo: manda el rumbo real del GPS.
     if (hasReliableMovement) {
       if (userHeading !== null) return userHeading;
       const prev = positionHistory[positionHistory.length - 2];
@@ -360,9 +364,6 @@ const MapView = ({
       const dLat = curr[0] - prev[0];
       return (Math.atan2(dLng, dLat) * 180) / Math.PI;
     }
-
-    // Aún parado o recién arrancando: orienta hacia el destino trazado.
-    if (showRoute && bearingToTarget !== null) return bearingToTarget;
 
     if (userHeading !== null) return userHeading;
     if (positionHistory.length >= 2) {
@@ -738,27 +739,31 @@ const MapView = ({
 
     requestAnimationFrame(updateMarkerLabelVisibility);
 
-    // Auto-fit to show user + ALL waypoints (including final destination)
-    const bounds = new mapboxgl.LngLatBounds();
-    const ul = userLocationRef.current;
-    if (ul) bounds.extend([ul[1], ul[0]]);
-    waypointMarkers.forEach(wp => bounds.extend([wp.lng, wp.lat]));
-    if (!bounds.isEmpty()) {
-      m.fitBounds(bounds, {
-        padding: { top: 120, bottom: 250, left: 40, right: 40 },
-        maxZoom: 14,
-        duration: 1000,
-      });
-      // Temporarily stop following to show user + waypoints together, then
-      // automatically resume continuous following once the animation is done.
-      isFollowingRef.current = false;
-      if (resumeFollowTimerRef.current !== null) {
-        window.clearTimeout(resumeFollowTimerRef.current);
+    // Auto-fit SOLO cuando hay varias paradas que mostrar a la vez
+    // (recogida + destino). Con un único punto (solo destino elegido)
+    // seguimos centrados en el usuario sin alejar ni pausar el seguimiento.
+    if (waypointMarkers.length > 1) {
+      const bounds = new mapboxgl.LngLatBounds();
+      const ul = userLocationRef.current;
+      if (ul) bounds.extend([ul[1], ul[0]]);
+      waypointMarkers.forEach(wp => bounds.extend([wp.lng, wp.lat]));
+      if (!bounds.isEmpty()) {
+        m.fitBounds(bounds, {
+          padding: { top: 120, bottom: 250, left: 40, right: 40 },
+          maxZoom: 14,
+          duration: 1000,
+        });
+        // Temporarily stop following to show user + waypoints together, then
+        // automatically resume continuous following once the animation is done.
+        isFollowingRef.current = false;
+        if (resumeFollowTimerRef.current !== null) {
+          window.clearTimeout(resumeFollowTimerRef.current);
+        }
+        resumeFollowTimerRef.current = window.setTimeout(() => {
+          isFollowingRef.current = true;
+          resumeFollowTimerRef.current = null;
+        }, 2500);
       }
-      resumeFollowTimerRef.current = window.setTimeout(() => {
-        isFollowingRef.current = true;
-        resumeFollowTimerRef.current = null;
-      }, 2500);
     }
   }, [waypointMarkers, mapReady, updateMarkerLabelVisibility]);
 
