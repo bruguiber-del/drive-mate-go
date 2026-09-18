@@ -131,34 +131,34 @@ const MatchPopup = ({ isOpen, onAccept, onReject, isDriverView = true, matchData
               )}
 
               {/* Stats — compact */}
-              <div className="flex gap-1.5 mb-2">
-                <div className="flex-1 bg-muted rounded-lg py-1.5 text-center">
+              <div className="flex gap-1 mb-1.5">
+                <div className="flex-1 bg-muted rounded-md py-1 text-center">
                   {isDriverView ? (
                     <>
-                      <p className="text-sm font-bold text-foreground leading-tight">+{data.detourMinutes} min</p>
-                      <p className="text-[10px] text-muted-foreground">desvío</p>
+                      <p className="text-xs font-bold text-foreground leading-tight">+{data.detourMinutes} min</p>
+                      <p className="text-[9px] text-muted-foreground leading-tight">desvío</p>
                     </>
                   ) : (
                     <>
-                      <p className="text-sm font-bold text-foreground leading-tight flex items-center justify-center gap-1">
-                        <Clock className="w-3 h-3 text-secondary" />
+                      <p className="text-xs font-bold text-foreground leading-tight flex items-center justify-center gap-1">
+                        <Clock className="w-2.5 h-2.5 text-secondary" />
                         {data.etaMinutes ?? data.detourMinutes} min
                       </p>
-                      <p className="text-[10px] text-muted-foreground">llega en</p>
+                      <p className="text-[9px] text-muted-foreground leading-tight">llega en</p>
                     </>
                   )}
                 </div>
-                <div className="flex-1 bg-muted rounded-lg py-1.5 text-center">
-                  <p className="text-sm font-bold text-foreground leading-tight">{data.pickupDistance}</p>
-                  <p className="text-[10px] text-muted-foreground">recogida</p>
+                <div className="flex-1 bg-muted rounded-md py-1 text-center">
+                  <p className="text-xs font-bold text-foreground leading-tight">{data.pickupDistance}</p>
+                  <p className="text-[9px] text-muted-foreground leading-tight">recogida</p>
                 </div>
-                <div className={`flex-1 ${isDriverView ? 'bg-success/20' : 'bg-secondary/20'} rounded-lg py-1.5 text-center`}>
-                  <p className={`text-sm font-bold leading-tight ${isDriverView ? 'text-success' : 'text-secondary'}`}>
+                <div className={`flex-1 ${isDriverView ? 'bg-success/20' : 'bg-secondary/20'} rounded-md py-1 text-center`}>
+                  <p className={`text-xs font-bold leading-tight ${isDriverView ? 'text-success' : 'text-secondary'}`}>
                     {isDriverView
                       ? `+${data.compensation.toFixed(2)}€`
                       : `${(data.totalPrice ?? data.compensation * (1 + COMMISSION)).toFixed(2)}€`}
                   </p>
-                  <p className="text-[10px] text-muted-foreground">
+                  <p className="text-[9px] text-muted-foreground leading-tight">
                     {isDriverView ? 'recibes' : 'precio total'}
                   </p>
                 </div>
@@ -166,12 +166,12 @@ const MatchPopup = ({ isOpen, onAccept, onReject, isDriverView = true, matchData
 
               {/* Price breakdown */}
               {isDriverView ? (
-                <div className="mb-2 px-2 py-1 rounded-md bg-muted/40 border border-border/40 flex items-center justify-between text-[10px]">
+                <div className="mb-1.5 px-2 py-0.5 rounded-md bg-muted/40 border border-border/40 flex items-center justify-between text-[9px]">
                   <span className="text-muted-foreground">Compensación gastos</span>
                   <span className="font-medium text-foreground">{data.compensation.toFixed(2)}€</span>
                 </div>
               ) : (
-                <div className="mb-2 px-2 py-1.5 rounded-md bg-muted/40 border border-border/40 space-y-0.5 text-[11px]">
+                <div className="mb-1.5 px-2 py-1 rounded-md bg-muted/40 border border-border/40 space-y-0 text-[10px]">
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Coste base del trayecto</span>
                     <span className="text-foreground">
@@ -194,18 +194,18 @@ const MatchPopup = ({ isOpen, onAccept, onReject, isDriverView = true, matchData
               )}
 
               {/* Actions */}
-              <div className="flex gap-2 pb-1">
-                <Button variant="outline" size="sm" className="flex-1" onClick={onReject}>
-                  <X className="w-4 h-4 mr-1" />
+              <div className="flex gap-2 pb-0.5">
+                <Button variant="outline" size="sm" className="flex-1 h-8 text-xs" onClick={onReject}>
+                  <X className="w-3.5 h-3.5 mr-1" />
                   Rechazar
                 </Button>
                 <Button
                   variant={isDriverView ? 'driver' : 'passenger'}
                   size="sm"
-                  className="flex-1"
+                  className="flex-1 h-8 text-xs"
                   onClick={onAccept}
                 >
-                  <Check className="w-4 h-4 mr-1" />
+                  <Check className="w-3.5 h-3.5 mr-1" />
                   Aceptar
                 </Button>
               </div>
