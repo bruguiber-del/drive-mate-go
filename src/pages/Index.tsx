@@ -370,7 +370,7 @@ const Index = () => {
         ? `Usando ${vehicles.activeVehicle.brand} ${vehicles.activeVehicle.model} · ${vehicles.activeVehicle.licensePlate}`
         : "Navega a tu destino y aparecerán pasajeros cercanos",
     });
-  }, [vehicles.activeVehicle, toast]);
+  }, [vehicles.activeVehicle, toast, driverSim]);
 
   const handleMenuNavigate = useCallback(
     (section: string) => {
