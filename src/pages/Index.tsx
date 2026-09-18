@@ -841,10 +841,8 @@ const Index = () => {
       <PassengerSettingsSheet
         isOpen={modals.showPassengerSettings}
         onClose={modals.closePassengerSettings}
-        onSave={(settings) => {
-          setIsDoorToDoor(settings.doorToDoor);
-          toast({ title: "Preferencias aplicadas", description: "Tus preferencias se usarán en la búsqueda" });
-        }}
+        userLocation={realUserLocation}
+        onSave={handlePassengerSettingsSave}
       />
 
       <DriverSettingsSheet
