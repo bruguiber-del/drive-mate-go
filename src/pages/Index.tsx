@@ -1,19 +1,18 @@
 import { useState, useCallback, useMemo, useEffect, useRef, lazy, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, Settings, Locate, X, Navigation, Volume2, VolumeX } from "lucide-react";
+import { Navigation } from "lucide-react";
 import { getManeuverIcon } from "@/lib/maneuverIcons";
+import { formatDistance } from "@/lib/format";
 import { useVoiceGuidance } from "@/hooks/useVoiceGuidance";
-import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 
 // ── UI Components ──────────────────────────────────────────────────────────────
 // Mapbox GL is heavy — load it lazily so the rest of the UI paints immediately.
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 const MapView = lazy(() => import("@/components/MapView"));
-import DriverToggle from "@/components/DriverToggle";
-import SearchBar from "@/components/SearchBar";
+import NavTopBar from "@/components/NavTopBar";
+import BottomActionBar from "@/components/BottomActionBar";
 import NavigationSearch from "@/components/NavigationSearch";
-import PassengerToggle from "@/components/PassengerToggle";
 import DriverSettingsSheet from "@/components/DriverSettingsSheet";
 import PassengerSettingsSheet, { type PassengerSettingsData } from "@/components/PassengerSettingsSheet";
 import { supabase } from "@/integrations/supabase/client";
@@ -573,55 +572,15 @@ const Index = () => {
         previewWaypoints={previewWaypoints}
       >
         {/* Top Bar */}
-        <div className="absolute top-0 left-0 right-0 p-4 safe-area-inset-top pointer-events-none">
-          <motion.div
-            initial={{ y: -20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            className="flex items-center gap-3"
-          >
-            <Button
-              variant="glass"
-              size="icon"
-              className="shrink-0 pointer-events-auto"
-              onClick={modals.openSettingsMenu}
-            >
-              <Menu className="w-5 h-5" />
-            </Button>
-
-            <div className="flex-1 min-w-0 pointer-events-auto">
-              <SearchBar
-                onClick={() => !nav.isNavigating && modals.openNavigationSearch()}
-                destination={nav.destination}
-                isNavigating={nav.isNavigating}
-              />
-            </div>
-
-            {nav.isNavigating && (
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className="pointer-events-auto flex shrink-0 items-center gap-2"
-              >
-                <Button
-                  variant="glass"
-                  size="icon"
-                  className="shrink-0"
-                  onClick={voice.toggleMuted}
-                  aria-label={voice.isMuted ? "Activar voz" : "Silenciar voz"}
-                >
-                  {voice.isMuted ? (
-                    <VolumeX className="w-5 h-5 text-muted-foreground" />
-                  ) : (
-                    <Volume2 className="w-5 h-5 text-primary" />
-                  )}
-                </Button>
-                <Button className="shrink-0" variant="destructive" size="icon" onClick={handleStopNavigation}>
-                  <X className="w-5 h-5" />
-                </Button>
-              </motion.div>
-            )}
-          </motion.div>
-        </div>
+        <NavTopBar
+          onOpenMenu={modals.openSettingsMenu}
+          onOpenSearch={modals.openNavigationSearch}
+          destination={nav.destination}
+          isNavigating={nav.isNavigating}
+          isMuted={voice.isMuted}
+          onToggleMuted={voice.toggleMuted}
+          onStopNavigation={handleStopNavigation}
+        />
 
         {/* Logo */}
         <AnimatePresence>
@@ -699,10 +658,7 @@ const Index = () => {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold text-foreground leading-tight">{currentStep.instruction}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  En{" "}
-                  {currentStep.distance < 1000
-                    ? `${Math.round(currentStep.distance)}m`
-                    : `${(currentStep.distance / 1000).toFixed(1)}km`}
+                  En {formatDistance(currentStep.distance)}
                 </p>
               </div>
             </div>
@@ -725,10 +681,7 @@ const Index = () => {
                   {currentStep.instruction}
                 </p>
                 <p className="text-[11px] text-muted-foreground mt-1 truncate">
-                  En {" "}
-                  {currentStep.distance < 1000
-                    ? `${Math.round(currentStep.distance)}m`
-                    : `${(currentStep.distance / 1000).toFixed(1)}km`}
+                  En {formatDistance(currentStep.distance)}
                   <span className="mx-1">·</span>
                   {LEG_LABELS[currentLeg]}
                   {nav.dynamicETA && <span className="text-primary font-semibold"> · {nav.dynamicETA.minutes} min</span>}
@@ -767,94 +720,20 @@ const Index = () => {
           )}
 
 
-        {/* "Iniciar conducción" CTA — only when route exists but user hasn't moved yet */}
-        {nav.isNavigating && !nav.hasStartedDriving && !trip.showActiveTrip && (
-          <motion.div
-            className="absolute bottom-28 left-4 right-4 pointer-events-auto z-20"
-            initial={{ y: 30, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 30, opacity: 0 }}
-          >
-            <Button variant="default" size="lg" className="w-full shadow-float" onClick={nav.startDriving}>
-              <Navigation className="w-5 h-5 mr-2" />
-              Iniciar conducción
-            </Button>
-          </motion.div>
-        )}
-
-        {/* Unified Bottom Bar */}
-        {!trip.showActiveTrip && (
-          <motion.div
-            className="absolute bottom-0 left-0 right-0 p-3 pb-6 safe-area-inset-bottom pointer-events-none"
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.3 }}
-          >
-            <div className="flex items-center gap-2 pointer-events-auto">
-              <DriverToggle isDriver={isDriverMode} onToggle={handleDriverToggle} />
-
-              {isDriverMode && (
-                <motion.div
-                  initial={{ scale: 0, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0, opacity: 0 }}
-                >
-                  <Button variant="glass" size="icon" className="w-9 h-9" onClick={modals.openDriverSettings}>
-                    <Settings className="w-4 h-4" />
-                  </Button>
-                </motion.div>
-              )}
-
-              <PassengerToggle isPassenger={isPassengerMode} onToggle={handlePassengerToggle} />
-
-              {isPassengerMode && (
-                <motion.div
-                  initial={{ scale: 0, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0, opacity: 0 }}
-                >
-                  <Button variant="glass" size="icon" className="w-9 h-9" onClick={modals.openPassengerSettings}>
-                    <Settings className="w-4 h-4" />
-                  </Button>
-                </motion.div>
-              )}
-
-              {nav.isNavigating && nav.dynamicETA ? (
-                <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="flex-1 min-w-0">
-                  <div className="glass-strong rounded-lg px-2 py-1.5 flex items-center gap-2">
-                    <Navigation className="w-3 h-3 text-primary shrink-0" />
-                    <span className="text-xs text-foreground truncate">{nav.destination}</span>
-                    <span className="text-xs font-bold text-primary shrink-0">· {nav.dynamicETA.minutes} min</span>
-                  </div>
-                </motion.div>
-              ) : (
-                <div className="flex-1" />
-              )}
-
-              <div className="flex flex-col gap-1">
-                <Button variant="glass" size="icon" className="w-8 h-8" onClick={() => (window as any).__mapZoomIn?.()}>
-                  <span className="text-sm font-bold text-foreground">+</span>
-                </Button>
-                <Button
-                  variant="glass"
-                  size="icon"
-                  className="w-8 h-8"
-                  onClick={() => (window as any).__mapZoomOut?.()}
-                >
-                  <span className="text-sm font-bold text-foreground">−</span>
-                </Button>
-                <Button
-                  variant="glass"
-                  size="icon"
-                  className="w-8 h-8"
-                  onClick={() => (window as any).__mapCenterOnUser?.()}
-                >
-                  <Locate className="w-4 h-4 text-primary" />
-                </Button>
-              </div>
-            </div>
-          </motion.div>
-        )}
+        <BottomActionBar
+          showStartDrivingCta={nav.isNavigating && !nav.hasStartedDriving && !trip.showActiveTrip}
+          onStartDriving={nav.startDriving}
+          showBar={!trip.showActiveTrip}
+          isDriverMode={isDriverMode}
+          onDriverToggle={handleDriverToggle}
+          onOpenDriverSettings={modals.openDriverSettings}
+          isPassengerMode={isPassengerMode}
+          onPassengerToggle={handlePassengerToggle}
+          onOpenPassengerSettings={modals.openPassengerSettings}
+          isNavigating={nav.isNavigating}
+          dynamicETA={nav.dynamicETA}
+          destination={nav.destination}
+        />
       </MapView>
       </Suspense>
       </ErrorBoundary>
