@@ -26,6 +26,48 @@ const recentDestinations = [
   { name: 'Huesca', address: 'Huesca, Aragón', coords: { lng: -0.4087, lat: 42.1401 }, icon: '🏠' },
 ];
 
+/**
+ * Categorías de "lugar importante" (infraestructura de transporte y sanitaria).
+ * Se colocan por delante de negocios genéricos con nombre parecido
+ * (alquiler de coches, transporte privado, agencias de viaje...).
+ */
+const MAJOR_POI_CATEGORIES = [
+  'airport',
+  'international_airport',
+  'airport_terminal',
+  'train_station',
+  'railway_station',
+  'bus_station',
+  'transit_station',
+  'ferry_terminal',
+  'port',
+  'harbor',
+  'hospital',
+  'medical_clinic',
+  'emergency_room',
+];
+
+const GENERIC_BUSINESS_CATEGORIES = [
+  'car_rental',
+  'rental_car_agency',
+  'ridesharing',
+  'taxi',
+  'travel_agency',
+  'parking_lot',
+  'parking',
+  'office',
+  'shop',
+  'store',
+];
+
+/** 0 = lugar importante, 1 = normal, 2 = negocio genérico. */
+const categoryRank = (categories: string[]): number => {
+  const normalized = categories.map((c) => String(c).toLowerCase());
+  if (normalized.some((c) => MAJOR_POI_CATEGORIES.some((m) => c === m || c.includes(m)))) return 0;
+  if (normalized.some((c) => GENERIC_BUSINESS_CATEGORIES.some((g) => c === g || c.includes(g)))) return 2;
+  return 1;
+};
+
 const newSessionToken = () =>
   (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`);
 
@@ -33,8 +75,6 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation }: Navigat
   const [destination, setDestination] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [selectedResult, setSelectedResult] = useState<SearchResult | null>(null);
-  const [selectedCoords, setSelectedCoords] = useState<{ lng: number; lat: number } | null>(null);
   const sessionTokenRef = useRef<string>(newSessionToken());
 
   // Nueva sesión de autocompletado cada vez que se abre el buscador
