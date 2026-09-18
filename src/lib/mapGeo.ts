@@ -50,6 +50,24 @@ export function computeBearing(from: [number, number], to: { lat: number; lng: n
   return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
 }
 
+/**
+ * Rotation (degrees, 0-360) to apply to the user marker icon in *screen*
+ * space so it visually points toward `headingDeg` (0 = north), given the
+ * map camera is currently rotated by `mapBearingDeg`.
+ *
+ * Mapbox markers don't auto-rotate with the map, so a marker meant to show
+ * a compass heading needs its own CSS rotation — but if the map camera
+ * ALSO rotates to bring that same heading "up" on screen (as this app does
+ * while navigating), rotating the icon by the raw heading on top of that
+ * double-counts the turn. Subtracting the map's own bearing cancels that
+ * out: the icon ends up pointing straight up when the map is already
+ * oriented toward the heading, and shows the full heading when the map
+ * stays put (e.g. idle, north-up).
+ */
+export function markerScreenRotation(headingDeg: number, mapBearingDeg: number): number {
+  return ((headingDeg - mapBearingDeg) % 360 + 360) % 360;
+}
+
 /** Speed tiers (km/h) driving the dynamic camera zoom/pitch while navigating. */
 export type SpeedTier = 'city' | 'medium' | 'highway';
 

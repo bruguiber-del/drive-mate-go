@@ -3,6 +3,7 @@ import {
   approxMetersBetween,
   cumulativeDistanceExceeds,
   computeBearing,
+  markerScreenRotation,
   nextSpeedTier,
 } from './mapGeo';
 
@@ -89,6 +90,31 @@ describe('computeBearing', () => {
     const bearing = computeBearing([42.14, -0.4087], { lat: 41.65, lng: -0.89 });
     expect(bearing).toBeGreaterThanOrEqual(0);
     expect(bearing).toBeLessThan(360);
+  });
+});
+
+describe('markerScreenRotation', () => {
+  it('points straight up (0°) when the map is already rotated to match the heading', () => {
+    // Este es justo el caso que estaba mal antes de la corrección: el mapa
+    // ya gira hacia el rumbo, así que el icono no debe rotar nada más.
+    expect(markerScreenRotation(90, 90)).toBe(0);
+    expect(markerScreenRotation(270, 270)).toBe(0);
+  });
+
+  it('uses the full heading when the map stays north-up (bearing 0)', () => {
+    expect(markerScreenRotation(45, 0)).toBe(45);
+    expect(markerScreenRotation(0, 0)).toBe(0);
+  });
+
+  it('returns only the difference when the map is partway through rotating', () => {
+    // El mapa va camino de 90° pero todavía está en 45°: el icono debe
+    // compensar solo lo que falta, no el rumbo completo.
+    expect(markerScreenRotation(90, 45)).toBe(45);
+  });
+
+  it('always returns a value in [0, 360), even with negative differences', () => {
+    expect(markerScreenRotation(10, 350)).toBe(20);
+    expect(markerScreenRotation(0, 90)).toBe(270);
   });
 });
 

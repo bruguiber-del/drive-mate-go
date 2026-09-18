@@ -8,6 +8,7 @@ import {
   approxMetersBetween,
   cumulativeDistanceExceeds,
   computeBearing,
+  markerScreenRotation,
   nextSpeedTier,
   TIER_CAMERA,
   type SpeedTier,
@@ -356,7 +357,10 @@ const MapView = ({
       if (!map.current) return;
       const m = map.current;
       const heading = getHeading();
-      const el = buildUserMarkerEl(!!showRoute, heading);
+      // Compensa la rotación del propio mapa para que el icono no gire el
+      // doble de lo debido — ver markerScreenRotation() para el porqué.
+      const markerRotation = markerScreenRotation(heading, m.getBearing());
+      const el = buildUserMarkerEl(!!showRoute, markerRotation);
 
       if (!userMarkerRef.current) {
         userMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: 'center' })
