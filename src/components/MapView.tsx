@@ -845,7 +845,16 @@ const MapView = ({
       bounds.extend([pickup.lng, pickup.lat]);
       bounds.extend([dropoff.lng, dropoff.lat]);
       m.fitBounds(bounds, { padding: 80, maxZoom: 13, duration: 800 });
+      // Temporarily stop following to show user + preview route, then
+      // automatically resume continuous following once the animation is done.
       isFollowingRef.current = false;
+      if (resumeFollowTimerRef.current !== null) {
+        window.clearTimeout(resumeFollowTimerRef.current);
+      }
+      resumeFollowTimerRef.current = window.setTimeout(() => {
+        isFollowingRef.current = true;
+        resumeFollowTimerRef.current = null;
+      }, 2500);
     }
   }, [previewWaypoints, mapReady, updateMarkerLabelVisibility]);
 
