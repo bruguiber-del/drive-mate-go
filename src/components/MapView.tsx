@@ -283,6 +283,8 @@ const MapView = ({
 
   const watchIdRef = useRef<number | null>(null);
   const isFollowingRef = useRef(true);
+  // Timer to resume following after a fitBounds shows user + waypoints together.
+  const resumeFollowTimerRef = useRef<number | null>(null);
   const lastPropagatedRef = useRef<[number, number] | null>(null);
 
   const [rawUserLocation, setRawUserLocation] = useState<[number, number] | null>(null);
@@ -450,6 +452,10 @@ const MapView = ({
     map.current.on('dragstart', () => { isFollowingRef.current = false; });
 
     return () => {
+      if (resumeFollowTimerRef.current !== null) {
+        window.clearTimeout(resumeFollowTimerRef.current);
+        resumeFollowTimerRef.current = null;
+      }
       resizeObserverRef.current?.disconnect();
       resizeObserverRef.current = null;
       map.current?.remove();
@@ -743,7 +749,16 @@ const MapView = ({
         maxZoom: 14,
         duration: 1000,
       });
+      // Temporarily stop following to show user + waypoints together, then
+      // automatically resume continuous following once the animation is done.
       isFollowingRef.current = false;
+      if (resumeFollowTimerRef.current !== null) {
+        window.clearTimeout(resumeFollowTimerRef.current);
+      }
+      resumeFollowTimerRef.current = window.setTimeout(() => {
+        isFollowingRef.current = true;
+        resumeFollowTimerRef.current = null;
+      }, 2500);
     }
   }, [waypointMarkers, mapReady, updateMarkerLabelVisibility]);
 
@@ -834,7 +849,16 @@ const MapView = ({
       bounds.extend([pickup.lng, pickup.lat]);
       bounds.extend([dropoff.lng, dropoff.lat]);
       m.fitBounds(bounds, { padding: 80, maxZoom: 13, duration: 800 });
+      // Temporarily stop following to show user + preview route, then
+      // automatically resume continuous following once the animation is done.
       isFollowingRef.current = false;
+      if (resumeFollowTimerRef.current !== null) {
+        window.clearTimeout(resumeFollowTimerRef.current);
+      }
+      resumeFollowTimerRef.current = window.setTimeout(() => {
+        isFollowingRef.current = true;
+        resumeFollowTimerRef.current = null;
+      }, 2500);
     }
   }, [previewWaypoints, mapReady, updateMarkerLabelVisibility]);
 
