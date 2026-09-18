@@ -58,6 +58,26 @@ function supabaseForUser(ctx) {
   });
 }
 
+// src/lib/mcp/tripAccess.ts
+async function assertTripParticipant(supabase, tripId) {
+  const { data: user, error: userError } = await supabase.auth.getUser();
+  if (userError || !user?.user) {
+    return { content: [{ type: "text", text: "No autenticado" }], isError: true };
+  }
+  const { data, error } = await supabase.from("trips").select("id, driver_id, passenger_id").eq("id", tripId).maybeSingle();
+  if (error) {
+    return { content: [{ type: "text", text: error.message }], isError: true };
+  }
+  const uid = user.user.id;
+  if (!data || data.driver_id !== uid && data.passenger_id !== uid) {
+    return {
+      content: [{ type: "text", text: "No autorizado: no participas en este viaje." }],
+      isError: true
+    };
+  }
+  return null;
+}
+
 // src/lib/mcp/tools/get-driver-location.ts
 var get_driver_location_default = defineTool({
   name: "get_driver_location",
@@ -72,6 +92,8 @@ var get_driver_location_default = defineTool({
       return { content: [{ type: "text", text: "No autenticado" }], isError: true };
     }
     const supabase = supabaseForUser(ctx);
+    const denial = await assertTripParticipant(supabase, trip_id);
+    if (denial) return denial;
     const { data, error } = await supabase.from("driver_locations").select("latitude, longitude, heading, speed, accuracy, created_at").eq("trip_id", trip_id).order("created_at", { ascending: false }).limit(1);
     if (error) return { content: [{ type: "text", text: error.message }], isError: true };
     if (!data || data.length === 0) {
@@ -101,6 +123,8 @@ var get_driver_position_history_default = defineTool2({
       return { content: [{ type: "text", text: "No autenticado" }], isError: true };
     }
     const supabase = supabaseForUser(ctx);
+    const denial = await assertTripParticipant(supabase, trip_id);
+    if (denial) return denial;
     const { data, error } = await supabase.from("driver_locations").select("latitude, longitude, created_at").eq("trip_id", trip_id).order("created_at", { ascending: false }).limit(limit ?? 30);
     if (error) return { content: [{ type: "text", text: error.message }], isError: true };
     return {
