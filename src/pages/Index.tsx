@@ -57,7 +57,7 @@ const Index = () => {
   const [isDriverMode, setIsDriverMode] = useState(false);
   const [driverSettings, setDriverSettings] = useState({ seats: 3, maxDetour: 5 });
   const [isDoorToDoor, setIsDoorToDoor] = useState(false);
-  const [hasActivePassengerSearch, setHasActivePassengerSearch] = useState(false);
+  const [isPassengerMode, setIsPassengerMode] = useState(false);
   const [realUserLocation, setRealUserLocation] = useState<[number, number] | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   /** Passenger the driver accepted — powers the real ActiveTripView data */
