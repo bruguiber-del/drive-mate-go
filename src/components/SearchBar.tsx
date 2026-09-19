@@ -6,9 +6,11 @@ interface SearchBarProps {
   onClick: () => void;
   destination?: string;
   isNavigating?: boolean;
+  /** Overrides the default "Navegando..." subtitle, e.g. "Calculando ruta...". */
+  statusText?: string;
 }
 
-const SearchBar = ({ onClick, destination, isNavigating }: SearchBarProps) => {
+const SearchBar = ({ onClick, destination, isNavigating, statusText }: SearchBarProps) => {
   return (
     <motion.button
       onClick={onClick}
@@ -29,7 +31,7 @@ const SearchBar = ({ onClick, destination, isNavigating }: SearchBarProps) => {
           {destination || '¿A dónde vas?'}
         </p>
         <p className="text-sm text-muted-foreground truncate">
-          {isNavigating ? 'Navegando...' : 'Buscar destino'}
+          {isNavigating ? (statusText ?? 'Navegando...') : 'Buscar destino'}
         </p>
       </div>
       {isNavigating && (

@@ -574,6 +574,7 @@ const Index = () => {
         walkingRoute={trip.activeTripRole === "passenger" && passengerWalkingEnabled ? walkingRouteData : null}
         onRouteUpdate={nav.setCurrentRoute}
         onRouteError={handleRouteError}
+        onRouteLoadingChange={nav.setIsRouteLoading}
         simulatedPosition={null}
         simulatedHeading={null}
         onUserLocationUpdate={setRealUserLocation}
@@ -585,6 +586,8 @@ const Index = () => {
           onOpenSearch={modals.openNavigationSearch}
           destination={nav.destination}
           isNavigating={nav.isNavigating}
+          isRouteLoading={nav.isRouteLoading}
+          hasKnownLocation={!!realUserLocation}
           isMuted={voice.isMuted}
           onToggleMuted={voice.toggleMuted}
           onStopNavigation={handleStopNavigation}

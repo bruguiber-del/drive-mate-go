@@ -8,6 +8,10 @@ interface NavTopBarProps {
   onOpenSearch: () => void;
   destination: string;
   isNavigating: boolean;
+  /** True while the Directions request for the current route is in flight. */
+  isRouteLoading?: boolean;
+  /** False until the first real GPS fix arrives. */
+  hasKnownLocation?: boolean;
   isMuted: boolean;
   onToggleMuted: () => void;
   onStopNavigation: () => void;
@@ -20,10 +24,22 @@ const NavTopBar = ({
   onOpenSearch,
   destination,
   isNavigating,
+  isRouteLoading,
+  hasKnownLocation = true,
   isMuted,
   onToggleMuted,
   onStopNavigation,
 }: NavTopBarProps) => {
+  // Descompone la espera en dos fases con nombre, en vez de un "Navegando..."
+  // fijo mientras no hay nada que ver todavía — así se nota qué está pasando.
+  const statusText = !isNavigating
+    ? undefined
+    : !hasKnownLocation
+      ? 'Obteniendo tu ubicación...'
+      : isRouteLoading
+        ? 'Calculando ruta...'
+        : undefined;
+
   return (
     <div className="absolute top-0 left-0 right-0 p-4 safe-area-inset-top pointer-events-none">
       <motion.div
@@ -40,6 +56,7 @@ const NavTopBar = ({
             onClick={() => !isNavigating && onOpenSearch()}
             destination={destination}
             isNavigating={isNavigating}
+            statusText={statusText}
           />
         </div>
 

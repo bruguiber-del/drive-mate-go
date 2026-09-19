@@ -30,6 +30,9 @@ interface UseNavigationStateReturn {
   /** True when nav simulation should actually animate the user marker */
   enableNavSim: boolean;
   currentRoute: RouteData | null;
+  /** True while a Directions request is in flight — lets the UI show
+   *  "Calculando ruta..." instead of leaving the user guessing. */
+  isRouteLoading: boolean;
   /** Duration (s) of the very first route computed for the trip, before any
    *  passenger pickup was added as an intermediate stop. */
   originalDuration: number | null;
@@ -47,6 +50,7 @@ interface UseNavigationStateReturn {
   startDriving: () => void;
   handleStopNavigation: () => void;
   setCurrentRoute: (route: RouteData | null) => void;
+  setIsRouteLoading: (loading: boolean) => void;
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -68,6 +72,7 @@ export function useNavigationState({
    */
   const [hasStartedDriving, setHasStartedDriving] = useState(false);
   const [currentRoute, setCurrentRouteState] = useState<RouteData | null>(null);
+  const [isRouteLoading, setIsRouteLoading] = useState(false);
   const [originalDuration, setOriginalDuration] = useState<number | null>(null);
 
   // Simulation disabled for real-GPS MVP. The marker only moves when the
@@ -109,6 +114,7 @@ export function useNavigationState({
     setDestination('');
     setDestinationCoords(null);
     setCurrentRouteState(null);
+    setIsRouteLoading(false);
     setOriginalDuration(null);
     cancelTrip();
     onStop?.();
@@ -140,6 +146,7 @@ export function useNavigationState({
     hasStartedDriving,
     enableNavSim,
     currentRoute,
+    isRouteLoading,
     originalDuration,
     dynamicETA,
     detourMinutes,
@@ -147,5 +154,6 @@ export function useNavigationState({
     startDriving,
     handleStopNavigation,
     setCurrentRoute,
+    setIsRouteLoading,
   };
 }

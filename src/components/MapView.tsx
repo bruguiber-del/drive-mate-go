@@ -44,6 +44,8 @@ interface MapViewProps {
   onRouteUpdate?: (route: RouteData | null) => void;
   /** Called when the Directions request fails, with the error message (or null once it recovers). */
   onRouteError?: (error: string | null) => void;
+  /** Called with true while a Directions request is in flight, false once it settles. */
+  onRouteLoadingChange?: (loading: boolean) => void;
   simulatedPosition?: [number, number] | null;
   simulatedHeading?: number | null;
   onUserLocationUpdate?: (loc: [number, number]) => void;
@@ -82,6 +84,7 @@ const MapView = ({
   walkingRoute,
   onRouteUpdate,
   onRouteError,
+  onRouteLoadingChange,
   simulatedPosition,
   simulatedHeading,
   onUserLocationUpdate,
@@ -155,7 +158,7 @@ const MapView = ({
   }, [rawUserLocation, onUserLocationUpdate]);
 
   // Routing — real driving routes via Mapbox Directions
-  const { route, error: routeError } = useRouting({
+  const { route, error: routeError, isLoading: isRouteLoading } = useRouting({
     origin: userLocation,
     destination,
     intermediateWaypoints: intermediateRouteWaypoints,
@@ -164,6 +167,7 @@ const MapView = ({
 
   useEffect(() => { onRouteUpdate?.(route); }, [route, onRouteUpdate]);
   useEffect(() => { onRouteError?.(routeError); }, [routeError, onRouteError]);
+  useEffect(() => { onRouteLoadingChange?.(isRouteLoading); }, [isRouteLoading, onRouteLoadingChange]);
 
   /** ¿Hay movimiento real suficiente para fiarse del rumbo del GPS? (~30 m) */
   const hasReliableMovement = useMemo(() => {
