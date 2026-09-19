@@ -151,13 +151,14 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
       }
       points.push(`${destination.lng},${destination.lat}`);
 
-      // overview=simplified (en vez de full) reduce muchísimo el número de
-      // puntos de la geometría — menos datos que transferir, parsear y
-      // pintar, sin perder detalle en los steps/maniobras (que siempre
-      // vienen completos, independientemente del overview elegido).
+      // Mapbox exige overview=full cuando se piden datos de congestión
+      // (annotations=congestion) — con "simplified" devuelve un 422
+      // ("Overview option must be full for congestion"). Como el color de
+      // tráfico en la ruta ya es una función pedida y verificada, se
+      // mantiene "full" aquí a costa de algo de peso extra en la respuesta.
       const url =
         `${MAPBOX_DIRECTIONS}/${points.join(';')}` +
-        `?geometries=geojson&overview=simplified&steps=true` +
+        `?geometries=geojson&overview=full&steps=true` +
         `&voice_instructions=true&banner_instructions=true` +
         `&annotations=congestion&voice_units=metric` +
         `&language=es&access_token=${MAPBOX_TOKEN}`;
