@@ -63,7 +63,7 @@ const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onP
     >
       <div className="glass-strong rounded-xl overflow-hidden max-w-md mx-auto pointer-events-auto">
         {/* Compact Trip Header */}
-        <div className={`px-3 py-2 ${userRole === 'driver' ? 'bg-primary/20' : 'bg-secondary/20'}`}>
+        <div className={`px-3 py-1.5 ${userRole === 'driver' ? 'bg-primary/20' : 'bg-secondary/20'}`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
@@ -94,8 +94,10 @@ const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onP
         </div>
 
         {/* Compact Trip Details */}
-        <div className="p-3 space-y-2">
-          {/* ETA + Pickup - Combined compact */}
+        <div className="p-2.5 space-y-1.5">
+          {/* Pickup point — sin la cuenta atrás grande cuando el conductor
+              ya tiene su propio desglose "hasta recogida/hasta bajada" justo
+              debajo (si no, salía el mismo número dos veces). */}
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 rounded bg-success/20 flex items-center justify-center shrink-0">
               <MapPin className="w-3 h-3 text-success" />
@@ -103,15 +105,17 @@ const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onP
             <div className="flex-1 min-w-0">
               <p className="text-xs text-muted-foreground truncate">{data.pickupPoint}</p>
             </div>
-            <div className="flex items-baseline gap-1 shrink-0">
-              <Clock className="w-3 h-3 text-primary" />
-              <span className="text-lg font-bold text-foreground">
-                {tripStatus === 'picked_up' || tripStatus === 'in_progress'
-                  ? dropoffEta ?? data.eta
-                  : pickupEta ?? data.eta}
-              </span>
-              <span className="text-xs text-muted-foreground">min</span>
-            </div>
+            {userRole === 'passenger' && (
+              <div className="flex items-baseline gap-1 shrink-0">
+                <Clock className="w-3 h-3 text-primary" />
+                <span className="text-lg font-bold text-foreground">
+                  {tripStatus === 'picked_up' || tripStatus === 'in_progress'
+                    ? dropoffEta ?? data.eta
+                    : pickupEta ?? data.eta}
+                </span>
+                <span className="text-xs text-muted-foreground">min</span>
+              </div>
+            )}
           </div>
 
           {/* Passenger — vehicle identification */}
@@ -163,11 +167,11 @@ const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onP
           {/* Driver ETA breakdown */}
           {userRole === 'driver' && tripStatus === 'waiting' && (
             <div className="flex gap-2 text-xs">
-              <div className="flex-1 bg-warning/20 rounded-lg p-2 text-center">
+              <div className="flex-1 bg-warning/20 rounded-lg p-1.5 text-center">
                 <p className="font-bold text-warning">{pickupEta ?? '?'} min</p>
                 <p className="text-muted-foreground">hasta recogida</p>
               </div>
-              <div className="flex-1 bg-success/20 rounded-lg p-2 text-center">
+              <div className="flex-1 bg-success/20 rounded-lg p-1.5 text-center">
                 <p className="font-bold text-success">{dropoffEta ?? '?'} min</p>
                 <p className="text-muted-foreground">hasta bajada</p>
               </div>
@@ -175,14 +179,14 @@ const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onP
           )}
 
           {userRole === 'driver' && tripStatus === 'picked_up' && (
-            <div className="bg-success/20 rounded-lg p-2 text-center text-xs">
+            <div className="bg-success/20 rounded-lg p-1.5 text-center text-xs">
               <p className="font-bold text-success">{dropoffEta ?? '?'} min</p>
               <p className="text-muted-foreground">hasta bajada del pasajero</p>
             </div>
           )}
 
           {/* Route + Price - Combined */}
-          <div className="flex items-center justify-between pt-2 border-t border-border/50">
+          <div className="flex items-center justify-between pt-1.5 border-t border-border/50">
             <div className="flex items-center gap-1 text-xs">
               <span className="text-muted-foreground">{data.origin}</span>
               <Navigation className="w-3 h-3 text-primary" />

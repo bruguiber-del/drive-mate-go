@@ -7,8 +7,11 @@ import { ROUTE_COLOR } from './mapGeoJSON';
 export const WAYPOINT_COLORS: Record<string, string> = {
   meeting_point: 'hsl(280, 70%, 55%)',
   pickup: 'hsl(24, 95%, 53%)',          // 🟧 Naranja — Parada 1 / Recogida
-  dropoff: 'hsl(142, 71%, 45%)',         // 🟩 Verde — Destino pasajero (bandera)
-  final_destination: 'hsl(199, 89%, 48%)',
+  dropoff: 'hsl(142, 71%, 45%)',        // 🟩 Verde — Destino pasajero (bandera)
+  // 🔴 Rojo — deliberadamente distinto del azul de ROUTE_COLOR (usado para
+  // tu propio marcador y la línea de ruta): antes compartían el mismo azul
+  // y el destino final se confundía con tu punto de ubicación.
+  final_destination: 'hsl(4, 86%, 58%)',
 };
 
 export const WAYPOINT_LABELS: Record<string, string> = {
