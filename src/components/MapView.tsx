@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { useRouting, RouteData } from '@/hooks/useRouting';
+import { useRouting, RouteData, TravelMode } from '@/hooks/useRouting';
 import { MAPBOX_TOKEN, MAPBOX_STYLE } from '@/lib/mapboxConfig';
 import {
   MIN_MOVE_METERS,
@@ -34,6 +34,8 @@ interface MapViewProps {
   showDriverMarker?: boolean;
   onCenterLocation?: () => void;
   isNavigating?: boolean;
+  /** Perfil de ruta a usar: coche (con tráfico), a pie o bici. Por defecto coche. */
+  travelMode?: TravelMode;
   waypointMarkers?: Array<{
     lat: number;
     lng: number;
@@ -80,6 +82,7 @@ const MapView = ({
   driverLocationHistory,
   showDriverMarker,
   isNavigating = false,
+  travelMode = 'driving',
   waypointMarkers,
   walkingRoute,
   onRouteUpdate,
@@ -157,12 +160,13 @@ const MapView = ({
     if (rawUserLocation) onUserLocationUpdate?.(rawUserLocation);
   }, [rawUserLocation, onUserLocationUpdate]);
 
-  // Routing — real driving routes via Mapbox Directions
+  // Routing — rutas reales vía Mapbox Directions, en el perfil elegido
   const { route, error: routeError, isLoading: isRouteLoading } = useRouting({
     origin: userLocation,
     destination,
     intermediateWaypoints: intermediateRouteWaypoints,
     enabled: showRoute ?? false,
+    profile: travelMode,
   });
 
   useEffect(() => { onRouteUpdate?.(route); }, [route, onRouteUpdate]);

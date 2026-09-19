@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useToast } from '@/components/ui/use-toast';
 import { useWaypoints } from '@/hooks/useWaypoints';
-import type { RouteData } from '@/hooks/useRouting';
+import type { RouteData, TravelMode } from '@/hooks/useRouting';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -34,6 +34,8 @@ interface UseNavigationStateReturn {
   /** True while a Directions request is in flight — lets the UI show
    *  "Calculando ruta..." instead of leaving the user guessing. */
   isRouteLoading: boolean;
+  /** How to route/navigate: coche (con tráfico), a pie o bici. */
+  travelMode: TravelMode;
   /** Duration (s) of the very first route computed for the trip, before any
    *  passenger pickup was added as an intermediate stop. */
   originalDuration: number | null;
@@ -46,12 +48,13 @@ interface UseNavigationStateReturn {
   detourMinutes: number | null;
 
   // Setters / actions
-  handleNavigate: (dest: string, coords: { lng: number; lat: number }) => void;
+  handleNavigate: (dest: string, coords: { lng: number; lat: number }, mode?: TravelMode) => void;
   /** Begin moving the user marker along the route (driving simulation) */
   startDriving: () => void;
   handleStopNavigation: () => void;
   setCurrentRoute: (route: RouteData | null) => void;
   setIsRouteLoading: (loading: boolean) => void;
+  setTravelMode: (mode: TravelMode) => void;
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -79,6 +82,7 @@ export function useNavigationState({
   const [currentRoute, setCurrentRouteState] = useState<RouteData | null>(null);
   const [isRouteLoading, setIsRouteLoading] = useState(false);
   const [originalDuration, setOriginalDuration] = useState<number | null>(null);
+  const [travelMode, setTravelMode] = useState<TravelMode>('driving');
 
   // Simulation disabled for real-GPS MVP. The marker only moves when the
   // device GPS reports a new position via watchPosition.
@@ -95,9 +99,10 @@ export function useNavigationState({
 
   // ── handleNavigate ──────────────────────────────────────────────────────────
   const handleNavigate = useCallback(
-    (dest: string, coords: { lng: number; lat: number }) => {
+    (dest: string, coords: { lng: number; lat: number }, mode: TravelMode = 'driving') => {
       setDestination(dest);
       setDestinationCoords({ ...coords, name: dest });
+      setTravelMode(mode);
       setIsNavigating(true);
       // Arranca todo de inmediato al poner destino — no hace falta un paso
       // extra de "Iniciar conducción" para confirmar. Con GPS real (no
@@ -125,6 +130,7 @@ export function useNavigationState({
     setCurrentRouteState(null);
     setIsRouteLoading(false);
     setOriginalDuration(null);
+    setTravelMode('driving');
     cancelTrip();
     onStop?.();
     toast({ title: 'Navegación detenida', duration: 500 });
@@ -156,6 +162,7 @@ export function useNavigationState({
     enableNavSim,
     currentRoute,
     isRouteLoading,
+    travelMode,
     originalDuration,
     dynamicETA,
     detourMinutes,
@@ -164,5 +171,6 @@ export function useNavigationState({
     handleStopNavigation,
     setCurrentRoute,
     setIsRouteLoading,
+    setTravelMode,
   };
 }

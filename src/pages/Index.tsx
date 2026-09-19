@@ -569,6 +569,9 @@ const Index = () => {
         driverLocationHistory={locationHistory}
         showDriverMarker={showDriverOnMap}
         isNavigating={nav.isNavigating}
+        // Con pasajero a bordo el conductor siempre va en coche, sin importar
+        // qué modo tuviera seleccionado en su última búsqueda personal.
+        travelMode={trip.showActiveTrip && trip.activeTripRole === "driver" ? "driving" : nav.travelMode}
         waypointMarkers={mapWaypointMarkers}
         intermediateRouteWaypoints={intermediateRouteWaypoints}
         walkingRoute={trip.activeTripRole === "passenger" && passengerWalkingEnabled ? walkingRouteData : null}
@@ -586,6 +589,7 @@ const Index = () => {
           onOpenSearch={modals.openNavigationSearch}
           destination={nav.destination}
           isNavigating={nav.isNavigating}
+          travelMode={nav.travelMode}
           isRouteLoading={nav.isRouteLoading}
           hasKnownLocation={!!realUserLocation}
           isMuted={voice.isMuted}
@@ -661,6 +665,8 @@ const Index = () => {
         onClose={modals.closeNavigationSearch}
         onNavigate={nav.handleNavigate}
         userLocation={realUserLocation}
+        travelMode={nav.travelMode}
+        onTravelModeChange={nav.setTravelMode}
       />
 
 

@@ -2,12 +2,14 @@ import { motion } from "framer-motion";
 import { Menu, Volume2, VolumeX, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import SearchBar from "@/components/SearchBar";
+import type { TravelMode } from "@/hooks/useRouting";
 
 interface NavTopBarProps {
   onOpenMenu: () => void;
   onOpenSearch: () => void;
   destination: string;
   isNavigating: boolean;
+  travelMode?: TravelMode;
   /** True while the Directions request for the current route is in flight. */
   isRouteLoading?: boolean;
   /** False until the first real GPS fix arrives. */
@@ -24,6 +26,7 @@ const NavTopBar = ({
   onOpenSearch,
   destination,
   isNavigating,
+  travelMode = 'driving',
   isRouteLoading,
   hasKnownLocation = true,
   isMuted,
@@ -56,6 +59,7 @@ const NavTopBar = ({
             onClick={() => !isNavigating && onOpenSearch()}
             destination={destination}
             isNavigating={isNavigating}
+            travelMode={travelMode}
             statusText={statusText}
           />
         </div>

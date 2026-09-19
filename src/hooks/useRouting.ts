@@ -30,16 +30,26 @@ export interface RouteData {
   steps?: RouteStep[];
 }
 
+export type TravelMode = 'driving' | 'walking' | 'cycling';
+
 interface UseRoutingOptions {
   origin: [number, number] | null; // [lat, lng]
   destination: { lat: number; lng: number } | null;
   /** Optional ordered intermediate waypoints between origin and destination */
   intermediateWaypoints?: Array<{ lat: number; lng: number }>;
   enabled: boolean;
+  /** Which Mapbox profile to route with. Defaults to 'driving' (with live traffic). */
+  profile?: TravelMode;
 }
 
-// driving-traffic → duraciones y congestión con tráfico real
-const MAPBOX_DIRECTIONS = 'https://api.mapbox.com/directions/v5/mapbox/driving-traffic';
+const MAPBOX_DIRECTIONS_BASE = 'https://api.mapbox.com/directions/v5/mapbox';
+// driving-traffic → duraciones y congestión con tráfico real. Los perfiles a
+// pie/bici no soportan la anotación de congestión, solo driving-traffic.
+const MAPBOX_PROFILE: Record<TravelMode, string> = {
+  driving: 'driving-traffic',
+  walking: 'walking',
+  cycling: 'cycling',
+};
 
 /** Recalculate only when the user strays further than this from the route (m). */
 const OFF_ROUTE_THRESHOLD_M = 70;
@@ -70,7 +80,7 @@ function distanceToRoute(point: [number, number], coords: [number, number][]) {
   return min;
 }
 
-export function useRouting({ origin, destination, intermediateWaypoints, enabled }: UseRoutingOptions) {
+export function useRouting({ origin, destination, intermediateWaypoints, enabled, profile = 'driving' }: UseRoutingOptions) {
   const [route, setRoute] = useState<RouteData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -118,8 +128,8 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
 
   const cacheKey = useMemo(() => {
     if (!routeOrigin || !destination) return null;
-    return `${routeOrigin[0].toFixed(3)},${routeOrigin[1].toFixed(3)}|${destKey}|${waypointsKey}`;
-  }, [routeOrigin, destination, destKey, waypointsKey]);
+    return `${profile}|${routeOrigin[0].toFixed(3)},${routeOrigin[1].toFixed(3)}|${destKey}|${waypointsKey}`;
+  }, [routeOrigin, destination, destKey, waypointsKey, profile]);
 
   const fetchRoute = useCallback(async () => {
     if (!routeOrigin || !destination || !enabled) {
@@ -156,11 +166,15 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
       // ("Overview option must be full for congestion"). Como el color de
       // tráfico en la ruta ya es una función pedida y verificada, se
       // mantiene "full" aquí a costa de algo de peso extra en la respuesta.
+      // La anotación de congestión solo existe en driving-traffic — a pie/
+      // bici Mapbox la ignora o devuelve error, así que se omite fuera de
+      // modo coche.
+      const congestionParam = profile === 'driving' ? '&annotations=congestion' : '';
       const url =
-        `${MAPBOX_DIRECTIONS}/${points.join(';')}` +
+        `${MAPBOX_DIRECTIONS_BASE}/${MAPBOX_PROFILE[profile]}/${points.join(';')}` +
         `?geometries=geojson&overview=full&steps=true` +
         `&voice_instructions=true&banner_instructions=true` +
-        `&annotations=congestion&voice_units=metric` +
+        `${congestionParam}&voice_units=metric` +
         `&language=es&access_token=${MAPBOX_TOKEN}`;
 
       const response = await fetch(url);
@@ -229,7 +243,7 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
       setIsLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeOrigin, destination, enabled, waypointsKey, cacheKey]);
+  }, [routeOrigin, destination, enabled, waypointsKey, cacheKey, profile]);
 
   useEffect(() => { fetchRoute(); }, [fetchRoute]);
   useEffect(() => {

@@ -1,16 +1,25 @@
 import { memo } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Navigation } from 'lucide-react';
+import { Search, Car, Footprints, Bike } from 'lucide-react';
+import type { TravelMode } from '@/hooks/useRouting';
 
 interface SearchBarProps {
   onClick: () => void;
   destination?: string;
   isNavigating?: boolean;
+  travelMode?: TravelMode;
   /** Overrides the default "Navegando..." subtitle, e.g. "Calculando ruta...". */
   statusText?: string;
 }
 
-const SearchBar = ({ onClick, destination, isNavigating, statusText }: SearchBarProps) => {
+const MODE_ICON: Record<TravelMode, typeof Car> = {
+  driving: Car,
+  walking: Footprints,
+  cycling: Bike,
+};
+
+const SearchBar = ({ onClick, destination, isNavigating, travelMode = 'driving', statusText }: SearchBarProps) => {
+  const ModeIcon = MODE_ICON[travelMode];
   return (
     <motion.button
       onClick={onClick}
@@ -21,7 +30,7 @@ const SearchBar = ({ onClick, destination, isNavigating, statusText }: SearchBar
         isNavigating ? 'bg-primary' : 'bg-muted'
       }`}>
         {isNavigating ? (
-          <Navigation className="w-4 h-4 text-primary-foreground" />
+          <ModeIcon className="w-4 h-4 text-primary-foreground" />
         ) : (
           <Search className="w-4 h-4 text-muted-foreground" />
         )}

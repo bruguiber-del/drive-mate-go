@@ -1,17 +1,27 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Navigation, X, Clock, Loader2, Plane } from 'lucide-react';
+import { MapPin, Navigation, X, Clock, Loader2, Plane, Car, Footprints, Bike } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MAPBOX_TOKEN } from '@/lib/mapboxConfig';
 import { findMatchingAirport } from '@/lib/majorAirports';
+import type { TravelMode } from '@/hooks/useRouting';
 
 interface NavigationSearchProps {
   isOpen: boolean;
   onClose: () => void;
-  onNavigate: (destination: string, coords: { lng: number; lat: number }) => void;
+  onNavigate: (destination: string, coords: { lng: number; lat: number }, mode: TravelMode) => void;
   /** Ubicación real del usuario [lat, lng] — se usa para priorizar resultados cercanos */
   userLocation?: [number, number] | null;
+  /** Modo de transporte seleccionado; se conserva entre aperturas del buscador. */
+  travelMode: TravelMode;
+  onTravelModeChange: (mode: TravelMode) => void;
 }
+
+const TRAVEL_MODES: { value: TravelMode; label: string; icon: typeof Car }[] = [
+  { value: 'driving', label: 'Coche', icon: Car },
+  { value: 'walking', label: 'A pie', icon: Footprints },
+  { value: 'cycling', label: 'Bici', icon: Bike },
+];
 
 interface SearchResult {
   id: string;
@@ -76,7 +86,7 @@ const categoryRank = (categories: string[]): number => {
 const newSessionToken = () =>
   (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`);
 
-const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation }: NavigationSearchProps) => {
+const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation, travelMode, onTravelModeChange }: NavigationSearchProps) => {
   const [destination, setDestination] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -180,7 +190,7 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation }: Navigat
     // Resultado local (aeropuerto de la lista propia) — ya trae coordenadas,
     // no hace falta llamar a Mapbox para resolverlas.
     if (result.localCoords) {
-      onNavigate(result.place_name, { lng: result.localCoords.lng, lat: result.localCoords.lat });
+      onNavigate(result.place_name, { lng: result.localCoords.lng, lat: result.localCoords.lat }, travelMode);
       setDestination('');
       onClose();
       return;
@@ -199,7 +209,7 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation }: Navigat
       const data = await response.json();
       const coords = data?.features?.[0]?.geometry?.coordinates;
       if (Array.isArray(coords)) {
-        onNavigate(result.place_name, { lng: coords[0], lat: coords[1] });
+        onNavigate(result.place_name, { lng: coords[0], lat: coords[1] }, travelMode);
         setDestination('');
         onClose();
       }
@@ -213,7 +223,7 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation }: Navigat
   };
 
   const handleRecentDestination = (place: typeof recentDestinations[0]) => {
-    onNavigate(place.address, place.coords);
+    onNavigate(place.address, place.coords, travelMode);
     onClose();
   };
 
@@ -236,6 +246,24 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation }: Navigat
                 </Button>
                 <h2 className="text-lg font-bold text-foreground">¿A dónde quieres ir?</h2>
               </div>
+            </div>
+
+            {/* Travel mode selector */}
+            <div className="px-4 pt-3 flex gap-2">
+              {TRAVEL_MODES.map(({ value, label, icon: Icon }) => (
+                <button
+                  key={value}
+                  onClick={() => onTravelModeChange(value)}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-medium transition-colors ${
+                    travelMode === value
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-muted-foreground'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {label}
+                </button>
+              ))}
             </div>
 
             {/* Search Input */}
