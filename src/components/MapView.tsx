@@ -475,7 +475,7 @@ const MapView = ({
     }
   }, [destination, mapReady, showRoute]);
 
-  // ── Driving route line (real Mapbox geometry, on road) ────────────────────
+  // ── Route line (real Mapbox geometry, cualquier perfil) ────────────────────
   useEffect(() => {
     if (!map.current || !mapReady) return;
     const m = map.current;
@@ -486,7 +486,14 @@ const MapView = ({
       if (m.getSource(SRC_ROUTE)) m.removeSource(SRC_ROUTE);
       return;
     }
-    if (!route || route.coordinates.length <= 2) {
+    // 2 puntos ya son una línea válida (un tramo recto, típico en rutas a
+    // pie cortas) — antes se exigían más de 2 y esas rutas simples
+    // desaparecían sin ningún error visible.
+    if (!route || route.coordinates.length < 2) {
+      // Si había una ruta dibujada de antes y la nueva falla, se quita en
+      // vez de dejar la línea vieja (ya no válida) pegada en el mapa.
+      if (m.getLayer(LYR_ROUTE)) m.removeLayer(LYR_ROUTE);
+      if (m.getSource(SRC_ROUTE)) m.removeSource(SRC_ROUTE);
       return;
     }
 
