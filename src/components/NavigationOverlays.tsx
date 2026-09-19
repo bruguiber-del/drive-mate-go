@@ -85,10 +85,10 @@ const NavigationOverlays = ({
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
         >
-          <div className="glass-strong rounded-full px-3 py-1.5 flex items-center gap-1.5 border border-success/30">
-            <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
-            <span className="text-[11px] font-medium text-foreground">Conductor activo</span>
-            <span className="text-[11px] text-muted-foreground">
+          <div className="glass-strong rounded-full px-2.5 py-1 flex items-center gap-1 border border-success/30">
+            <div className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
+            <span className="text-[10px] font-medium text-foreground">Conductor activo</span>
+            <span className="text-[10px] text-muted-foreground">
               · {driverSeats} plazas · +{driverMaxDetour} min
               {activeVehiclePlate ? ` · ${activeVehiclePlate}` : ""}
             </span>
@@ -103,18 +103,18 @@ const NavigationOverlays = ({
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
         >
-          <div className="glass-strong rounded-xl px-3 py-2 flex items-center gap-2 border border-primary/20">
-            <Navigation className="w-4 h-4 text-primary shrink-0" />
+          <div className="glass-strong rounded-lg px-2.5 py-1.5 flex items-center gap-1.5 border border-primary/20">
+            <Navigation className="w-3.5 h-3.5 text-primary shrink-0" />
             <div className="flex-1 min-w-0">
-              <span className="text-xs font-medium text-foreground">{LEG_LABELS[currentLeg]}</span>
+              <span className="text-[11px] font-medium text-foreground">{LEG_LABELS[currentLeg]}</span>
               {currentTargetName && (
-                <span className="text-xs text-muted-foreground ml-1 truncate">· {currentTargetName}</span>
+                <span className="text-[11px] text-muted-foreground ml-1 truncate">· {currentTargetName}</span>
               )}
             </div>
             <div className="text-right shrink-0">
-              {dynamicETA && <span className="text-sm font-bold text-primary">{dynamicETA.minutes} min</span>}
+              {dynamicETA && <span className="text-xs font-bold text-primary">{dynamicETA.minutes} min</span>}
               {detourMinutes != null && detourMinutes > 0 && (
-                <span className="text-[10px] text-warning ml-1">+{detourMinutes} min desvío</span>
+                <span className="text-[9px] text-warning ml-1">+{detourMinutes} min desvío</span>
               )}
             </div>
           </div>
@@ -128,13 +128,13 @@ const NavigationOverlays = ({
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
         >
-          <div className="glass-strong rounded-xl px-4 py-3 flex items-center gap-3 border border-primary/30 bg-background/90">
-            <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center shrink-0">
-              <ManeuverIcon className="w-5 h-5 text-primary" />
+          <div className="glass-strong rounded-lg px-2.5 py-2 flex items-center gap-2 border border-primary/30 bg-background/90">
+            <div className="w-7 h-7 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
+              <ManeuverIcon className="w-4 h-4 text-primary" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-foreground leading-tight">{currentStep.instruction}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">En {formatDistance(currentStep.distance)}</p>
+              <p className="text-xs font-bold text-foreground leading-tight line-clamp-2">{currentStep.instruction}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">En {formatDistance(currentStep.distance)}</p>
             </div>
           </div>
         </motion.div>
@@ -147,13 +147,13 @@ const NavigationOverlays = ({
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
         >
-          <div className="glass-strong rounded-xl px-3 py-2.5 flex items-center gap-2.5 border border-primary/20 bg-background/90">
-            <div className="w-9 h-9 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
-              <ManeuverIcon className="w-4.5 h-4.5 text-primary" />
+          <div className="glass-strong rounded-lg px-2.5 py-1.5 flex items-center gap-2 border border-primary/20 bg-background/90">
+            <div className="w-6 h-6 rounded-md bg-primary/20 flex items-center justify-center shrink-0">
+              <ManeuverIcon className="w-3.5 h-3.5 text-primary" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-foreground leading-tight line-clamp-2">{currentStep.instruction}</p>
-              <p className="text-[11px] text-muted-foreground mt-1 line-clamp-2">
+              <p className="text-xs font-semibold text-foreground leading-tight line-clamp-2">{currentStep.instruction}</p>
+              <p className="text-[10px] text-muted-foreground leading-tight line-clamp-1">
                 En {formatDistance(currentStep.distance)}
                 <span className="mx-1">·</span>
                 {LEG_LABELS[currentLeg]}
@@ -171,16 +171,16 @@ const NavigationOverlays = ({
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
         >
-          <div className="glass-strong rounded-xl px-3 py-2 flex items-center gap-2 border border-[hsl(280,70%,55%)]/30">
-            <span className="text-lg">🚶</span>
+          <div className="glass-strong rounded-lg px-2.5 py-1.5 flex items-center gap-1.5 border border-[hsl(280,70%,55%)]/30">
+            <span className="text-sm">🚶</span>
             <div className="flex-1 min-w-0">
-              <span className="text-xs font-medium text-foreground">Camina al punto de encuentro</span>
+              <span className="text-[11px] font-medium text-foreground">Camina al punto de encuentro</span>
             </div>
             <div className="text-right shrink-0">
-              <span className="text-sm font-bold" style={{ color: "hsl(280,70%,55%)" }}>
+              <span className="text-xs font-bold" style={{ color: "hsl(280,70%,55%)" }}>
                 {Math.ceil(walkingRouteData.duration / 60)} min
               </span>
-              <span className="text-[10px] text-muted-foreground ml-1">
+              <span className="text-[9px] text-muted-foreground ml-1">
                 {(walkingRouteData.distance / 1000).toFixed(1)} km
               </span>
             </div>

@@ -41,14 +41,14 @@ const NavTopBar = ({
         : undefined;
 
   return (
-    <div className="absolute top-0 left-0 right-0 p-4 safe-area-inset-top pointer-events-none">
+    <div className="absolute top-0 left-0 right-0 p-3 safe-area-inset-top pointer-events-none">
       <motion.div
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        className="flex items-center gap-3"
+        className="flex items-center gap-2"
       >
-        <Button variant="glass" size="icon" className="shrink-0 pointer-events-auto" onClick={onOpenMenu}>
-          <Menu className="w-5 h-5" />
+        <Button variant="glass" size="icon-sm" className="shrink-0 pointer-events-auto" onClick={onOpenMenu}>
+          <Menu className="w-4 h-4" />
         </Button>
 
         <div className="flex-1 min-w-0 pointer-events-auto">
@@ -64,23 +64,23 @@ const NavTopBar = ({
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
-            className="pointer-events-auto flex shrink-0 items-center gap-2"
+            className="pointer-events-auto flex shrink-0 items-center gap-1.5"
           >
             <Button
               variant="glass"
-              size="icon"
+              size="icon-sm"
               className="shrink-0"
               onClick={onToggleMuted}
               aria-label={isMuted ? "Activar voz" : "Silenciar voz"}
             >
               {isMuted ? (
-                <VolumeX className="w-5 h-5 text-muted-foreground" />
+                <VolumeX className="w-4 h-4 text-muted-foreground" />
               ) : (
-                <Volume2 className="w-5 h-5 text-primary" />
+                <Volume2 className="w-4 h-4 text-primary" />
               )}
             </Button>
-            <Button className="shrink-0" variant="destructive" size="icon" onClick={onStopNavigation}>
-              <X className="w-5 h-5" />
+            <Button className="shrink-0" variant="destructive" size="icon-sm" onClick={onStopNavigation}>
+              <X className="w-4 h-4" />
             </Button>
           </motion.div>
         )}
