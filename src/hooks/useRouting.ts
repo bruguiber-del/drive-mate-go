@@ -151,9 +151,13 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
       }
       points.push(`${destination.lng},${destination.lat}`);
 
+      // overview=simplified (en vez de full) reduce muchísimo el número de
+      // puntos de la geometría — menos datos que transferir, parsear y
+      // pintar, sin perder detalle en los steps/maniobras (que siempre
+      // vienen completos, independientemente del overview elegido).
       const url =
         `${MAPBOX_DIRECTIONS}/${points.join(';')}` +
-        `?geometries=geojson&overview=full&steps=true` +
+        `?geometries=geojson&overview=simplified&steps=true` +
         `&voice_instructions=true&banner_instructions=true` +
         `&annotations=congestion&voice_units=metric` +
         `&language=es&access_token=${MAPBOX_TOKEN}`;

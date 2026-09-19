@@ -81,6 +81,21 @@ export function useVoiceGuidance({ steps, userLocation, enabled }: Options) {
     }
   }, [enabled, cancelSpeech]);
 
+  // "Calienta" el motor de voz en cuanto arranca la navegación, en vez de
+  // esperar al primer aviso real: en varios navegadores (sobre todo Chrome)
+  // la lista de voces se carga de forma asíncrona, y la primerísima llamada
+  // a speak() se queda esperando a que esa lista esté lista — lo que se
+  // nota como un retraso justo en el aviso más importante, el primero.
+  useEffect(() => {
+    if (!enabled || isMuted || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    if (window.speechSynthesis.getVoices().length > 0) return;
+    const onVoicesReady = () => window.speechSynthesis.getVoices();
+    window.speechSynthesis.addEventListener('voiceschanged', onVoicesReady);
+    // Dispara la carga; en algunos navegadores basta con esta primera llamada.
+    window.speechSynthesis.getVoices();
+    return () => window.speechSynthesis.removeEventListener('voiceschanged', onVoicesReady);
+  }, [enabled, isMuted]);
+
   // Compare distance to the upcoming maneuver against Mapbox's
   // distanceAlongGeometry thresholds and announce each one exactly once.
   useEffect(() => {
