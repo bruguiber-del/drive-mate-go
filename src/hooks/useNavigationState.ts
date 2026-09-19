@@ -25,7 +25,8 @@ interface UseNavigationStateReturn {
   destination: string;
   destinationCoords: DestinationCoords | null;
   isNavigating: boolean;
-  /** True only after the user explicitly taps "Iniciar conducción" */
+  /** True as soon as a destination is set — turns on turn-by-turn banners
+   *  and voice guidance immediately, no manual confirmation step. */
   hasStartedDriving: boolean;
   /** True when nav simulation should actually animate the user marker */
   enableNavSim: boolean;
@@ -66,9 +67,13 @@ export function useNavigationState({
   const [destinationCoords, setDestinationCoords] = useState<DestinationCoords | null>(null);
   const [isNavigating, setIsNavigating] = useState(false);
   /**
-   * `hasStartedDriving` decouples "I have a route" from "I am moving".
-   * It must be true before we animate the user marker, so that picking a
-   * destination only draws the route — it does NOT teleport the user along it.
+   * `hasStartedDriving` used to require a separate "Iniciar conducción" tap
+   * before turning on turn-by-turn/voice — that made sense back when the
+   * marker could be animated along the route in a simulation. With real GPS
+   * only, the marker always reflects the actual device position regardless
+   * of this flag, so there's no "teleport" risk and no reason to make the
+   * user confirm anything: it's set to true the moment a destination is
+   * picked (see handleNavigate).
    */
   const [hasStartedDriving, setHasStartedDriving] = useState(false);
   const [currentRoute, setCurrentRouteState] = useState<RouteData | null>(null);
@@ -94,7 +99,11 @@ export function useNavigationState({
       setDestination(dest);
       setDestinationCoords({ ...coords, name: dest });
       setIsNavigating(true);
-      setHasStartedDriving(false);
+      // Arranca todo de inmediato al poner destino — no hace falta un paso
+      // extra de "Iniciar conducción" para confirmar. Con GPS real (no
+      // simulado) no hay riesgo de "teletransportar" el marcador al activar
+      // esto antes de tiempo, así que no aporta nada exigirlo aparte.
+      setHasStartedDriving(true);
       setOriginalDuration(null);
       setFinalDestination({ lat: coords.lat, lng: coords.lng, name: dest });
       toast({ title: `Ruta hacia ${dest}`, duration: 1500 });

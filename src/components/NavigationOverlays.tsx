@@ -81,7 +81,7 @@ const NavigationOverlays = ({
       {/* Driver Status Chip */}
       {isDriverMode && !showActiveTrip && (
         <motion.div
-          className="absolute top-24 sm:top-20 right-4 pointer-events-none z-10"
+          className="absolute top-16 right-4 pointer-events-none z-10"
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
         >
@@ -99,7 +99,7 @@ const NavigationOverlays = ({
       {/* Estado compacto — conductor con pasajero, sin navegación giro a giro */}
       {showActiveTrip && activeTripRole === "driver" && hasPassenger && !(hasStartedDriving && currentStep) && (
         <motion.div
-          className="absolute top-24 sm:top-20 left-4 right-4 pointer-events-none z-10"
+          className="absolute top-16 left-4 right-4 pointer-events-none z-10"
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
         >
@@ -124,7 +124,7 @@ const NavigationOverlays = ({
       {/* Turn-by-turn banner — SOLO cuando navegando SIN viaje activo */}
       {isNavigating && hasStartedDriving && !showActiveTrip && currentStep && (
         <motion.div
-          className="absolute top-24 sm:top-20 left-4 right-4 pointer-events-none z-10"
+          className="absolute top-16 left-4 right-4 pointer-events-none z-10"
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
         >
@@ -143,17 +143,17 @@ const NavigationOverlays = ({
       {/* Aviso unificado — maniobra + fase del viaje activo */}
       {showActiveTrip && activeTripRole === "driver" && hasStartedDriving && currentStep && (
         <motion.div
-          className="absolute top-24 sm:top-20 left-4 right-4 pointer-events-none z-10"
+          className="absolute top-16 left-4 right-4 pointer-events-none z-10"
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
         >
-          <div className="glass-strong rounded-lg px-2.5 py-1.5 flex items-center gap-2 border border-primary/20 bg-background/90">
-            <div className="w-6 h-6 rounded-md bg-primary/20 flex items-center justify-center shrink-0">
-              <ManeuverIcon className="w-3.5 h-3.5 text-primary" />
+          <div className="glass-strong rounded-lg px-2 py-1 flex items-center gap-1.5 border border-primary/20 bg-background/90">
+            <div className="w-5 h-5 rounded bg-primary/20 flex items-center justify-center shrink-0">
+              <ManeuverIcon className="w-3 h-3 text-primary" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-foreground leading-tight line-clamp-2">{currentStep.instruction}</p>
-              <p className="text-[10px] text-muted-foreground leading-tight line-clamp-1">
+              <p className="text-[11px] font-semibold text-foreground leading-tight line-clamp-2">{currentStep.instruction}</p>
+              <p className="text-[9px] text-muted-foreground leading-tight line-clamp-1">
                 En {formatDistance(currentStep.distance)}
                 <span className="mx-1">·</span>
                 {LEG_LABELS[currentLeg]}
@@ -167,7 +167,7 @@ const NavigationOverlays = ({
       {/* Passenger walking chip — SOLO pasajero */}
       {showActiveTrip && activeTripRole === "passenger" && hasMeetingPoint && !isDoorToDoor && walkingRouteData && (
         <motion.div
-          className="absolute top-24 sm:top-20 left-4 right-4 pointer-events-none z-10"
+          className="absolute top-16 left-4 right-4 pointer-events-none z-10"
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
         >
