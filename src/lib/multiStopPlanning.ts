@@ -85,6 +85,45 @@ export function clusterNearbyStops(
   return clusters.map(({ points, ...stop }) => stop);
 }
 
+/**
+ * Same merge as clusterNearbyStops, but starting from already-built stops
+ * instead of full pickup+dropoff pairs — needed once a trip is under way and
+ * some passengers are already in the car (only their dropoff is still
+ * pending, there's no pickup left to plan for them).
+ */
+export function clusterPlannedStops(
+  stops: Array<{ kind: StopKind; lat: number; lng: number; passengerId: string; passengerName: string }>,
+  thresholdM: number = DEFAULT_CLUSTER_DISTANCE_M,
+): PlannedStop[] {
+  const clusters: Array<PlannedStop & { points: LatLng[] }> = [];
+
+  for (const stop of stops) {
+    const existing = clusters.find(
+      (c) => c.kind === stop.kind && approxMetersBetween([c.lat, c.lng], [stop.lat, stop.lng]) <= thresholdM,
+    );
+
+    if (existing) {
+      existing.passengerIds.push(stop.passengerId);
+      existing.label += ` + ${stop.passengerName}`;
+      existing.points.push({ lat: stop.lat, lng: stop.lng });
+      const n = existing.points.length;
+      existing.lat = existing.points.reduce((s, p) => s + p.lat, 0) / n;
+      existing.lng = existing.points.reduce((s, p) => s + p.lng, 0) / n;
+    } else {
+      clusters.push({
+        kind: stop.kind,
+        lat: stop.lat,
+        lng: stop.lng,
+        passengerIds: [stop.passengerId],
+        label: stop.passengerName,
+        points: [{ lat: stop.lat, lng: stop.lng }],
+      });
+    }
+  }
+
+  return clusters.map(({ points, ...stop }) => stop);
+}
+
 /** Total straight-line distance (m) of driverStart → stops[0] → stops[1] → ... */
 function totalDistance(start: LatLng, stops: PlannedStop[]): number {
   let total = 0;
@@ -96,9 +135,14 @@ function totalDistance(start: LatLng, stops: PlannedStop[]): number {
   return total;
 }
 
-/** True if every pickup in `order` comes before every dropoff sharing a passenger id with it. */
-function respectsPickupBeforeDropoff(order: PlannedStop[]): boolean {
-  const pickedUpBy = new Set<string>();
+/**
+ * True if every pickup in `order` comes before every dropoff sharing a
+ * passenger id with it. `alreadyPickedUp` seeds passengers whose pickup
+ * already happened before this planning window (mid-trip: they're in the
+ * car, no pickup stop for them appears in `order` at all).
+ */
+function respectsPickupBeforeDropoff(order: PlannedStop[], alreadyPickedUp?: Set<string>): boolean {
+  const pickedUpBy = new Set(alreadyPickedUp);
   for (const stop of order) {
     if (stop.kind === 'dropoff') {
       for (const id of stop.passengerIds) {
@@ -134,14 +178,18 @@ function* permutations<T>(items: T[]): Generator<T[]> {
  * a dozen stops once nearby ones are combined), but would need a smarter
  * approach if the app ever supported many more passengers per trip at once.
  */
-export function findOptimalStopOrder(driverStart: LatLng, stops: PlannedStop[]): PlannedStop[] {
+export function findOptimalStopOrder(
+  driverStart: LatLng,
+  stops: PlannedStop[],
+  alreadyPickedUp?: Set<string>,
+): PlannedStop[] {
   if (stops.length <= 1) return stops;
 
   let best: PlannedStop[] | null = null;
   let bestDistance = Infinity;
 
   for (const order of permutations(stops)) {
-    if (!respectsPickupBeforeDropoff(order)) continue;
+    if (!respectsPickupBeforeDropoff(order, alreadyPickedUp)) continue;
     const distance = totalDistance(driverStart, order);
     if (distance < bestDistance) {
       bestDistance = distance;

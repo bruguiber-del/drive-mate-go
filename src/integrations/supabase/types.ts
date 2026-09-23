@@ -77,6 +77,60 @@ export type Database = {
         }
         Relationships: []
       }
+      trip_passengers: {
+        Row: {
+          created_at: string
+          destination_lat: number | null
+          destination_lng: number | null
+          destination_name: string | null
+          dropped_off_at: string | null
+          id: string
+          origin_lat: number | null
+          origin_lng: number | null
+          origin_name: string | null
+          passenger_id: string | null
+          passenger_name: string
+          picked_up_at: string | null
+          price: number | null
+          status: string
+          trip_id: string
+        }
+        Insert: {
+          created_at?: string
+          destination_lat?: number | null
+          destination_lng?: number | null
+          destination_name?: string | null
+          dropped_off_at?: string | null
+          id?: string
+          origin_lat?: number | null
+          origin_lng?: number | null
+          origin_name?: string | null
+          passenger_id?: string | null
+          passenger_name: string
+          picked_up_at?: string | null
+          price?: number | null
+          status?: string
+          trip_id: string
+        }
+        Update: {
+          created_at?: string
+          destination_lat?: number | null
+          destination_lng?: number | null
+          destination_name?: string | null
+          dropped_off_at?: string | null
+          id?: string
+          origin_lat?: number | null
+          origin_lng?: number | null
+          origin_name?: string | null
+          passenger_id?: string | null
+          passenger_name?: string
+          picked_up_at?: string | null
+          price?: number | null
+          status?: string
+          trip_id?: string
+        }
+        Relationships: []
+      }
       trips: {
         Row: {
           completed_at: string | null

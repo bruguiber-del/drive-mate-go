@@ -27,11 +27,12 @@ import VehicleManager from "@/components/VehicleManager";
 
 // ── Hooks ─────────────────────────────────────────────────────────────────────
 import { useDriverTracking } from "@/hooks/useDriverTracking";
-import { useWaypoints } from "@/hooks/useWaypoints";
+import { useWaypoints, type Waypoint, type TripLeg } from "@/hooks/useWaypoints";
 import { useWalkingRoute } from "@/hooks/useWalkingRoute";
 import { usePassengerSimulation, type SimulatedPassenger } from "@/hooks/usePassengerSimulation";
 // useNavigationSimulation removed: real GPS only for MVP
 import { useTripLifecycle } from "@/hooks/useTripLifecycle";
+import { useMultiPassengerTrip } from "@/hooks/useMultiPassengerTrip";
 import { useNavigationState } from "@/hooks/useNavigationState";
 import { useUIModals } from "@/hooks/useUIModals";
 import { useVehicles } from "@/hooks/useVehicles";
@@ -91,12 +92,20 @@ const Index = () => {
     onStop: () => tripEndRef.current(),
   });
 
+  // ── Multi-passenger trip engine ─────────────────────────────────────────────
+  // Lleva la cuenta de cuántos pasajeros van a bordo/aceptados a la vez (hasta
+  // las plazas del vehículo), y libera cada plaza en el momento de la bajada,
+  // no al terminar el viaje completo.
+  const multiTrip = useMultiPassengerTrip({ seats: driverSettings.seats });
+
   // ── Passenger simulation ────────────────────────────────────────────────────
   // Single source of truth. NOTE: deliberately NOT tied to showMatchPopup —
   // the current passenger must stay alive while the popup is open. It is only
   // cleared explicitly via dismissCurrent / acceptCurrent.
-  const [activeTripOpen, setActiveTripOpen] = useState(false);
-  const passengerSimEnabled = isDriverMode && nav.isNavigating && !activeTripOpen;
+  // Sigue generando candidatos mientras queden plazas libres, aunque ya haya
+  // pasajeros a bordo — antes se cortaba en cuanto había CUALQUIER viaje
+  // activo, sin mirar las plazas.
+  const passengerSimEnabled = isDriverMode && nav.isNavigating && multiTrip.freeSeats > 0;
 
   const { currentPassenger: simulatedPassenger, dismissCurrent: dismissSimPassenger } = usePassengerSimulation({
     enabled: passengerSimEnabled && !modals.showMatchPopup,
@@ -105,6 +114,7 @@ const Index = () => {
     driverRoute: nav.currentRoute?.coordinates ?? null,
     driverDestination: nav.destinationCoords,
     costPerKm: vehicles.activeVehicle?.costPerKm,
+    maxDetourMinutes: driverSettings.maxDetour,
   });
 
   // ── Trip lifecycle ──────────────────────────────────────────────────────────
@@ -245,13 +255,79 @@ const Index = () => {
     ];
   }, [showPreview, simulatedPassenger]);
 
+  // ── Multi-passenger: paradas reales del conductor ───────────────────────────
+  // useWaypoints solo modela un par recogida/bajada; con varios pasajeros a
+  // la vez la lista de paradas crece y encoge en caliente, así que para el
+  // conductor con pasajeros a bordo se sustituye por esto.
+  const driverPositionRef = useRef<{ lat: number; lng: number } | null>(null);
+  useEffect(() => {
+    driverPositionRef.current = realUserLocation
+      ? { lat: realUserLocation[0], lng: realUserLocation[1] }
+      : null;
+  }, [realUserLocation]);
+
+  // Se recalcula solo cuando cambia la lista de pasajeros (aceptar/recoger/
+  // dejar), no en cada posición GPS — recalcular el orden óptimo en cada
+  // tick sería carísimo y además haría que las paradas bailaran sin razón
+  // mientras conduces sin haber pasado nada nuevo.
+  const multiStops = useMemo(
+    () => multiTrip.stops(driverPositionRef.current),
+    [multiTrip.stops],
+  );
+
+  const multiPassengerWaypoints = useMemo((): Waypoint[] | null => {
+    if (trip.activeTripRole !== "driver" || multiTrip.passengers.length === 0) return null;
+    const stops: Waypoint[] = multiStops.map((s, i) => ({
+      id: `multi-${s.kind}-${i}-${s.passengerIds.join("-")}`,
+      type: s.kind,
+      lat: s.lat,
+      lng: s.lng,
+      name: s.label,
+      completed: false,
+    }));
+    if (nav.destinationCoords) {
+      stops.push({
+        id: "multi-final",
+        type: "final_destination",
+        lat: nav.destinationCoords.lat,
+        lng: nav.destinationCoords.lng,
+        name: nav.destinationCoords.name,
+        completed: false,
+      });
+    }
+    return stops;
+  }, [trip.activeTripRole, multiTrip.passengers.length, multiStops, nav.destinationCoords]);
+
+  const effectiveWaypoints = multiPassengerWaypoints ?? routeWaypoints;
+
+  const effectiveCurrentTarget = multiPassengerWaypoints ? multiPassengerWaypoints[0] ?? null : currentTarget;
+
+  const effectiveCurrentLeg: TripLeg = multiPassengerWaypoints
+    ? effectiveCurrentTarget?.type === "pickup"
+      ? "to_pickup"
+      : effectiveCurrentTarget?.type === "dropoff"
+        ? "to_dropoff"
+        : "to_destination"
+    : currentLeg;
+
+  const effectiveHasPassenger = multiPassengerWaypoints ? true : hasPassenger;
+
+  // Con varios pasajeros, "Finalizar" solo debe cerrar el viaje cuando ya no
+  // queda ninguna parada de pasajero pendiente — si queda alguna, el botón
+  // debe limitarse a confirmar la parada actual (ver ActiveTripView).
+  const effectiveTripStatus: "waiting" | "picked_up" | "in_progress" = multiPassengerWaypoints
+    ? effectiveCurrentTarget?.type === "pickup" ? "waiting" : "picked_up"
+    : trip.tripStatus;
+  const hasMoreStops = !!multiPassengerWaypoints && multiStops.length > 1;
+  const nextStopActionLabel = multiStops[0] ? `Dejar a ${multiStops[0].label}` : undefined;
+
   // ── Derived: active map destination ──────────────────────────────────────
   // When a trip is active, the route's *destination* is always the final
   // destination; pickups/meeting points are inserted as intermediate stops so
   // the polyline goes: driver → pickup → final_destination.
   const finalDestinationWaypoint = useMemo(
-    () => routeWaypoints.find((w) => w.type === "final_destination"),
-    [routeWaypoints],
+    () => effectiveWaypoints.find((w) => w.type === "final_destination"),
+    [effectiveWaypoints],
   );
 
   const mapDestination = useMemo(() => {
@@ -262,22 +338,22 @@ const Index = () => {
         name: finalDestinationWaypoint.name,
       };
     }
-    if (currentTarget) {
-      return { lat: currentTarget.lat, lng: currentTarget.lng, name: currentTarget.name };
+    if (effectiveCurrentTarget) {
+      return { lat: effectiveCurrentTarget.lat, lng: effectiveCurrentTarget.lng, name: effectiveCurrentTarget.name };
     }
     return nav.destinationCoords;
-  }, [finalDestinationWaypoint, currentTarget, nav.destinationCoords]);
+  }, [finalDestinationWaypoint, effectiveCurrentTarget, nav.destinationCoords]);
 
   // Intermediate stops to insert in the routing call (everything except final)
   const intermediateRouteWaypoints = useMemo(
-    () => routeWaypoints.filter((w) => w.type !== "final_destination").map((w) => ({ lat: w.lat, lng: w.lng })),
-    [routeWaypoints],
+    () => effectiveWaypoints.filter((w) => w.type !== "final_destination").map((w) => ({ lat: w.lat, lng: w.lng })),
+    [effectiveWaypoints],
   );
 
   // ── Derived: waypoint markers for map ──────────────────────────────────────
   const mapWaypointMarkers = useMemo(
-    () => routeWaypoints.map((w) => ({ lat: w.lat, lng: w.lng, type: w.type, name: w.name })),
-    [routeWaypoints],
+    () => effectiveWaypoints.map((w) => ({ lat: w.lat, lng: w.lng, type: w.type, name: w.name })),
+    [effectiveWaypoints],
   );
 
   // ── Derived: pickup / dropoff ETAs from the multi-leg route ────────────────
@@ -285,31 +361,43 @@ const Index = () => {
     const legs = nav.currentRoute?.legDurations ?? [];
     const sumTo = (idx: number) => Math.ceil(legs.slice(0, idx + 1).reduce((a, b) => a + b, 0) / 60);
 
-    const pickupIdx = routeWaypoints.findIndex((w) => w.type === "pickup" || w.type === "meeting_point");
-    const dropIdx = routeWaypoints.findIndex((w) => w.type === "dropoff");
+    const pickupIdx = effectiveWaypoints.findIndex((w) => w.type === "pickup" || w.type === "meeting_point");
+    const dropIdx = effectiveWaypoints.findIndex((w) => w.type === "dropoff");
 
     return {
       pickupEta: pickupIdx >= 0 && legs.length > pickupIdx ? sumTo(pickupIdx) : nav.dynamicETA?.minutes,
       dropoffEta: dropIdx >= 0 && legs.length > dropIdx ? sumTo(dropIdx) : undefined,
     };
-  }, [nav.currentRoute, nav.dynamicETA, routeWaypoints]);
+  }, [nav.currentRoute, nav.dynamicETA, effectiveWaypoints]);
+
+  // Con varios pasajeros, la tarjeta debe mostrar a quien corresponde la
+  // PRÓXIMA parada — no siempre el último aceptado, que puede ya estar a
+  // bordo esperando la parada de otro.
+  const frontStopPassenger = useMemo(() => {
+    if (!multiPassengerWaypoints || multiStops.length === 0) return null;
+    const frontId = multiStops[0].passengerIds[0];
+    return multiTrip.passengers.find((p) => p.passenger.id === frontId)?.passenger ?? null;
+  }, [multiPassengerWaypoints, multiStops, multiTrip.passengers]);
+
+  const displayPassenger = frontStopPassenger ?? acceptedPassenger;
+  const extraPassengerCount = Math.max(0, multiTrip.passengers.length - 1);
 
   // ── Derived: real data for ActiveTripView (driver & passenger) ─────────────
   const activeTripData = useMemo(() => {
-    if (trip.activeTripRole === "driver" && acceptedPassenger) {
+    if (trip.activeTripRole === "driver" && displayPassenger) {
       return {
-        otherUser: acceptedPassenger.name,
-        otherUserRating: acceptedPassenger.rating,
-        origin: acceptedPassenger.origin.name,
-        destination: acceptedPassenger.destination.name,
-        pickupPoint: trip.meetingPoint?.name ?? acceptedPassenger.origin.name,
+        otherUser: displayPassenger.name + (extraPassengerCount > 0 ? ` (+${extraPassengerCount} más)` : ""),
+        otherUserRating: displayPassenger.rating,
+        origin: displayPassenger.origin.name,
+        destination: displayPassenger.destination.name,
+        pickupPoint: trip.meetingPoint?.name ?? displayPassenger.origin.name,
         eta: pickupEta ?? nav.dynamicETA?.minutes ?? 0,
         // El mismo precio que se le mostró y aceptó en MatchPopup — antes se
         // volvía a calcular aquí con línea recta y sin desvío, dando un
         // número distinto del que el pasajero había aceptado.
-        price: acceptedPassenger.compensation,
-        acceptsPets: acceptedPassenger.acceptsPets,
-        hasChildSeat: acceptedPassenger.hasChildSeat,
+        price: displayPassenger.compensation,
+        acceptsPets: displayPassenger.acceptsPets,
+        hasChildSeat: displayPassenger.hasChildSeat,
       };
     }
     if (trip.activeTripRole === "passenger" && driverSim.currentDriver) {
@@ -327,7 +415,8 @@ const Index = () => {
   }, [
     trip.activeTripRole,
     trip.meetingPoint,
-    acceptedPassenger,
+    displayPassenger,
+    extraPassengerCount,
     pickupEta,
     nav.dynamicETA,
     driverSim.currentDriver,
@@ -344,8 +433,61 @@ const Index = () => {
         tripInfo: `${activeTripData.origin} → ${activeTripData.destination}`,
       });
     }
+    // Por si se cancela con pasajeros todavía a bordo/pendientes — no deben
+    // quedar plazas fantasma ocupadas para el próximo viaje.
+    multiTrip.reset();
     trip.handleTripEnd();
-  }, [activeTripData, trip]);
+  }, [activeTripData, trip, multiTrip]);
+
+  /** Confirma la parada actual (recogida o bajada) de la cola multi-pasajero
+   *  y, si es una bajada, libera esa plaza al instante. */
+  const handleMultiStopConfirm = useCallback(() => {
+    const front = multiStops[0];
+    if (!front) return;
+    const tripId = trip.activeTripId;
+
+    if (front.kind === "pickup") {
+      multiTrip.confirmPickup(front.passengerIds);
+      if (tripId) {
+        for (const id of front.passengerIds) {
+          const tracked = multiTrip.passengers.find((p) => p.passenger.id === id);
+          if (!tracked) continue;
+          supabase
+            .from("trip_passengers")
+            .update({ status: "in_car", picked_up_at: new Date().toISOString() })
+            .eq("trip_id", tripId)
+            .eq("origin_lat", tracked.passenger.origin.lat)
+            .eq("origin_lng", tracked.passenger.origin.lng)
+            .eq("status", "waiting_pickup")
+            .then(() => {}, () => {});
+        }
+      }
+    } else {
+      multiTrip.confirmDropoff(front.passengerIds);
+      if (tripId) {
+        for (const id of front.passengerIds) {
+          const tracked = multiTrip.passengers.find((p) => p.passenger.id === id);
+          if (!tracked) continue;
+          supabase
+            .from("trip_passengers")
+            .update({ status: "dropped_off", dropped_off_at: new Date().toISOString() })
+            .eq("trip_id", tripId)
+            .eq("destination_lat", tracked.passenger.destination.lat)
+            .eq("destination_lng", tracked.passenger.destination.lng)
+            .neq("status", "dropped_off")
+            .then(() => {}, () => {});
+        }
+      }
+    }
+  }, [multiStops, multiTrip, trip.activeTripId]);
+
+  const handleActiveTripPickupAction = useCallback(() => {
+    if (multiPassengerWaypoints) {
+      handleMultiStopConfirm();
+    } else {
+      trip.handlePickup();
+    }
+  }, [multiPassengerWaypoints, handleMultiStopConfirm, trip]);
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
@@ -411,9 +553,14 @@ const Index = () => {
   const handleMatchAcceptAndClose = useCallback(() => {
     setShowPreview(false);
     modals.closeMatchPopup();
-    if (isDriverMode && simulatedPassenger) setAcceptedPassenger(simulatedPassenger);
+    if (isDriverMode && simulatedPassenger) {
+      setAcceptedPassenger(simulatedPassenger);
+      // Se añade a la cola real de pasajeros a bordo — puede haber ya otro
+      // camino a su parada, o incluso ya recogido, sin que esto lo pise.
+      multiTrip.acceptPassenger(simulatedPassenger);
+    }
     trip.handleMatchAccept();
-  }, [modals, trip, isDriverMode, simulatedPassenger]);
+  }, [modals, trip, isDriverMode, simulatedPassenger, multiTrip]);
 
   const handleMatchReject = useCallback(() => {
     setShowPreview(false);
@@ -526,25 +673,50 @@ const Index = () => {
   const showDriverOnMap = trip.showActiveTrip && trip.activeTripRole === "passenger";
 
   // ── Current navigation step (turn-by-turn) ──────────────────────────────────
-  const currentStep = useMemo(() => {
+  const currentStepIndex = useMemo(() => {
     const steps = nav.currentRoute?.steps;
-    if (!steps?.length || !realUserLocation) return null;
-    let closest = steps[0];
+    if (!steps?.length || !realUserLocation) return -1;
+    let closestIdx = 0;
     let minDist = Infinity;
-    for (const step of steps) {
+    steps.forEach((step, i) => {
       const loc = step.maneuver?.location;
-      if (!loc) continue;
+      if (!loc) return;
       const [lng, lat] = loc;
       const dLat = lat - realUserLocation[0];
       const dLng = lng - realUserLocation[1];
       const d = dLat * dLat + dLng * dLng;
       if (d < minDist) {
         minDist = d;
-        closest = step;
+        closestIdx = i;
       }
-    }
-    return closest;
+    });
+    return closestIdx;
   }, [nav.currentRoute, realUserLocation]);
+
+  const currentStep = useMemo(() => {
+    const steps = nav.currentRoute?.steps;
+    if (!steps?.length || currentStepIndex < 0) return null;
+    return steps[currentStepIndex];
+  }, [nav.currentRoute, currentStepIndex]);
+
+  // ── ETA en vivo ──────────────────────────────────────────────────────────
+  // nav.dynamicETA es la duración TOTAL calculada la primera vez que se pidió
+  // la ruta, y solo se refresca si te desvías >70m del trazado — o sea que
+  // mientras conduces sin desviarte, el número se queda congelado desde el
+  // origen y no baja aunque ya casi hayas llegado (por eso podía mostrar el
+  // doble de lo que decía Google Maps a mitad de trayecto). Aquí se suma
+  // solo lo que queda desde el tramo actual en vez del viaje completo.
+  const liveETA = useMemo(() => {
+    const steps = nav.currentRoute?.steps;
+    if (!steps?.length || currentStepIndex < 0) return nav.dynamicETA;
+    const remaining = steps.slice(currentStepIndex);
+    const seconds = remaining.reduce((sum, s) => sum + s.duration, 0);
+    const meters = remaining.reduce((sum, s) => sum + s.distance, 0);
+    return {
+      minutes: Math.ceil(seconds / 60),
+      distanceKm: (meters / 1000).toFixed(1),
+    };
+  }, [nav.currentRoute, currentStepIndex, nav.dynamicETA]);
 
   // Icono de flecha según la maniobra actual (tipo Waze)
   const ManeuverIcon = useMemo(
@@ -610,13 +782,13 @@ const Index = () => {
           showActiveTrip={trip.showActiveTrip}
           isDriverMode={isDriverMode}
           activeTripRole={trip.activeTripRole}
-          hasPassenger={hasPassenger}
+          hasPassenger={effectiveHasPassenger}
           hasStartedDriving={nav.hasStartedDriving}
           currentStep={currentStep}
           ManeuverIcon={ManeuverIcon}
-          currentLeg={currentLeg}
-          currentTargetName={currentTarget?.name ?? null}
-          dynamicETA={nav.dynamicETA}
+          currentLeg={effectiveCurrentLeg}
+          currentTargetName={effectiveCurrentTarget?.name ?? null}
+          dynamicETA={liveETA}
           detourMinutes={nav.detourMinutes}
           driverSeats={driverSettings.seats}
           driverMaxDetour={driverSettings.maxDetour}
@@ -638,7 +810,7 @@ const Index = () => {
           onPassengerToggle={handlePassengerToggle}
           onOpenPassengerSettings={modals.openPassengerSettings}
           isNavigating={nav.isNavigating}
-          dynamicETA={nav.dynamicETA}
+          dynamicETA={liveETA}
           destination={nav.destination}
         />
       </MapView>
@@ -651,8 +823,10 @@ const Index = () => {
           isOpen={trip.showActiveTrip}
           onClose={handleTripEndWithSummary}
           userRole={trip.activeTripRole}
-          tripStatus={trip.tripStatus}
-          onPickup={trip.handlePickup}
+          tripStatus={effectiveTripStatus}
+          onPickup={handleActiveTripPickupAction}
+          hasMoreStops={hasMoreStops}
+          nextStopLabel={nextStopActionLabel}
           pickupEta={pickupEta}
           dropoffEta={dropoffEta}
           driverVehicle={trip.activeTripRole === "passenger" ? driverSim.currentDriver?.vehicle : undefined}

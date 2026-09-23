@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   clusterNearbyStops,
+  clusterPlannedStops,
   findOptimalStopOrder,
   planMultiStopTrip,
   type PassengerRequest,
@@ -56,6 +57,43 @@ describe('clusterNearbyStops', () => {
     const combined = clusters.find((c) => c.passengerIds.length === 2)!;
     expect(combined.lat).toBeCloseTo(0, 5);
     expect(combined.lng).toBeCloseTo(0.00005, 5);
+  });
+});
+
+describe('clusterPlannedStops', () => {
+  it('merges same-kind stops within the threshold, same as clusterNearbyStops', () => {
+    const stops = [
+      { kind: 'dropoff' as const, lat: 0, lng: 0, passengerId: 'p1', passengerName: 'Ana' },
+      { kind: 'dropoff' as const, lat: 0, lng: 0.0001, passengerId: 'p2', passengerName: 'Carlos' },
+    ];
+    const clustered = clusterPlannedStops(stops, 180);
+    expect(clustered).toHaveLength(1);
+    expect(clustered[0].passengerIds.sort()).toEqual(['p1', 'p2']);
+  });
+
+  it('never merges a pickup with a dropoff at the same point', () => {
+    const stops = [
+      { kind: 'pickup' as const, lat: 5, lng: 5, passengerId: 'p1', passengerName: 'Ana' },
+      { kind: 'dropoff' as const, lat: 5, lng: 5, passengerId: 'p2', passengerName: 'Carlos' },
+    ];
+    expect(clusterPlannedStops(stops)).toHaveLength(2);
+  });
+
+  it('builds a mid-trip stop list: one passenger still waiting for pickup, another already in the car', () => {
+    // Escenario real: p1 ya recogido (solo queda su bajada), p2 esperando.
+    const raw = [
+      { kind: 'dropoff' as const, lat: 0, lng: 5, passengerId: 'p1', passengerName: 'Ana' },
+      { kind: 'pickup' as const, lat: 0, lng: 2, passengerId: 'p2', passengerName: 'Carlos' },
+      { kind: 'dropoff' as const, lat: 0, lng: 8, passengerId: 'p2', passengerName: 'Carlos' },
+    ];
+    const clustered = clusterPlannedStops(raw);
+    expect(clustered).toHaveLength(3);
+    const order = findOptimalStopOrder(driverStart, clustered, new Set(['p1']));
+    // p1 (ya en el coche) puede bajarse en cualquier momento; p2 debe
+    // recogerse antes de poder dejarlo.
+    const p2PickupIdx = order.findIndex((s) => s.kind === 'pickup' && s.passengerIds.includes('p2'));
+    const p2DropoffIdx = order.findIndex((s) => s.kind === 'dropoff' && s.passengerIds.includes('p2'));
+    expect(p2PickupIdx).toBeLessThan(p2DropoffIdx);
   });
 });
 
@@ -120,6 +158,15 @@ describe('findOptimalStopOrder', () => {
     expect(findOptimalStopOrder(driverStart, [])).toEqual([]);
     const single: PlannedStop[] = [{ kind: 'pickup', lat: 0, lng: 1, passengerIds: ['p1'], label: 'Ana' }];
     expect(findOptimalStopOrder(driverStart, single)).toEqual(single);
+  });
+
+  it('orders dropoff-only stops by distance when every passenger is already picked up', () => {
+    // Mitad de viaje: p1 y p2 ya están en el coche, solo quedan sus
+    // bajadas — no hay ninguna parada de recogida en esta lista.
+    const far: PlannedStop = { kind: 'dropoff', lat: 0, lng: 10, passengerIds: ['p1'], label: 'Ana' };
+    const near: PlannedStop = { kind: 'dropoff', lat: 0, lng: 1, passengerIds: ['p2'], label: 'Carlos' };
+    const order = findOptimalStopOrder(driverStart, [far, near], new Set(['p1', 'p2']));
+    expect(order).toEqual([near, far]);
   });
 });
 

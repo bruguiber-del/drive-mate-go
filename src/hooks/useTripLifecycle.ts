@@ -99,20 +99,36 @@ export function useTripLifecycle({
    *     can silently fall through without activating the trip view.
    */
   const handleMatchAccept = useCallback(async () => {
-    let newTripId: string = crypto.randomUUID();
+    let newTripId: string = activeTripId ?? crypto.randomUUID();
 
     if (isDriverMode && simulatedPassenger) {
-      // Persist a real trip row when the driver is signed in
+      // Un solo viaje (fila `trips`) por sesión de conducción, no uno por
+      // pasajero aceptado — cada pasajero que se sube en el camino es una
+      // fila en `trip_passengers`, todas apuntando al mismo trip_id.
       try {
         const { data: userData } = await supabase.auth.getUser();
         const driverId = userData?.user?.id;
         if (driverId) {
-          const { data, error } = await supabase
-            .from('trips')
-            .insert({ driver_id: driverId, status: 'active' })
-            .select('id')
-            .single();
-          if (!error && data?.id) newTripId = data.id;
+          if (!activeTripId) {
+            const { data, error } = await supabase
+              .from('trips')
+              .insert({ driver_id: driverId, status: 'active' })
+              .select('id')
+              .single();
+            if (!error && data?.id) newTripId = data.id;
+          }
+          await supabase.from('trip_passengers').insert({
+            trip_id: newTripId,
+            passenger_name: simulatedPassenger.name,
+            origin_name: simulatedPassenger.origin.name,
+            origin_lat: simulatedPassenger.origin.lat,
+            origin_lng: simulatedPassenger.origin.lng,
+            destination_name: simulatedPassenger.destination.name,
+            destination_lat: simulatedPassenger.destination.lat,
+            destination_lng: simulatedPassenger.destination.lng,
+            price: simulatedPassenger.compensation,
+            status: 'waiting_pickup',
+          });
         }
       } catch {
         /* keep the local UUID if the trip could not be persisted */
@@ -201,6 +217,7 @@ export function useTripLifecycle({
     addPassengerWaypoints,
     addMeetingPointWaypoints,
     toast,
+    activeTripId,
   ]);
 
   // ── handlePickup ────────────────────────────────────────────────────────────
@@ -217,13 +234,22 @@ export function useTripLifecycle({
 
   // ── handleTripEnd ───────────────────────────────────────────────────────────
   const handleTripEnd = useCallback(() => {
+    if (activeTripId) {
+      // Antes la fila de `trips` se quedaba para siempre en status 'active'
+      // — nada la marcaba como terminada.
+      supabase
+        .from('trips')
+        .update({ status: 'completed', completed_at: new Date().toISOString() })
+        .eq('id', activeTripId)
+        .then(() => {}, () => {});
+    }
     setShowActiveTrip(false);
     setTripStatus('waiting');
     setActiveTripId(null);
     setMeetingPoint(null);
     completeTrip();
     setShowRating(true);
-  }, [completeTrip]);
+  }, [completeTrip, activeTripId]);
 
   // ── closeRating ─────────────────────────────────────────────────────────────
   const closeRating = useCallback(() => setShowRating(false), []);

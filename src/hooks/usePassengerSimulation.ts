@@ -87,12 +87,18 @@ function isPickupAheadOnRoute(
   return pickupRouteIdx > driverRouteIdx;
 }
 
+// Velocidad media estimada para traducir el desvío en km a minutos —
+// sustituye al valor puramente aleatorio que había antes y que no tenía
+// relación ninguna con el ajuste real de "desvío máximo" del conductor.
+const AVG_DETOUR_SPEED_KMH = 28;
+
 function generatePassenger(
   userLat: number,
   userLng: number,
   driverRoute: [number, number][],
   driverDestination: { lat: number; lng: number; name: string } | null,
   costPerKm?: number,
+  maxDetourMinutes?: number,
 ): SimulatedPassenger | null {
 
   // Index of the driver's current position along the route
@@ -133,7 +139,12 @@ function generatePassenger(
   if (tripDistanceKm < 2) return null;
 
   const detourKm = (distM / 1000) * 2;
-  const detourMinutes = Math.ceil(randomInRange(2, 8));
+  const detourMinutes = Math.ceil((detourKm / AVG_DETOUR_SPEED_KMH) * 60);
+
+  // Límite duro: si el conductor puso "máx. 5 min", nunca se propone algo
+  // que le desvíe más de 6 — antes esto ni se comprobaba, porque el
+  // desvío mostrado era un número aleatorio sin relación con la geometría.
+  if (maxDetourMinutes != null && detourMinutes > maxDetourMinutes + 1) return null;
 
   const pricing = calculatePrice({
     distanceKm: tripDistanceKm,
@@ -179,6 +190,9 @@ interface UsePassengerSimulationOptions {
   driverDestination?: { lat: number; lng: number; name: string } | null;
   /** Cost per km of the driver's active vehicle */
   costPerKm?: number;
+  /** Desvío máximo (min) fijado en los ajustes del conductor — se rechaza
+   *  cualquier candidato que se pase de ese límite en más de 1 minuto. */
+  maxDetourMinutes?: number;
 }
 
 export function usePassengerSimulation({
@@ -188,6 +202,7 @@ export function usePassengerSimulation({
   driverRoute,
   driverDestination,
   costPerKm,
+  maxDetourMinutes,
 }: UsePassengerSimulationOptions) {
   const [currentPassenger, setCurrentPassenger] = useState<SimulatedPassenger | null>(null);
   const [pendingPassengers, setPendingPassengers] = useState<SimulatedPassenger[]>([]);
@@ -198,9 +213,11 @@ export function usePassengerSimulation({
   const routeRef = useRef<[number, number][] | null>(driverRoute ?? null);
   const destRef = useRef<typeof driverDestination>(driverDestination ?? null);
   const costRef = useRef<number | undefined>(costPerKm);
+  const maxDetourRef = useRef<number | undefined>(maxDetourMinutes);
   useEffect(() => { routeRef.current = driverRoute ?? null; }, [driverRoute]);
   useEffect(() => { destRef.current = driverDestination ?? null; }, [driverDestination]);
   useEffect(() => { costRef.current = costPerKm; }, [costPerKm]);
+  useEffect(() => { maxDetourRef.current = maxDetourMinutes; }, [maxDetourMinutes]);
 
   const generateNew = useCallback(() => {
     if (!userLocation) return;
@@ -213,7 +230,9 @@ export function usePassengerSimulation({
     }
     const route = routeRef.current;
     if (!route || route.length < 2) return;
-    const passenger = generatePassenger(lat, lng, route, destRef.current ?? null, costRef.current);
+    const passenger = generatePassenger(
+      lat, lng, route, destRef.current ?? null, costRef.current, maxDetourRef.current,
+    );
 
     if (!passenger) return;
     setPendingPassengers(prev => [...prev.slice(-4), passenger]);

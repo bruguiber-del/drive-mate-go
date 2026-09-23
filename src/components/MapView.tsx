@@ -599,7 +599,11 @@ const MapView = ({
     for (const wp of waypointMarkers) {
       const color = WAYPOINT_COLORS[wp.type] || ROUTE_COLOR;
       const iconPath = WAYPOINT_ICONS[wp.type] || WAYPOINT_ICONS.pickup;
-      const label = WAYPOINT_LABELS[wp.type] || wp.name;
+      // El nombre real (p. ej. el pasajero de esa parada) tiene prioridad
+      // sobre la etiqueta genérica — con varios pasajeros a la vez, todas
+      // las recogidas mostraban el mismo "Parada 1 — Recogida" y no se
+      // podían distinguir entre sí en el mapa.
+      const label = wp.name || WAYPOINT_LABELS[wp.type];
       const el = buildMarkerEl(color, iconPath, label);
       const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
         .setLngLat([wp.lng, wp.lat])
@@ -665,7 +669,7 @@ const MapView = ({
     for (const wp of previewWaypoints) {
       const color = WAYPOINT_COLORS[wp.type] || ROUTE_COLOR;
       const iconPath = WAYPOINT_ICONS[wp.type] || WAYPOINT_ICONS.pickup;
-      const label = WAYPOINT_LABELS[wp.type] || wp.name;
+      const label = wp.name || WAYPOINT_LABELS[wp.type];
       const el = buildMarkerEl(color, iconPath, label, true);
       const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
         .setLngLat([wp.lng, wp.lat])

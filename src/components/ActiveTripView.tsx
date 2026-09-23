@@ -22,6 +22,12 @@ interface ActiveTripViewProps {
   walkingMinutes?: number;
   /** Passenger view — called when confirming the driver has arrived */
   onDriverArrived?: () => void;
+  /** Driver view, varios pasajeros: true cuando, tras esta parada, quedan
+   *  más recogidas/bajadas pendientes — el botón pasa a confirmar la
+   *  siguiente parada en vez de cerrar el viaje entero. */
+  hasMoreStops?: boolean;
+  /** Texto del botón cuando hasMoreStops es true (p. ej. "Recoger a Ana"). */
+  nextStopLabel?: string;
   tripData?: {
     otherUser: string;
     otherUserRating: number;
@@ -35,7 +41,7 @@ interface ActiveTripViewProps {
   };
 }
 
-const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onPickup, isTrackingActive = true, pickupEta, dropoffEta, driverVehicle, driverEta, walkingMinutes, onDriverArrived, tripData }: ActiveTripViewProps) => {
+const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onPickup, isTrackingActive = true, pickupEta, dropoffEta, driverVehicle, driverEta, walkingMinutes, onDriverArrived, hasMoreStops = false, nextStopLabel, tripData }: ActiveTripViewProps) => {
   const defaultData = {
     otherUser: userRole === 'driver' ? 'Ana M.' : 'Carlos G.',
     otherUserRating: 4.8,
@@ -212,7 +218,12 @@ const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onP
                 Conductor llegado
               </Button>
             )}
-            {tripStatus === 'picked_up' && (
+            {userRole === 'driver' && tripStatus === 'picked_up' && hasMoreStops && (
+              <Button variant="driver" size="sm" className="flex-1" onClick={onPickup}>
+                {nextStopLabel ?? 'Siguiente parada'}
+              </Button>
+            )}
+            {tripStatus === 'picked_up' && !(userRole === 'driver' && hasMoreStops) && (
               <Button variant="driver" size="sm" className="flex-1" onClick={onClose}>
                 Finalizar
               </Button>
