@@ -1,8 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { User, CheckCircle, AlertCircle, Star, Car, Users, X, Camera, Armchair } from 'lucide-react';
+import { User, CheckCircle, AlertCircle, Star, Car, Users, X, Armchair, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import { useProfile } from '@/hooks/useProfile';
 
 interface ProfileSectionProps {
   isOpen: boolean;
@@ -12,9 +16,44 @@ interface ProfileSectionProps {
 export type SpacePreference = 'none' | 'spacious-car' | 'spacious-front';
 
 const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
+  const navigate = useNavigate();
+  const {
+    profile, authEmail, emailConfirmed, phoneConfirmed, isAuthenticated, loading,
+    driverTripCount, passengerTripCount, updateProfile,
+  } = useProfile();
+
   const [spacePreference, setSpacePreference] = useState<SpacePreference>('none');
+  const [isEditing, setIsEditing] = useState(false);
+  const [draftName, setDraftName] = useState('');
+  const [draftPhone, setDraftPhone] = useState('');
+  const [draftCity, setDraftCity] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (profile) {
+      setDraftName(profile.fullName ?? '');
+      setDraftPhone(profile.phone ?? '');
+      setDraftCity(profile.city ?? '');
+    }
+  }, [profile]);
 
   if (!isOpen) return null;
+
+  const startEditing = () => {
+    setDraftName(profile?.fullName ?? '');
+    setDraftPhone(profile?.phone ?? '');
+    setDraftCity(profile?.city ?? '');
+    setIsEditing(true);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    const ok = await updateProfile({ fullName: draftName || null, phone: draftPhone || null, city: draftCity || null });
+    setSaving(false);
+    if (ok) setIsEditing(false);
+  };
+
+  const initials = (profile?.fullName || authEmail || '?').trim().charAt(0).toUpperCase();
 
   return (
     <motion.div
@@ -24,7 +63,7 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
       className="fixed inset-0 z-50"
     >
       <div className="absolute inset-0 bg-background/95 backdrop-blur-md" onClick={onClose} />
-      
+
       <motion.div
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
@@ -41,19 +80,34 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
             </Button>
           </div>
 
+          {loading ? (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : !isAuthenticated ? (
+            <div className="p-6 flex flex-col items-center text-center gap-4 mt-10">
+              <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center">
+                <User className="w-10 h-10 text-muted-foreground" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-foreground">Todavía no has iniciado sesión</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Crea tu cuenta para tener tu propio perfil, guardar tus datos y ver tu historial real.
+                </p>
+              </div>
+              <Button variant="driver" onClick={() => navigate('/auth')}>Iniciar sesión o registrarme</Button>
+            </div>
+          ) : (
           <div className="p-6 space-y-6">
             {/* Avatar & Name */}
             <div className="flex flex-col items-center">
-              <div className="relative">
-                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
-                  <User className="w-12 h-12 text-primary-foreground" />
-                </div>
-                <button className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-primary flex items-center justify-center shadow-lg">
-                  <Camera className="w-4 h-4 text-primary-foreground" />
-                </button>
+              <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
+                <span className="text-3xl font-bold text-primary-foreground">{initials}</span>
               </div>
-              <h3 className="mt-4 text-xl font-bold text-foreground">Carlos García</h3>
-              <p className="text-muted-foreground">carlos.garcia@email.com</p>
+              <h3 className="mt-4 text-xl font-bold text-foreground">
+                {profile?.fullName || 'Sin nombre todavía'}
+              </h3>
+              <p className="text-muted-foreground">{authEmail ?? profile?.phone ?? ''}</p>
             </div>
 
             {/* Stats */}
@@ -61,21 +115,21 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
               <div className="glass rounded-xl p-4 text-center">
                 <div className="flex items-center justify-center gap-1 text-warning">
                   <Star className="w-5 h-5 fill-current" />
-                  <span className="text-xl font-bold">4.8</span>
+                  <span className="text-xl font-bold">{profile?.averageRating.toFixed(1) ?? '5.0'}</span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">Valoración</p>
               </div>
               <div className="glass rounded-xl p-4 text-center">
                 <div className="flex items-center justify-center gap-1 text-primary">
                   <Car className="w-5 h-5" />
-                  <span className="text-xl font-bold">47</span>
+                  <span className="text-xl font-bold">{driverTripCount}</span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">Como conductor</p>
               </div>
               <div className="glass rounded-xl p-4 text-center">
                 <div className="flex items-center justify-center gap-1 text-secondary">
                   <Users className="w-5 h-5" />
-                  <span className="text-xl font-bold">32</span>
+                  <span className="text-xl font-bold">{passengerTripCount}</span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">Como pasajero</p>
               </div>
@@ -90,14 +144,14 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
               <p className="text-sm text-muted-foreground">
                 Selecciona tu preferencia de espacio. Solo puedes elegir una opción.
               </p>
-              
+
               <div className="space-y-2">
                 <button
                   onClick={() => setSpacePreference('none')}
                   className={cn(
                     "w-full flex items-center justify-between p-4 rounded-xl transition-all",
-                    spacePreference === 'none' 
-                      ? "bg-primary/20 border-2 border-primary" 
+                    spacePreference === 'none'
+                      ? "bg-primary/20 border-2 border-primary"
                       : "glass border-2 border-transparent"
                   )}
                 >
@@ -123,8 +177,8 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
                   onClick={() => setSpacePreference('spacious-car')}
                   className={cn(
                     "w-full flex items-center justify-between p-4 rounded-xl transition-all",
-                    spacePreference === 'spacious-car' 
-                      ? "bg-secondary/20 border-2 border-secondary" 
+                    spacePreference === 'spacious-car'
+                      ? "bg-secondary/20 border-2 border-secondary"
                       : "glass border-2 border-transparent"
                   )}
                 >
@@ -150,8 +204,8 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
                   onClick={() => setSpacePreference('spacious-front')}
                   className={cn(
                     "w-full flex items-center justify-between p-4 rounded-xl transition-all",
-                    spacePreference === 'spacious-front' 
-                      ? "bg-success/20 border-2 border-success" 
+                    spacePreference === 'spacious-front'
+                      ? "bg-success/20 border-2 border-success"
                       : "glass border-2 border-transparent"
                   )}
                 >
@@ -179,31 +233,31 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
               </p>
             </div>
 
-            {/* Verification Status */}
+            {/* Verification Status — señales reales, no fechas inventadas */}
             <div className="space-y-3">
               <h4 className="font-semibold text-foreground">Estado de verificación</h4>
-              
-              <div className="glass rounded-xl p-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-success/20 flex items-center justify-center">
-                    <CheckCircle className="w-5 h-5 text-success" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-foreground">DNI Verificado</p>
-                    <p className="text-sm text-muted-foreground">Verificado el 15/01/2024</p>
-                  </div>
+
+              <div className="glass rounded-xl p-4 flex items-center gap-3">
+                <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center", emailConfirmed ? "bg-success/20" : "bg-warning/20")}>
+                  {emailConfirmed
+                    ? <CheckCircle className="w-5 h-5 text-success" />
+                    : <AlertCircle className="w-5 h-5 text-warning" />}
+                </div>
+                <div>
+                  <p className="font-medium text-foreground">{emailConfirmed ? 'Email verificado' : 'Email sin verificar'}</p>
+                  <p className="text-sm text-muted-foreground">{authEmail ?? 'Sin correo asociado'}</p>
                 </div>
               </div>
 
-              <div className="glass rounded-xl p-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-success/20 flex items-center justify-center">
-                    <CheckCircle className="w-5 h-5 text-success" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-foreground">Email Verificado</p>
-                    <p className="text-sm text-muted-foreground">carlos.garcia@email.com</p>
-                  </div>
+              <div className="glass rounded-xl p-4 flex items-center gap-3">
+                <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center", phoneConfirmed ? "bg-success/20" : "bg-warning/20")}>
+                  {phoneConfirmed
+                    ? <CheckCircle className="w-5 h-5 text-success" />
+                    : <AlertCircle className="w-5 h-5 text-warning" />}
+                </div>
+                <div>
+                  <p className="font-medium text-foreground">{phoneConfirmed ? 'Teléfono verificado' : 'Teléfono sin verificar'}</p>
+                  <p className="text-sm text-muted-foreground">{profile?.phone ?? 'Sin número asociado'}</p>
                 </div>
               </div>
 
@@ -214,35 +268,63 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
                   </div>
                   <div>
                     <p className="font-medium text-foreground">Carnet de conducir</p>
-                    <p className="text-sm text-muted-foreground">Pendiente de verificar</p>
+                    <p className="text-sm text-muted-foreground">Todavía no disponible</p>
                   </div>
                 </div>
-                <Button variant="outline" size="sm">Verificar</Button>
               </div>
             </div>
 
             {/* Personal Data */}
             <div className="space-y-3">
-              <h4 className="font-semibold text-foreground">Datos personales</h4>
-              
-              <div className="space-y-2">
-                <div className="glass rounded-xl p-4">
-                  <label className="text-sm text-muted-foreground">Nombre completo</label>
-                  <p className="font-medium text-foreground">Carlos García Martínez</p>
-                </div>
-                <div className="glass rounded-xl p-4">
-                  <label className="text-sm text-muted-foreground">Teléfono</label>
-                  <p className="font-medium text-foreground">+34 612 345 678</p>
-                </div>
-                <div className="glass rounded-xl p-4">
-                  <label className="text-sm text-muted-foreground">Ciudad</label>
-                  <p className="font-medium text-foreground">Huesca, España</p>
-                </div>
+              <div className="flex items-center justify-between">
+                <h4 className="font-semibold text-foreground">Datos personales</h4>
+                {!isEditing && (
+                  <button className="text-sm font-medium text-primary" onClick={startEditing}>Editar</button>
+                )}
               </div>
-            </div>
 
-            <Button variant="driver" className="w-full">Editar perfil</Button>
+              {isEditing ? (
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="profile-name">Nombre completo</Label>
+                    <Input id="profile-name" value={draftName} onChange={(e) => setDraftName(e.target.value)} placeholder="Tu nombre" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="profile-phone">Teléfono</Label>
+                    <Input id="profile-phone" value={draftPhone} onChange={(e) => setDraftPhone(e.target.value)} placeholder="+34 600 000 000" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="profile-city">Ciudad</Label>
+                    <Input id="profile-city" value={draftCity} onChange={(e) => setDraftCity(e.target.value)} placeholder="Tu ciudad" />
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <Button variant="ghost" className="flex-1" onClick={() => setIsEditing(false)} disabled={saving}>
+                      Cancelar
+                    </Button>
+                    <Button variant="driver" className="flex-1" onClick={handleSave} disabled={saving}>
+                      {saving ? 'Guardando...' : 'Guardar'}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="glass rounded-xl p-4">
+                    <label className="text-sm text-muted-foreground">Nombre completo</label>
+                    <p className="font-medium text-foreground">{profile?.fullName || 'Sin especificar'}</p>
+                  </div>
+                  <div className="glass rounded-xl p-4">
+                    <label className="text-sm text-muted-foreground">Teléfono</label>
+                    <p className="font-medium text-foreground">{profile?.phone || 'Sin especificar'}</p>
+                  </div>
+                  <div className="glass rounded-xl p-4">
+                    <label className="text-sm text-muted-foreground">Ciudad</label>
+                    <p className="font-medium text-foreground">{profile?.city || 'Sin especificar'}</p>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
+          )}
         </div>
       </motion.div>
     </motion.div>
