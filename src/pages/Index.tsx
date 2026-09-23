@@ -154,9 +154,8 @@ const Index = () => {
     return () => window.removeEventListener("vimatch:gps-denied", handler);
   }, [toast]);
 
-  // Keep the state in sync so the gate above also sees showActiveTrip
+  // Limpia el pasajero mostrado en la tarjeta cuando se cierra el viaje.
   useEffect(() => {
-    setActiveTripOpen(trip.showActiveTrip);
     if (!trip.showActiveTrip) setAcceptedPassenger(null);
   }, [trip.showActiveTrip]);
 
