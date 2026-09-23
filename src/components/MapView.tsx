@@ -144,6 +144,9 @@ const MapView = ({
   const [positionHistory, setPositionHistory] = useState<[number, number][]>([]);
   const [mapReady, setMapReady] = useState(false);
   const [speedTier, setSpeedTier] = useState<SpeedTier>('city');
+  // Se incrementa para forzar un reintento del dibujado de la ruta cuando el
+  // estilo no estaba listo la primera vez (ver el efecto de la línea de ruta).
+  const [styleRetryTick, setStyleRetryTick] = useState(0);
 
   // The marker position is driven by real GPS (rawUserLocation) by default.
   // simulatedPosition only takes over once the user explicitly starts driving
@@ -479,7 +482,15 @@ const MapView = ({
   useEffect(() => {
     if (!map.current || !mapReady) return;
     const m = map.current;
-    if (!m.isStyleLoaded()) return;
+    if (!m.isStyleLoaded()) {
+      // El estilo puede estar recargándose justo cuando llega una ruta
+      // nueva (p. ej. tras un cambio de modo) — antes esto se abandonaba
+      // en silencio y la ruta se quedaba sin dibujar hasta el próximo
+      // recálculo, que puede tardar hasta 18s o no llegar. En vez de eso,
+      // se reintenta en cuanto el estilo termine de cargar.
+      m.once('idle', () => { setStyleRetryTick(t => t + 1); });
+      return;
+    }
 
     if (!showRoute) {
       if (m.getLayer(LYR_ROUTE)) m.removeLayer(LYR_ROUTE);
@@ -499,24 +510,33 @@ const MapView = ({
 
     // Colour the route by real-time congestion (verde / ámbar / rojo)
     const data = toCongestionGeoJSON(route.coordinates, route.congestion);
-    const src = m.getSource(SRC_ROUTE) as mapboxgl.GeoJSONSource | undefined;
-    if (src) {
-      src.setData(data);
-    } else {
-      m.addSource(SRC_ROUTE, { type: 'geojson', data });
-      m.addLayer({
-        id: LYR_ROUTE,
-        type: 'line',
-        source: SRC_ROUTE,
-        layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: {
-          'line-color': CONGESTION_COLOR_EXPR,
-          'line-width': 6,
-          'line-opacity': 0.95,
-        },
-      });
+    try {
+      const src = m.getSource(SRC_ROUTE) as mapboxgl.GeoJSONSource | undefined;
+      if (src) {
+        src.setData(data);
+      } else {
+        m.addSource(SRC_ROUTE, { type: 'geojson', data });
+        m.addLayer({
+          id: LYR_ROUTE,
+          type: 'line',
+          source: SRC_ROUTE,
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: {
+            'line-color': CONGESTION_COLOR_EXPR,
+            'line-width': 6,
+            'line-opacity': 0.95,
+          },
+        });
+      }
+    } catch (err) {
+      // No se deja morir en silencio: si Mapbox rechaza el source/layer
+      // (p. ej. un ID que quedó a medias de un ciclo anterior), se limpia
+      // y se deja constancia en consola para poder diagnosticarlo.
+      console.error('MapView: fallo al dibujar la ruta', err);
+      if (m.getLayer(LYR_ROUTE)) m.removeLayer(LYR_ROUTE);
+      if (m.getSource(SRC_ROUTE)) m.removeSource(SRC_ROUTE);
     }
-  }, [route, showRoute, mapReady]);
+  }, [route, showRoute, mapReady, styleRetryTick]);
 
   // ── Walking route (passenger → meeting point) ─────────────────────────────
   useEffect(() => {
