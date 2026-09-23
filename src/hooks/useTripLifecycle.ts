@@ -147,10 +147,10 @@ export function useTripLifecycle({
 
         setMeetingPoint(mp);
         addMeetingPointWaypoints(mp, dropoff);
-        toast({ title: '¡Viaje aceptado!', description: 'Dirígete al punto de recogida.' });
+        toast({ title: '¡Viaje aceptado!', description: 'Dirígete al punto de recogida.', duration: 1800 });
       } else {
         addPassengerWaypoints(pickup, dropoff);
-        toast({ title: '¡Viaje aceptado!', description: 'Dirígete a recoger al pasajero.' });
+        toast({ title: '¡Viaje aceptado!', description: 'Dirígete a recoger al pasajero.', duration: 1800 });
       }
 
       dismissSimPassenger();
@@ -171,16 +171,19 @@ export function useTripLifecycle({
         toast({
           title: '¡Viaje confirmado!',
           description: 'Camina al punto de encuentro cercano.',
+          duration: 1800,
         });
       } else if (!isDoorToDoor && !realUserLocation) {
         toast({
           title: '¡Viaje confirmado!',
           description: 'Esperando tu ubicación GPS...',
+          duration: 1800,
         });
       } else {
         toast({
           title: '¡Viaje confirmado!',
           description: 'Tu conductor viene a recogerte.',
+          duration: 1800,
         });
       }
     }
@@ -204,10 +207,10 @@ export function useTripLifecycle({
   const handlePickup = useCallback(() => {
     if (currentLeg === 'to_meeting_point') {
       confirmMeetingPointArrival();
-      toast({ title: '¡Pasajero recogido!', description: 'Continuando hacia bajada del pasajero' });
+      toast({ title: '¡Pasajero recogido!', description: 'Continuando hacia bajada del pasajero', duration: 1800 });
     } else {
       confirmPickup();
-      toast({ title: '¡Pasajero recogido!', description: 'Continuando hacia el destino' });
+      toast({ title: '¡Pasajero recogido!', description: 'Continuando hacia el destino', duration: 1800 });
     }
     setTripStatus('picked_up');
   }, [currentLeg, confirmMeetingPointArrival, confirmPickup, toast]);

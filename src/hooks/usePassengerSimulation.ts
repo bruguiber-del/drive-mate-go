@@ -17,23 +17,6 @@ export interface SimulatedPassenger {
 
 const PASSENGER_NAMES = ['María G.', 'Ana P.', 'Laura M.', 'Pablo R.', 'Carlos S.', 'Lucía T.', 'Marta V.', 'Jorge F.'];
 
-// Reference cities (Aragón + nearby) used to name nearest place for a point.
-const KNOWN_CITIES = [
-  { name: 'Huesca', lat: 42.1401, lng: -0.4087 },
-  { name: 'Zaragoza', lat: 41.6488, lng: -0.8891 },
-  { name: 'Jaca', lat: 42.5697, lng: -0.5496 },
-  { name: 'Barbastro', lat: 42.0353, lng: 0.1267 },
-  { name: 'Monzón', lat: 41.9108, lng: 0.1933 },
-  { name: 'Sabiñánigo', lat: 42.5186, lng: -0.3647 },
-  { name: 'Teruel', lat: 40.3456, lng: -1.1065 },
-  { name: 'Calatayud', lat: 41.3564, lng: -1.6432 },
-  { name: 'Fraga', lat: 41.5197, lng: 0.3467 },
-  { name: 'Lleida', lat: 41.6176, lng: 0.62 },
-  { name: 'Ayerbe', lat: 42.2789, lng: -0.6886 },
-  { name: 'Almudévar', lat: 42.0410, lng: -0.5800 },
-  { name: 'Tardienta', lat: 41.9586, lng: -0.5328 },
-];
-
 const FALLBACK_LAT = 42.1401;
 const FALLBACK_LNG = -0.4087;
 
@@ -50,16 +33,6 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
     Math.sin(dLat / 2) ** 2 +
     Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(a));
-}
-
-function nearestCityName(lat: number, lng: number): string {
-  let best = KNOWN_CITIES[0];
-  let bestD = Infinity;
-  for (const c of KNOWN_CITIES) {
-    const d = haversineKm(lat, lng, c.lat, c.lng);
-    if (d < bestD) { bestD = d; best = c; }
-  }
-  return best.name;
 }
 
 /**
@@ -183,7 +156,11 @@ function generatePassenger(
     destination: {
       lat: destPoint.lat,
       lng: destPoint.lng,
-      name: nearestCityName(destPoint.lat, destPoint.lng),
+      // Antes se etiquetaba con el pueblo de Aragón más cercano de una
+      // lista fija — con GPS real en cualquier otro sitio (p. ej. Ibiza)
+      // salía un nombre de una ciudad a cientos de km, sin relación con el
+      // mapa. Una calle genérica no miente sobre dónde está.
+      name: `Avenida ${Math.floor(randomInRange(1, 50))}`,
     },
     detourMinutes,
     pickupDistance: distM < 1000 ? `${Math.round(distM)}m` : `${(distM / 1000).toFixed(1)}km`,

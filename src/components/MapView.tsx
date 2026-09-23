@@ -381,7 +381,11 @@ const MapView = ({
         userMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: 'center' })
           .setLngLat([markerLocation[1], markerLocation[0]])
           .addTo(m);
-        m.easeTo({ center: [markerLocation[1], markerLocation[0]], zoom: 15, duration: 600 });
+        // Salto instantáneo la primera vez — antes se deslizaba con
+        // animación desde la posición guardada/por defecto hasta la
+        // ubicación real, y se notaba como un "salto" en vez de aparecer
+        // ya centrado en el sitio correcto.
+        m.jumpTo({ center: [markerLocation[1], markerLocation[0]], zoom: 15 });
       } else {
         userMarkerRef.current.setLngLat([markerLocation[1], markerLocation[0]]);
         const cur = userMarkerRef.current.getElement();

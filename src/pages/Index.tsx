@@ -30,7 +30,6 @@ import { useDriverTracking } from "@/hooks/useDriverTracking";
 import { useWaypoints } from "@/hooks/useWaypoints";
 import { useWalkingRoute } from "@/hooks/useWalkingRoute";
 import { usePassengerSimulation, type SimulatedPassenger } from "@/hooks/usePassengerSimulation";
-import { calculatePrice } from "@/lib/priceCalculator";
 // useNavigationSimulation removed: real GPS only for MVP
 import { useTripLifecycle } from "@/hooks/useTripLifecycle";
 import { useNavigationState } from "@/hooks/useNavigationState";
@@ -62,6 +61,11 @@ const Index = () => {
   const [showPreview, setShowPreview] = useState(false);
   /** Passenger the driver accepted — powers the real ActiveTripView data */
   const [acceptedPassenger, setAcceptedPassenger] = useState<SimulatedPassenger | null>(null);
+  /** Snapshot of activeTripData taken right before the trip is closed, so
+   *  RatingModal shows the real person/trip instead of placeholder data —
+   *  by the time it opens, acceptedPassenger/driverSim.currentDriver are
+   *  already cleared. */
+  const [lastTripSummary, setLastTripSummary] = useState<{ userName: string; tripInfo: string } | null>(null);
 
   // ── Vehicles ────────────────────────────────────────────────────────────────
   const vehicles = useVehicles();
@@ -133,6 +137,7 @@ const Index = () => {
         title: "Ubicación denegada",
         description: "Activa los permisos de ubicación para usar VIMATCH correctamente.",
         variant: "destructive",
+        duration: 3500,
       });
     };
     window.addEventListener("vimatch:gps-denied", handler);
@@ -292,22 +297,6 @@ const Index = () => {
   // ── Derived: real data for ActiveTripView (driver & passenger) ─────────────
   const activeTripData = useMemo(() => {
     if (trip.activeTripRole === "driver" && acceptedPassenger) {
-      const toRad = (d: number) => (d * Math.PI) / 180;
-      const R = 6371;
-      const dLat = toRad(acceptedPassenger.destination.lat - acceptedPassenger.origin.lat);
-      const dLng = toRad(acceptedPassenger.destination.lng - acceptedPassenger.origin.lng);
-      const a =
-        Math.sin(dLat / 2) ** 2 +
-        Math.cos(toRad(acceptedPassenger.origin.lat)) *
-          Math.cos(toRad(acceptedPassenger.destination.lat)) *
-          Math.sin(dLng / 2) ** 2;
-      const distanceKm = 2 * R * Math.asin(Math.sqrt(a));
-      const pricing = calculatePrice({
-        distanceKm,
-        passengerCount: 1,
-        traffic: "normal",
-        costPerKm: vehicles.activeVehicle?.costPerKm,
-      });
       return {
         otherUser: acceptedPassenger.name,
         otherUserRating: acceptedPassenger.rating,
@@ -315,7 +304,10 @@ const Index = () => {
         destination: acceptedPassenger.destination.name,
         pickupPoint: trip.meetingPoint?.name ?? acceptedPassenger.origin.name,
         eta: pickupEta ?? nav.dynamicETA?.minutes ?? 0,
-        price: pricing.driverIncome,
+        // El mismo precio que se le mostró y aceptó en MatchPopup — antes se
+        // volvía a calcular aquí con línea recta y sin desvío, dando un
+        // número distinto del que el pasajero había aceptado.
+        price: acceptedPassenger.compensation,
         acceptsPets: acceptedPassenger.acceptsPets,
         hasChildSeat: acceptedPassenger.hasChildSeat,
       };
@@ -336,12 +328,24 @@ const Index = () => {
     trip.activeTripRole,
     trip.meetingPoint,
     acceptedPassenger,
-    vehicles.activeVehicle,
     pickupEta,
     nav.dynamicETA,
     driverSim.currentDriver,
     nav.destination,
   ]);
+
+  // Guarda quién iba en el viaje justo antes de cerrarlo — acceptedPassenger
+  // y driverSim.currentDriver se limpian en el mismo instante en que
+  // showActiveTrip pasa a false, así que RatingModal ya no podría leerlos.
+  const handleTripEndWithSummary = useCallback(() => {
+    if (activeTripData) {
+      setLastTripSummary({
+        userName: activeTripData.otherUser,
+        tripInfo: `${activeTripData.origin} → ${activeTripData.destination}`,
+      });
+    }
+    trip.handleTripEnd();
+  }, [activeTripData, trip]);
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
@@ -357,6 +361,7 @@ const Index = () => {
         title: "No se pudo calcular la ruta",
         description: error,
         variant: "destructive",
+        duration: 3500,
       });
     },
     [toast],
@@ -386,6 +391,7 @@ const Index = () => {
       description: vehicles.activeVehicle
         ? `Usando ${vehicles.activeVehicle.brand} ${vehicles.activeVehicle.model} · ${vehicles.activeVehicle.licensePlate}`
         : "Navega a tu destino y aparecerán pasajeros cercanos",
+      duration: 1800,
     });
   }, [vehicles.activeVehicle, toast, driverSim]);
 
@@ -414,7 +420,7 @@ const Index = () => {
     modals.closeMatchPopup();
     dismissSimPassenger();
     if (!isDriverMode) driverSim.clearDriver();
-    toast({ title: "Solicitud rechazada", description: "Seguirás recibiendo nuevas solicitudes" });
+    toast({ title: "Solicitud rechazada", description: "Seguirás recibiendo nuevas solicitudes", duration: 1800 });
   }, [modals, dismissSimPassenger, toast, isDriverMode, driverSim]);
 
   const handlePassengerToggle = useCallback(() => {
@@ -425,6 +431,7 @@ const Index = () => {
         toast({
           title: "Modo pasajero activado",
           description: "Elige tu destino arriba y buscaremos un conductor que vaya en esa dirección",
+          duration: 1800,
         });
       } else {
         driverSim.clearDriver();
@@ -473,11 +480,11 @@ const Index = () => {
           hour: "2-digit",
           minute: "2-digit",
         });
-        toast({ title: "Viaje programado", description: `Buscaremos conductor cerca de las ${when}` });
+        toast({ title: "Viaje programado", description: `Buscaremos conductor cerca de las ${when}`, duration: 1800 });
         return;
       }
 
-      toast({ title: "Preferencias aplicadas", description: "Tus preferencias se usarán en la búsqueda" });
+      toast({ title: "Preferencias aplicadas", description: "Tus preferencias se usarán en la búsqueda", duration: 1800 });
     },
     [toast, realUserLocation, nav.destination, nav.destinationCoords],
   );
@@ -509,6 +516,7 @@ const Index = () => {
       toast({
         title: "Conductor encontrado",
         description: `${driver.name} · ${driver.vehicle.brand} ${driver.vehicle.model} · ${driver.vehicle.licensePlate}`,
+        duration: 1800,
       });
       modals.openMatchPopup();
     }, 6000);
@@ -641,7 +649,7 @@ const Index = () => {
       <AnimatePresence>
         <ActiveTripView
           isOpen={trip.showActiveTrip}
-          onClose={trip.handleTripEnd}
+          onClose={handleTripEndWithSummary}
           userRole={trip.activeTripRole}
           tripStatus={trip.tripStatus}
           onPickup={trip.handlePickup}
@@ -685,6 +693,7 @@ const Index = () => {
           toast({
             title: "Ajustes guardados",
             description: `${settings.seats} plazas, desvío máx. ${settings.maxDetour} min`,
+            duration: 1800,
           });
         }}
       />
@@ -715,10 +724,11 @@ const Index = () => {
           toast({
             title: "¡Gracias por tu valoración!",
             description: "Has obtenido un 10% de descuento en tu próximo viaje",
+            duration: 1800,
           });
         }}
-        userName="Ana M."
-        tripInfo="Huesca → Zaragoza"
+        userName={lastTripSummary?.userName ?? ""}
+        tripInfo={lastTripSummary?.tripInfo ?? ""}
       />
 
       <VehicleManager
