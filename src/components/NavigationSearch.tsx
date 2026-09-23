@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Navigation, X, Clock, Loader2, Plane, Car, Footprints, Bike } from 'lucide-react';
+import {
+  MapPin, Navigation, X, Clock, Loader2, Plane, Car, Footprints, Bike,
+  Fuel, ShoppingCart, Dumbbell, UtensilsCrossed, Coffee, ParkingCircle, Zap,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MAPBOX_TOKEN } from '@/lib/mapboxConfig';
 import { findMatchingAirport } from '@/lib/majorAirports';
@@ -23,6 +26,18 @@ const TRAVEL_MODES: { value: TravelMode; label: string; icon: typeof Car }[] = [
   { value: 'cycling', label: 'Bici', icon: Bike },
 ];
 
+/** Categorías estilo Google Maps — usan la Category Search de Mapbox
+ *  (mismo access token, sin API nueva que dar de alta). */
+const POI_CATEGORIES: { id: string; label: string; icon: typeof Fuel }[] = [
+  { id: 'gas_station', label: 'Gasolineras', icon: Fuel },
+  { id: 'supermarket', label: 'Supermercados', icon: ShoppingCart },
+  { id: 'gym', label: 'Gimnasios', icon: Dumbbell },
+  { id: 'restaurant', label: 'Restaurantes', icon: UtensilsCrossed },
+  { id: 'cafe', label: 'Cafeterías', icon: Coffee },
+  { id: 'parking_lot', label: 'Aparcamientos', icon: ParkingCircle },
+  { id: 'charging_station', label: 'Cargadores', icon: Zap },
+];
+
 interface SearchResult {
   id: string;
   /** mapbox_id de la Search Box API (necesario para /retrieve). Vacío para
@@ -35,11 +50,38 @@ interface SearchResult {
   localCoords?: { lat: number; lng: number };
 }
 
-const recentDestinations = [
-  { name: 'Zaragoza Centro', address: 'Plaza del Pilar, Zaragoza', coords: { lng: -0.8773, lat: 41.6560 }, icon: '🏛️' },
-  { name: 'Jaca', address: 'Jaca, Huesca', coords: { lng: -0.5506, lat: 42.5694 }, icon: '⛰️' },
-  { name: 'Huesca', address: 'Huesca, Aragón', coords: { lng: -0.4087, lat: 42.1401 }, icon: '🏠' },
-];
+interface RecentDestination {
+  name: string;
+  address: string;
+  coords: { lng: number; lat: number };
+}
+
+const RECENT_KEY = 'vimatch_recent_destinations';
+const MAX_RECENTS = 5;
+
+// Antes esta lista era fija (Zaragoza, Jaca, Huesca) sin importar dónde
+// buscara el usuario de verdad — se guarda en localStorage lo que realmente
+// se navega, como haría Google Maps.
+function loadRecentDestinations(): RecentDestination[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]');
+    return Array.isArray(raw) ? raw : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveRecentDestination(place: RecentDestination) {
+  try {
+    const existing = loadRecentDestinations().filter(
+      (p) => p.name !== place.name || p.coords.lat !== place.coords.lat || p.coords.lng !== place.coords.lng,
+    );
+    const updated = [place, ...existing].slice(0, MAX_RECENTS);
+    localStorage.setItem(RECENT_KEY, JSON.stringify(updated));
+  } catch {
+    /* almacenamiento no disponible — no bloquea la navegación */
+  }
+}
 
 /**
  * Categorías de "lugar importante" (infraestructura de transporte y sanitaria).
@@ -90,11 +132,19 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation, travelMod
   const [destination, setDestination] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [recentDestinations, setRecentDestinations] = useState<RecentDestination[]>([]);
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [categoryResults, setCategoryResults] = useState<SearchResult[]>([]);
+  const [isCategorySearching, setIsCategorySearching] = useState(false);
   const sessionTokenRef = useRef<string>(newSessionToken());
 
-  // Nueva sesión de autocompletado cada vez que se abre el buscador
+  // Nueva sesión de autocompletado cada vez que se abre el buscador, y
+  // refresca la lista de recientes por si se navegó desde otra pantalla.
   useEffect(() => {
-    if (isOpen) sessionTokenRef.current = newSessionToken();
+    if (isOpen) {
+      sessionTokenRef.current = newSessionToken();
+      setRecentDestinations(loadRecentDestinations());
+    }
   }, [isOpen]);
 
   useEffect(() => {
@@ -102,6 +152,9 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation, travelMod
       setSearchResults([]);
       return;
     }
+    // Escribir en el buscador cancela una categoría activa (gasolineras, etc.)
+    setActiveCategory(null);
+    setCategoryResults([]);
 
     let cancelled = false;
     const timeoutId = setTimeout(async () => {
@@ -190,7 +243,9 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation, travelMod
     // Resultado local (aeropuerto de la lista propia) — ya trae coordenadas,
     // no hace falta llamar a Mapbox para resolverlas.
     if (result.localCoords) {
-      onNavigate(result.place_name, { lng: result.localCoords.lng, lat: result.localCoords.lat }, travelMode);
+      const coords = { lng: result.localCoords.lng, lat: result.localCoords.lat };
+      saveRecentDestination({ name: result.name, address: result.place_name, coords });
+      onNavigate(result.place_name, coords, travelMode);
       setDestination('');
       onClose();
       return;
@@ -209,7 +264,9 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation, travelMod
       const data = await response.json();
       const coords = data?.features?.[0]?.geometry?.coordinates;
       if (Array.isArray(coords)) {
-        onNavigate(result.place_name, { lng: coords[0], lat: coords[1] }, travelMode);
+        const c = { lng: coords[0], lat: coords[1] };
+        saveRecentDestination({ name: result.name, address: result.place_name, coords: c });
+        onNavigate(result.place_name, c, travelMode);
         setDestination('');
         onClose();
       }
@@ -222,8 +279,67 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation, travelMod
     }
   };
 
-  const handleRecentDestination = (place: typeof recentDestinations[0]) => {
+  const handleRecentDestination = (place: RecentDestination) => {
+    saveRecentDestination(place);
     onNavigate(place.address, place.coords, travelMode);
+    onClose();
+  };
+
+  /** Busca sitios de una categoría (gasolineras, gimnasios...) cerca de ti,
+   *  como los atajos de Google Maps debajo del buscador. */
+  const handleCategoryClick = async (categoryId: string) => {
+    if (activeCategory === categoryId) {
+      setActiveCategory(null);
+      setCategoryResults([]);
+      return;
+    }
+    setDestination('');
+    setSearchResults([]);
+    setActiveCategory(categoryId);
+    setIsCategorySearching(true);
+    try {
+      const params = new URLSearchParams({
+        access_token: MAPBOX_TOKEN,
+        language: 'es',
+        limit: '10',
+      });
+      if (userLocation) {
+        params.set('proximity', `${userLocation[1]},${userLocation[0]}`);
+      }
+      const response = await fetch(
+        `https://api.mapbox.com/search/searchbox/v1/category/${categoryId}?${params.toString()}`
+      );
+      const data = await response.json();
+      const features = Array.isArray(data?.features) ? data.features : [];
+      const results: SearchResult[] = features.map((f: any, i: number) => ({
+        id: `${categoryId}-${i}`,
+        mapboxId: '',
+        name: f.properties?.name ?? 'Sin nombre',
+        place_name: [f.properties?.name, f.properties?.full_address ?? f.properties?.place_formatted]
+          .filter(Boolean)
+          .join(' · '),
+        localCoords: f.geometry?.coordinates
+          ? { lng: f.geometry.coordinates[0], lat: f.geometry.coordinates[1] }
+          : undefined,
+      })).filter((r: SearchResult) => r.localCoords);
+      setCategoryResults(results);
+    } catch (error) {
+      console.error('Category search error:', error);
+      setCategoryResults([]);
+    } finally {
+      setIsCategorySearching(false);
+    }
+  };
+
+  /** Un resultado de categoría ya trae coordenadas — mismo camino que un
+   *  aeropuerto de la lista local, sin llamar a /retrieve. */
+  const handleSelectCategoryResult = (result: SearchResult) => {
+    if (!result.localCoords) return;
+    const coords = { lng: result.localCoords.lng, lat: result.localCoords.lat };
+    saveRecentDestination({ name: result.name, address: result.place_name, coords });
+    onNavigate(result.place_name, coords, travelMode);
+    setActiveCategory(null);
+    setCategoryResults([]);
     onClose();
   };
 
@@ -294,8 +410,59 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation, travelMod
               </div>
             </div>
 
+            {/* Category shortcuts — como los atajos debajo del buscador de Google Maps */}
+            {!destination && (
+              <div className="px-4 pb-3 flex gap-2 overflow-x-auto">
+                {POI_CATEGORIES.map(({ id, label, icon: Icon }) => (
+                  <button
+                    key={id}
+                    onClick={() => handleCategoryClick(id)}
+                    className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                      activeCategory === id
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted text-muted-foreground'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4" />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Category results */}
+            {activeCategory && (
+              <div className="px-4 pb-4 overflow-auto">
+                {isCategorySearching ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                  </div>
+                ) : categoryResults.length === 0 ? (
+                  <p className="text-sm text-muted-foreground px-1 py-4 text-center">
+                    No se encontró nada de esta categoría cerca.
+                  </p>
+                ) : (
+                  <div className="glass-strong rounded-xl overflow-hidden">
+                    {categoryResults.map((result, index) => (
+                      <motion.button
+                        key={result.id}
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.05 }}
+                        onClick={() => handleSelectCategoryResult(result)}
+                        className="w-full flex items-center gap-4 p-4 hover:bg-muted/50 transition-colors border-b border-border/50 last:border-0"
+                      >
+                        <MapPin className="w-5 h-5 text-primary shrink-0" />
+                        <p className="text-left text-foreground text-sm line-clamp-2">{result.place_name}</p>
+                      </motion.button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Search Results */}
-            {searchResults.length > 0 && (
+            {!activeCategory && searchResults.length > 0 && (
               <div className="px-4 pb-4 overflow-auto">
                 <div className="glass-strong rounded-xl overflow-hidden">
                   {searchResults.map((result, index) => (
@@ -319,34 +486,40 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation, travelMod
               </div>
             )}
 
-            {/* Recent Destinations - only show when no search results */}
-            {searchResults.length === 0 && !destination && (
+            {/* Recent Destinations - only show when no search results/category active */}
+            {!activeCategory && searchResults.length === 0 && !destination && (
               <div className="flex-1 p-4 overflow-auto">
                 <div className="flex items-center gap-2 mb-3">
                   <Clock className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm font-medium text-muted-foreground">Destinos frecuentes</span>
+                  <span className="text-sm font-medium text-muted-foreground">Destinos recientes</span>
                 </div>
-                <div className="space-y-2">
-                  {recentDestinations.map((place, index) => (
-                    <motion.button
-                      key={place.name}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: index * 0.1 }}
-                      onClick={() => handleRecentDestination(place)}
-                      className="w-full flex items-center gap-4 p-4 rounded-xl hover:bg-muted transition-colors"
-                    >
-                      <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-xl">
-                        {place.icon}
-                      </div>
-                      <div className="text-left flex-1">
-                        <p className="font-medium text-foreground">{place.name}</p>
-                        <p className="text-sm text-muted-foreground">{place.address}</p>
-                      </div>
-                      <Navigation className="w-4 h-4 text-primary" />
-                    </motion.button>
-                  ))}
-                </div>
+                {recentDestinations.length === 0 ? (
+                  <p className="text-sm text-muted-foreground px-1">
+                    Los sitios a los que navegues aparecerán aquí.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {recentDestinations.map((place, index) => (
+                      <motion.button
+                        key={`${place.name}-${place.coords.lat}-${place.coords.lng}`}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.1 }}
+                        onClick={() => handleRecentDestination(place)}
+                        className="w-full flex items-center gap-4 p-4 rounded-xl hover:bg-muted transition-colors"
+                      >
+                        <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                          <MapPin className="w-4 h-4 text-primary" />
+                        </div>
+                        <div className="text-left flex-1 min-w-0">
+                          <p className="font-medium text-foreground truncate">{place.name}</p>
+                          <p className="text-sm text-muted-foreground truncate">{place.address}</p>
+                        </div>
+                        <Navigation className="w-4 h-4 text-primary shrink-0" />
+                      </motion.button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
