@@ -3,6 +3,7 @@ import { Users, PawPrint, Baby, MapPin, User, Info, Clock, Navigation2 } from 'l
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { PET_SURCHARGE, CHILD_SEAT_SURCHARGE } from '@/lib/priceCalculator';
 import {
   Drawer,
   DrawerContent,
@@ -42,18 +43,25 @@ interface PassengerSettingsSheetProps {
   onSave: (settings: PassengerSettingsData) => void;
   /** GPS real del usuario [lat, lng] — rellena "Tu ubicación" automáticamente */
   userLocation?: [number, number] | null;
+  /** Preferencias ya guardadas — sin esto, el panel se reiniciaba a los
+   *  valores por defecto cada vez que se abría. */
+  initialPreferences?: {
+    hasPet: boolean;
+    needsChildSeat: boolean;
+    doorToDoor: boolean;
+    genderPreference: 'none' | 'women' | 'men';
+  };
 }
 
-const PET_SURCHARGE = 2.00;
-const CHILD_SEAT_SURCHARGE = 1.00;
-
-const PassengerSettingsSheet = ({ isOpen, onClose, onSave, userLocation }: PassengerSettingsSheetProps) => {
+const PassengerSettingsSheet = ({ isOpen, onClose, onSave, userLocation, initialPreferences }: PassengerSettingsSheetProps) => {
   const [spacePreference, setSpacePreference] = useState<'none' | 'spacious-car' | 'spacious-front'>('none');
   const [seatsNeeded, setSeatsNeeded] = useState(1);
-  const [hasPet, setHasPet] = useState(false);
-  const [needsChildSeat, setNeedsChildSeat] = useState(false);
-  const [doorToDoor, setDoorToDoor] = useState(false);
-  const [genderPreference, setGenderPreference] = useState<'none' | 'women' | 'men'>('none');
+  const [hasPet, setHasPet] = useState(initialPreferences?.hasPet ?? false);
+  const [needsChildSeat, setNeedsChildSeat] = useState(initialPreferences?.needsChildSeat ?? false);
+  const [doorToDoor, setDoorToDoor] = useState(initialPreferences?.doorToDoor ?? false);
+  const [genderPreference, setGenderPreference] = useState<'none' | 'women' | 'men'>(
+    initialPreferences?.genderPreference ?? 'none',
+  );
 
   // ── Origen / para otra persona / programar ────────────────────────────────
   const [originText, setOriginText] = useState('');

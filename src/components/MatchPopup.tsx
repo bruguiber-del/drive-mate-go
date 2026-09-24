@@ -2,7 +2,7 @@ import { memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { User, X, Check, Star, PawPrint, Baby, MapPin, Car, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { COMMISSION } from '@/lib/priceCalculator';
+import { COMMISSION, PET_SURCHARGE, CHILD_SEAT_SURCHARGE } from '@/lib/priceCalculator';
 
 export interface MatchData {
     userName: string;
@@ -95,13 +95,13 @@ const MatchPopup = ({ isOpen, onAccept, onReject, isDriverView = true, matchData
                   {data.acceptsPets && (
                     <div className="flex items-center gap-1 px-1.5 py-0.5 bg-primary/20 rounded-full">
                       <PawPrint className="w-3 h-3 text-primary" />
-                      <span className="text-[10px] text-primary">+2€</span>
+                      <span className="text-[10px] text-primary">+{PET_SURCHARGE.toFixed(0)}€</span>
                     </div>
                   )}
                   {data.hasChildSeat && (
                     <div className="flex items-center gap-1 px-1.5 py-0.5 bg-secondary/20 rounded-full">
                       <Baby className="w-3 h-3 text-secondary" />
-                      <span className="text-[10px] text-secondary">+1€</span>
+                      <span className="text-[10px] text-secondary">+{CHILD_SEAT_SURCHARGE.toFixed(0)}€</span>
                     </div>
                   )}
                   {data.doorToDoor && (

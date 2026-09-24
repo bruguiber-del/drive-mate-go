@@ -37,6 +37,7 @@ import { useNavigationState } from "@/hooks/useNavigationState";
 import { useUIModals } from "@/hooks/useUIModals";
 import { useVehicles } from "@/hooks/useVehicles";
 import { useDriverSimulation } from "@/hooks/useDriverSimulation";
+import { DOOR_TO_DOOR_SURCHARGE } from "@/lib/priceCalculator";
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -45,7 +46,21 @@ const Index = () => {
 
   // ── Driver mode & settings ──────────────────────────────────────────────────
   const [isDriverMode, setIsDriverMode] = useState(false);
-  const [driverSettings, setDriverSettings] = useState({ seats: 3, maxDetour: 5 });
+  const [driverSettings, setDriverSettings] = useState({
+    seats: 3,
+    maxDetour: 5,
+    acceptsPets: false,
+    hasChildSeat: false,
+    doorToDoor: true,
+    genderPreference: "none" as "none" | "women" | "men",
+  });
+  /** Lo que el pasajero pidió al buscar conductor — antes se guardaba y no
+   *  filtraba nada. */
+  const [passengerPreferences, setPassengerPreferences] = useState({
+    hasPet: false,
+    needsChildSeat: false,
+    genderPreference: "none" as "none" | "women" | "men",
+  });
   const [isDoorToDoor, setIsDoorToDoor] = useState(false);
   const [isPassengerMode, setIsPassengerMode] = useState(false);
   const [realUserLocation, setRealUserLocation] = useState<[number, number] | null>(null);
@@ -115,6 +130,12 @@ const Index = () => {
     driverDestination: nav.destinationCoords,
     costPerKm: vehicles.activeVehicle?.costPerKm,
     maxDetourMinutes: driverSettings.maxDetour,
+    driverPreferences: {
+      acceptsPets: driverSettings.acceptsPets,
+      hasChildSeat: driverSettings.hasChildSeat,
+      doorToDoor: driverSettings.doorToDoor,
+      genderPreference: driverSettings.genderPreference,
+    },
   });
 
   // ── Trip lifecycle ──────────────────────────────────────────────────────────
@@ -208,7 +229,7 @@ const Index = () => {
         acceptsPets: d.acceptsPets,
         hasChildSeat: d.hasChildSeat,
         doorToDoor: isDoorToDoor,
-        doorToDoorSurcharge: isDoorToDoor ? 1.2 : 0,
+        doorToDoorSurcharge: isDoorToDoor ? DOOR_TO_DOOR_SURCHARGE : 0,
         origin: "Tu ubicación",
         destination: "Tu destino",
         vehicle: d.vehicle,
@@ -228,7 +249,7 @@ const Index = () => {
       acceptsPets: simulatedPassenger.acceptsPets,
       hasChildSeat: simulatedPassenger.hasChildSeat,
       doorToDoor: simulatedPassenger.doorToDoor,
-      doorToDoorSurcharge: simulatedPassenger.doorToDoor ? 1.2 : 0,
+      doorToDoorSurcharge: simulatedPassenger.doorToDoor ? DOOR_TO_DOOR_SURCHARGE : 0,
       tripPrice: simulatedPassenger.compensation,
       origin: simulatedPassenger.origin.name,
       destination: simulatedPassenger.destination.name,
@@ -590,6 +611,13 @@ const Index = () => {
   const handlePassengerSettingsSave = useCallback(
     async (settings: PassengerSettingsData) => {
       setIsDoorToDoor(settings.doorToDoor);
+      // Antes se guardaban en el formulario y se tiraban aquí mismo — no
+      // llegaban a filtrar con qué conductor se emparejaba.
+      setPassengerPreferences({
+        hasPet: settings.hasPet,
+        needsChildSeat: settings.needsChildSeat,
+        genderPreference: settings.genderPreference,
+      });
       setPassengerTripSetup({
         originText: settings.originText,
         isForOther: settings.isForOther,
@@ -658,7 +686,7 @@ const Index = () => {
   useEffect(() => {
     if (!driverSearchEnabled || modals.showMatchPopup || driverSim.currentDriver) return;
     const timer = setTimeout(() => {
-      const driver = driverSim.searchDriver();
+      const driver = driverSim.searchDriver(undefined, { ...passengerPreferences, doorToDoor: isDoorToDoor });
       toast({
         title: "Conductor encontrado",
         description: `${driver.name} · ${driver.vehicle.brand} ${driver.vehicle.model} · ${driver.vehicle.licensePlate}`,
@@ -667,7 +695,7 @@ const Index = () => {
       modals.openMatchPopup();
     }, 6000);
     return () => clearTimeout(timer);
-  }, [driverSearchEnabled, modals, driverSim, toast]);
+  }, [driverSearchEnabled, modals, driverSim, toast, passengerPreferences, isDoorToDoor]);
 
   const showDriverOnMap = trip.showActiveTrip && trip.activeTripRole === "passenger";
 
@@ -856,13 +884,27 @@ const Index = () => {
         onClose={modals.closePassengerSettings}
         userLocation={realUserLocation}
         onSave={handlePassengerSettingsSave}
+        initialPreferences={{
+          hasPet: passengerPreferences.hasPet,
+          needsChildSeat: passengerPreferences.needsChildSeat,
+          doorToDoor: isDoorToDoor,
+          genderPreference: passengerPreferences.genderPreference,
+        }}
       />
 
       <DriverSettingsSheet
         isOpen={modals.showDriverSettings}
         onClose={modals.closeDriverSettings}
+        initialSettings={driverSettings}
         onSave={(settings) => {
-          setDriverSettings({ seats: settings.seats, maxDetour: settings.maxDetour });
+          setDriverSettings({
+            seats: settings.seats,
+            maxDetour: settings.maxDetour,
+            acceptsPets: settings.acceptsPets,
+            hasChildSeat: settings.hasChildSeat,
+            doorToDoor: settings.doorToDoor,
+            genderPreference: settings.genderPreference,
+          });
           toast({
             title: "Ajustes guardados",
             description: `${settings.seats} plazas, desvío máx. ${settings.maxDetour} min`,

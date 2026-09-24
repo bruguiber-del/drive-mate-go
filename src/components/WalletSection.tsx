@@ -164,7 +164,7 @@ const WalletSection = ({ isOpen, onClose }: WalletSectionProps) => {
             {/* Commission Info */}
             <div className="glass rounded-xl p-4 text-center">
               <p className="text-sm text-muted-foreground">
-                Vimatch cobra un <span className="text-primary font-bold">15%</span> de comisión por viaje.
+                Vimatch cobra un <span className="text-primary font-bold">12%</span> de comisión por viaje.
                 <br />Los pagos se liberan al finalizar el viaje.
               </p>
             </div>

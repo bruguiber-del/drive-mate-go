@@ -38,7 +38,7 @@ const faqs = [
     icon: CreditCard,
     questions: [
       { q: '¿Cuándo se cobra/paga?', a: 'El pago se retiene al confirmar el viaje y se libera al conductor tras finalizar correctamente.' },
-      { q: '¿Cuál es la comisión?', a: 'Vimatch cobra un 15% de comisión por cada viaje completado.' },
+      { q: '¿Cuál es la comisión?', a: 'Vimatch cobra un 12% de comisión por cada viaje completado.' },
     ]
   },
 ];

@@ -1,7 +1,8 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { Users, Timer, PawPrint, Baby, MapPin, User, Euro, Save, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { PET_SURCHARGE, CHILD_SEAT_SURCHARGE, DOOR_TO_DOOR_SURCHARGE } from '@/lib/priceCalculator';
 import {
   Drawer,
   DrawerContent,
@@ -24,23 +25,20 @@ interface DriverSettingsSheetProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (settings: DriverSettingsData) => void;
+  /** Ajustes ya guardados — sin esto, el panel se reiniciaba a los valores
+   *  por defecto cada vez que se abría, aunque ya se hubiera guardado algo. */
+  initialSettings?: DriverSettingsData;
 }
 
-const PET_SURCHARGE = 2.00;
-const CHILD_SEAT_SURCHARGE = 1.00;
-
-const DriverSettingsSheet = ({ isOpen, onClose, onSave }: DriverSettingsSheetProps) => {
-  const [seats, setSeats] = useState(3);
-  const [maxDetour, setMaxDetour] = useState(5);
-  const [doorToDoor, setDoorToDoor] = useState(true);
-  const [acceptsPets, setAcceptsPets] = useState(false);
-  const [hasChildSeat, setHasChildSeat] = useState(false);
-  const [genderPreference, setGenderPreference] = useState<'none' | 'women' | 'men'>('none');
-
-  const estimatedDoorToDoorSurcharge = useMemo(() => {
-    const estimatedExtraKm = (maxDetour / 5) * 2;
-    return Math.max(0.50, estimatedExtraKm * 0.50);
-  }, [maxDetour]);
+const DriverSettingsSheet = ({ isOpen, onClose, onSave, initialSettings }: DriverSettingsSheetProps) => {
+  const [seats, setSeats] = useState(initialSettings?.seats ?? 3);
+  const [maxDetour, setMaxDetour] = useState(initialSettings?.maxDetour ?? 5);
+  const [doorToDoor, setDoorToDoor] = useState(initialSettings?.doorToDoor ?? true);
+  const [acceptsPets, setAcceptsPets] = useState(initialSettings?.acceptsPets ?? false);
+  const [hasChildSeat, setHasChildSeat] = useState(initialSettings?.hasChildSeat ?? false);
+  const [genderPreference, setGenderPreference] = useState<'none' | 'women' | 'men'>(
+    initialSettings?.genderPreference ?? 'none',
+  );
 
   const handleSave = useCallback(() => {
     onSave({ seats, maxDetour, doorToDoor, acceptsPets, hasChildSeat, genderPreference });
@@ -62,7 +60,7 @@ const DriverSettingsSheet = ({ isOpen, onClose, onSave }: DriverSettingsSheetPro
               <p className="text-xs text-muted-foreground">Compensación estimada por compartir gastos hoy</p>
             </div>
             <p className="text-xl font-bold text-foreground">4 - 8€ <span className="text-xs font-normal text-muted-foreground">por persona</span></p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">Después de la comisión del 15% de la app</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Después de la comisión del 12% de la app</p>
           </div>
 
           {/* Seats - Compact segmented control */}
@@ -175,7 +173,7 @@ const DriverSettingsSheet = ({ isOpen, onClose, onSave }: DriverSettingsSheetPro
             <MapPin className={cn("w-4 h-4 shrink-0", doorToDoor ? "text-success" : "text-muted-foreground")} />
             <div className="flex-1 text-left min-w-0">
               <p className="text-sm font-medium text-foreground leading-tight">Puerta a puerta</p>
-              <p className="text-[11px] text-muted-foreground">Estimado +{estimatedDoorToDoorSurcharge.toFixed(2)}€</p>
+              <p className="text-[11px] text-muted-foreground">Recargo +{DOOR_TO_DOOR_SURCHARGE.toFixed(2)}€ automático</p>
             </div>
             <div className={cn(
               "w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all",
@@ -189,7 +187,7 @@ const DriverSettingsSheet = ({ isOpen, onClose, onSave }: DriverSettingsSheetPro
             <div className="flex items-start gap-1.5 px-3 mb-2">
               <Info className="w-3 h-3 text-muted-foreground shrink-0 mt-0.5" />
               <p className="text-[10px] text-muted-foreground">
-                Se calcula automáticamente según km extra y tiempo de desvío.
+                Se suma automáticamente al precio de cada viaje con recogida puerta a puerta.
               </p>
             </div>
           )}

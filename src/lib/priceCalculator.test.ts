@@ -3,6 +3,9 @@ import {
   calculatePrice,
   TOTAL_COST_PER_KM,
   COMMISSION,
+  PET_SURCHARGE,
+  CHILD_SEAT_SURCHARGE,
+  DOOR_TO_DOOR_SURCHARGE,
 } from "./priceCalculator";
 
 describe("calculatePrice", () => {
@@ -55,5 +58,25 @@ describe("calculatePrice", () => {
     const rush = calculatePrice({ distanceKm: 40, passengerCount: 2, traffic: "rush" });
     expect(rush.trafficMultiplier).toBe(1.3);
     expect(rush.basePrice).toBeCloseTo(normal.basePrice * 1.3, 1);
+  });
+
+  it("adds real surcharges for pet, child seat and door-to-door — not just informational text", () => {
+    const base = calculatePrice({ distanceKm: 20, passengerCount: 1 });
+    const withExtras = calculatePrice({
+      distanceKm: 20,
+      passengerCount: 1,
+      hasPet: true,
+      hasChildSeat: true,
+      isDoorToDoor: true,
+    });
+    expect(withExtras.extrasSurcharge).toBe(PET_SURCHARGE + CHILD_SEAT_SURCHARGE + DOOR_TO_DOOR_SURCHARGE);
+    expect(withExtras.basePrice).toBeCloseTo(base.basePrice + withExtras.extrasSurcharge, 2);
+    // La comisión se aplica también sobre los extras, no solo sobre el trayecto.
+    expect(withExtras.passengerPrice).toBeCloseTo(withExtras.basePrice * (1 + COMMISSION), 2);
+  });
+
+  it("charges nothing extra when no extra is requested", () => {
+    const r = calculatePrice({ distanceKm: 20, passengerCount: 1, hasPet: false, hasChildSeat: false, isDoorToDoor: false });
+    expect(r.extrasSurcharge).toBe(0);
   });
 });
