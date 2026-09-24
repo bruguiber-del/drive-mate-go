@@ -1,8 +1,8 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Users, Timer, PawPrint, Baby, MapPin, User, Euro, Save, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { PET_SURCHARGE, CHILD_SEAT_SURCHARGE, DOOR_TO_DOOR_SURCHARGE } from '@/lib/priceCalculator';
+import { calculatePrice, PET_SURCHARGE, CHILD_SEAT_SURCHARGE, DOOR_TO_DOOR_SURCHARGE } from '@/lib/priceCalculator';
 import {
   Drawer,
   DrawerContent,
@@ -28,9 +28,11 @@ interface DriverSettingsSheetProps {
   /** Ajustes ya guardados — sin esto, el panel se reiniciaba a los valores
    *  por defecto cada vez que se abría, aunque ya se hubiera guardado algo. */
   initialSettings?: DriverSettingsData;
+  /** Coste/km del vehículo activo — sin esto se usa el genérico. */
+  costPerKm?: number;
 }
 
-const DriverSettingsSheet = ({ isOpen, onClose, onSave, initialSettings }: DriverSettingsSheetProps) => {
+const DriverSettingsSheet = ({ isOpen, onClose, onSave, initialSettings, costPerKm }: DriverSettingsSheetProps) => {
   const [seats, setSeats] = useState(initialSettings?.seats ?? 3);
   const [maxDetour, setMaxDetour] = useState(initialSettings?.maxDetour ?? 5);
   const [doorToDoor, setDoorToDoor] = useState(initialSettings?.doorToDoor ?? true);
@@ -44,6 +46,16 @@ const DriverSettingsSheet = ({ isOpen, onClose, onSave, initialSettings }: Drive
     onSave({ seats, maxDetour, doorToDoor, acceptsPets, hasChildSeat, genderPreference });
     onClose();
   }, [seats, maxDetour, doorToDoor, acceptsPets, hasChildSeat, genderPreference, onSave, onClose]);
+
+  // Rango real (trayecto corto ~5km / largo ~20km), con los extras que
+  // tengas marcados ya sumados — antes era un "4 - 8€" fijo sin relación
+  // con nada de lo que hubiera en este mismo panel.
+  const compensationRange = useMemo(() => {
+    const extras = { hasPet: acceptsPets, hasChildSeat, isDoorToDoor: doorToDoor };
+    const short = calculatePrice({ distanceKm: 5, passengerCount: 1, costPerKm, ...extras });
+    const long = calculatePrice({ distanceKm: 20, passengerCount: 1, costPerKm, ...extras });
+    return { low: short.driverIncome, high: long.driverIncome };
+  }, [acceptsPets, hasChildSeat, doorToDoor, costPerKm]);
 
   return (
     <Drawer open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -59,7 +71,10 @@ const DriverSettingsSheet = ({ isOpen, onClose, onSave, initialSettings }: Drive
               <Euro className="w-4 h-4 text-success" />
               <p className="text-xs text-muted-foreground">Compensación estimada por compartir gastos hoy</p>
             </div>
-            <p className="text-xl font-bold text-foreground">4 - 8€ <span className="text-xs font-normal text-muted-foreground">por persona</span></p>
+            <p className="text-xl font-bold text-foreground">
+              {compensationRange.low.toFixed(2)} - {compensationRange.high.toFixed(2)}€{' '}
+              <span className="text-xs font-normal text-muted-foreground">por persona</span>
+            </p>
             <p className="text-[10px] text-muted-foreground mt-0.5">Después de la comisión del 12% de la app</p>
           </div>
 

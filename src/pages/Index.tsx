@@ -22,6 +22,7 @@ import TripHistory from "@/components/TripHistory";
 import WalletSection from "@/components/WalletSection";
 import HelpSection from "@/components/HelpSection";
 import ActiveTripView from "@/components/ActiveTripView";
+import DropoffConfirmButtons from "@/components/DropoffConfirmButtons";
 import RatingModal from "@/components/RatingModal";
 import VehicleManager from "@/components/VehicleManager";
 
@@ -77,6 +78,12 @@ const Index = () => {
   const [showPreview, setShowPreview] = useState(false);
   /** Passenger the driver accepted — powers the real ActiveTripView data */
   const [acceptedPassenger, setAcceptedPassenger] = useState<SimulatedPassenger | null>(null);
+  /** true desde que se acepta al primer pasajero de esta sesión de conducción
+   *  hasta que se pulsa "Finalizar" — a diferencia de
+   *  multiTrip.passengers.length > 0, sigue en true aunque ya se haya
+   *  bajado al último, para que el botón de abajo pase a "Finalizar" en vez
+   *  de volver al comportamiento antiguo de un solo pasajero. */
+  const [isMultiPassengerTripActive, setIsMultiPassengerTripActive] = useState(false);
   /** Snapshot of activeTripData taken right before the trip is closed, so
    *  RatingModal shows the real person/trip instead of placeholder data —
    *  by the time it opens, acceptedPassenger/driverSim.currentDriver are
@@ -296,7 +303,7 @@ const Index = () => {
   );
 
   const multiPassengerWaypoints = useMemo((): Waypoint[] | null => {
-    if (trip.activeTripRole !== "driver" || multiTrip.passengers.length === 0) return null;
+    if (trip.activeTripRole !== "driver" || !isMultiPassengerTripActive) return null;
     const stops: Waypoint[] = multiStops.map((s, i) => ({
       id: `multi-${s.kind}-${i}-${s.passengerIds.join("-")}`,
       type: s.kind,
@@ -316,7 +323,7 @@ const Index = () => {
       });
     }
     return stops;
-  }, [trip.activeTripRole, multiTrip.passengers.length, multiStops, nav.destinationCoords]);
+  }, [trip.activeTripRole, isMultiPassengerTripActive, multiStops, nav.destinationCoords]);
 
   const effectiveWaypoints = multiPassengerWaypoints ?? routeWaypoints;
 
@@ -332,14 +339,17 @@ const Index = () => {
 
   const effectiveHasPassenger = multiPassengerWaypoints ? true : hasPassenger;
 
-  // Con varios pasajeros, "Finalizar" solo debe cerrar el viaje cuando ya no
-  // queda ninguna parada de pasajero pendiente — si queda alguna, el botón
-  // debe limitarse a confirmar la parada actual (ver ActiveTripView).
+  // Con varios pasajeros, el botón inferior solo sirve para RECOGER — las
+  // bajadas se confirman con los botones apilados a la derecha (uno por
+  // pasajero a bordo), no aquí. "Finalizar" solo aparece cuando ya no queda
+  // nadie ni por recoger ni por dejar.
   const effectiveTripStatus: "waiting" | "picked_up" | "in_progress" = multiPassengerWaypoints
-    ? effectiveCurrentTarget?.type === "pickup" ? "waiting" : "picked_up"
+    ? effectiveCurrentTarget?.type === "pickup"
+      ? "waiting"
+      : multiTrip.passengers.length === 0
+        ? "picked_up"
+        : "in_progress"
     : trip.tripStatus;
-  const hasMoreStops = !!multiPassengerWaypoints && multiStops.length > 1;
-  const nextStopActionLabel = multiStops[0] ? `Dejar a ${multiStops[0].label}` : undefined;
 
   // ── Derived: active map destination ──────────────────────────────────────
   // When a trip is active, the route's *destination* is always the final
@@ -402,6 +412,25 @@ const Index = () => {
   const displayPassenger = frontStopPassenger ?? acceptedPassenger;
   const extraPassengerCount = Math.max(0, multiTrip.passengers.length - 1);
 
+  // Con varios pasajeros a bordo, la compensación del viaje es la suma de
+  // todos, no solo la del siguiente en bajarse — antes solo se mostraba la
+  // de uno, aunque llevaras a más gente pagando cada uno lo suyo.
+  const [lastKnownTripTotal, setLastKnownTripTotal] = useState(0);
+  useEffect(() => {
+    if (multiTrip.passengers.length > 0) {
+      setLastKnownTripTotal(multiTrip.passengers.reduce((sum, p) => sum + p.passenger.compensation, 0));
+    }
+  }, [multiTrip.passengers]);
+
+  const totalTripCompensation = multiPassengerWaypoints
+    ? multiTrip.passengers.length > 0
+      ? multiTrip.passengers.reduce((sum, p) => sum + p.passenger.compensation, 0)
+      // Al bajar al último pasajero la lista queda vacía un instante antes de
+      // pulsar "Finalizar" — se mantiene el último total real en vez de caer
+      // a 0€ justo al terminar.
+      : lastKnownTripTotal
+    : (displayPassenger?.compensation ?? 0);
+
   // ── Derived: real data for ActiveTripView (driver & passenger) ─────────────
   const activeTripData = useMemo(() => {
     if (trip.activeTripRole === "driver" && displayPassenger) {
@@ -412,10 +441,9 @@ const Index = () => {
         destination: displayPassenger.destination.name,
         pickupPoint: trip.meetingPoint?.name ?? displayPassenger.origin.name,
         eta: pickupEta ?? nav.dynamicETA?.minutes ?? 0,
-        // El mismo precio que se le mostró y aceptó en MatchPopup — antes se
-        // volvía a calcular aquí con línea recta y sin desvío, dando un
-        // número distinto del que el pasajero había aceptado.
-        price: displayPassenger.compensation,
+        // Suma de todos los pasajeros a bordo — antes mostraba solo el precio
+        // de uno, aunque llevaras a varios pagando cada uno su parte.
+        price: totalTripCompensation,
         acceptsPets: displayPassenger.acceptsPets,
         hasChildSeat: displayPassenger.hasChildSeat,
       };
@@ -437,6 +465,7 @@ const Index = () => {
     trip.meetingPoint,
     displayPassenger,
     extraPassengerCount,
+    totalTripCompensation,
     pickupEta,
     nav.dynamicETA,
     driverSim.currentDriver,
@@ -456,50 +485,83 @@ const Index = () => {
     // Por si se cancela con pasajeros todavía a bordo/pendientes — no deben
     // quedar plazas fantasma ocupadas para el próximo viaje.
     multiTrip.reset();
+    setPendingDropoffKeys(new Set());
+    setIsMultiPassengerTripActive(false);
+    setLastKnownTripTotal(0);
     trip.handleTripEnd();
   }, [activeTripData, trip, multiTrip]);
 
-  /** Confirma la parada actual (recogida o bajada) de la cola multi-pasajero
-   *  y, si es una bajada, libera esa plaza al instante. */
+  /** Confirma la recogida de la parada actual — las bajadas ya no pasan por
+   *  aquí, van por los botones apilados de la derecha (uno por pasajero). */
   const handleMultiStopConfirm = useCallback(() => {
     const front = multiStops[0];
-    if (!front) return;
+    if (!front || front.kind !== "pickup") return;
     const tripId = trip.activeTripId;
 
-    if (front.kind === "pickup") {
-      multiTrip.confirmPickup(front.passengerIds);
-      if (tripId) {
-        for (const id of front.passengerIds) {
-          const tracked = multiTrip.passengers.find((p) => p.passenger.id === id);
-          if (!tracked) continue;
-          supabase
-            .from("trip_passengers")
-            .update({ status: "in_car", picked_up_at: new Date().toISOString() })
-            .eq("trip_id", tripId)
-            .eq("origin_lat", tracked.passenger.origin.lat)
-            .eq("origin_lng", tracked.passenger.origin.lng)
-            .eq("status", "waiting_pickup")
-            .then(() => {}, () => {});
-        }
-      }
-    } else {
-      multiTrip.confirmDropoff(front.passengerIds);
-      if (tripId) {
-        for (const id of front.passengerIds) {
-          const tracked = multiTrip.passengers.find((p) => p.passenger.id === id);
-          if (!tracked) continue;
-          supabase
-            .from("trip_passengers")
-            .update({ status: "dropped_off", dropped_off_at: new Date().toISOString() })
-            .eq("trip_id", tripId)
-            .eq("destination_lat", tracked.passenger.destination.lat)
-            .eq("destination_lng", tracked.passenger.destination.lng)
-            .neq("status", "dropped_off")
-            .then(() => {}, () => {});
-        }
+    multiTrip.confirmPickup(front.passengerIds);
+    if (tripId) {
+      for (const id of front.passengerIds) {
+        const tracked = multiTrip.passengers.find((p) => p.passenger.id === id);
+        if (!tracked) continue;
+        supabase
+          .from("trip_passengers")
+          .update({ status: "in_car", picked_up_at: new Date().toISOString() })
+          .eq("trip_id", tripId)
+          .eq("origin_lat", tracked.passenger.origin.lat)
+          .eq("origin_lng", tracked.passenger.origin.lng)
+          .eq("status", "waiting_pickup")
+          .then(() => {}, () => {});
       }
     }
   }, [multiStops, multiTrip, trip.activeTripId]);
+
+  // ── Botones de bajada, uno por pasajero a bordo ─────────────────────────────
+  // Al tocar uno desaparece al instante (confirmación del conductor), pero la
+  // plaza no se libera hasta un momento después — simula que el pasajero
+  // también tiene que confirmar su llegada, no solo el conductor.
+  const [pendingDropoffKeys, setPendingDropoffKeys] = useState<Set<string>>(new Set());
+
+  const dropoffButtonStops = useMemo(() => {
+    if (!multiPassengerWaypoints) return [];
+    return multiStops
+      .filter((s) => s.kind === "dropoff")
+      .map((s) => ({ key: s.passengerIds.join("-"), label: s.label, passengerIds: s.passengerIds }))
+      .filter((s) => !pendingDropoffKeys.has(s.key));
+  }, [multiPassengerWaypoints, multiStops, pendingDropoffKeys]);
+
+  const handleDropoffButtonConfirm = useCallback(
+    (stop: { key: string; label: string; passengerIds: string[] }) => {
+      setPendingDropoffKeys((prev) => new Set(prev).add(stop.key));
+      toast({ title: `Bajando a ${stop.label}...`, description: "Esperando su confirmación", duration: 1800 });
+
+      const tripId = trip.activeTripId;
+      const passengersSnapshot = multiTrip.passengers;
+      window.setTimeout(() => {
+        multiTrip.confirmDropoff(stop.passengerIds);
+        if (tripId) {
+          for (const id of stop.passengerIds) {
+            const tracked = passengersSnapshot.find((p) => p.passenger.id === id);
+            if (!tracked) continue;
+            supabase
+              .from("trip_passengers")
+              .update({ status: "dropped_off", dropped_off_at: new Date().toISOString() })
+              .eq("trip_id", tripId)
+              .eq("destination_lat", tracked.passenger.destination.lat)
+              .eq("destination_lng", tracked.passenger.destination.lng)
+              .neq("status", "dropped_off")
+              .then(() => {}, () => {});
+          }
+        }
+        setPendingDropoffKeys((prev) => {
+          const next = new Set(prev);
+          next.delete(stop.key);
+          return next;
+        });
+        toast({ title: `${stop.label} confirmó la bajada`, duration: 1800 });
+      }, 2200);
+    },
+    [multiTrip, trip.activeTripId, toast],
+  );
 
   const handleActiveTripPickupAction = useCallback(() => {
     if (multiPassengerWaypoints) {
@@ -578,6 +640,7 @@ const Index = () => {
       // Se añade a la cola real de pasajeros a bordo — puede haber ya otro
       // camino a su parada, o incluso ya recogido, sin que esto lo pise.
       multiTrip.acceptPassenger(simulatedPassenger);
+      setIsMultiPassengerTripActive(true);
     }
     trip.handleMatchAccept();
   }, [modals, trip, isDriverMode, simulatedPassenger, multiTrip]);
@@ -852,8 +915,6 @@ const Index = () => {
           userRole={trip.activeTripRole}
           tripStatus={effectiveTripStatus}
           onPickup={handleActiveTripPickupAction}
-          hasMoreStops={hasMoreStops}
-          nextStopLabel={nextStopActionLabel}
           pickupEta={pickupEta}
           dropoffEta={dropoffEta}
           driverVehicle={trip.activeTripRole === "passenger" ? driverSim.currentDriver?.vehicle : undefined}
@@ -867,6 +928,14 @@ const Index = () => {
           tripData={activeTripData}
         />
       </AnimatePresence>
+
+      {trip.showActiveTrip && trip.activeTripRole === "driver" && (
+        <DropoffConfirmButtons
+          stops={dropoffButtonStops}
+          pendingKeys={pendingDropoffKeys}
+          onConfirm={handleDropoffButtonConfirm}
+        />
+      )}
 
       {/* Modals */}
       <NavigationSearch
@@ -896,6 +965,7 @@ const Index = () => {
         isOpen={modals.showDriverSettings}
         onClose={modals.closeDriverSettings}
         initialSettings={driverSettings}
+        costPerKm={vehicles.activeVehicle?.costPerKm}
         onSave={(settings) => {
           setDriverSettings({
             seats: settings.seats,

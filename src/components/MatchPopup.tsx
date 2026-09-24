@@ -53,6 +53,15 @@ const MatchPopup = ({ isOpen, onAccept, onReject, isDriverView = true, matchData
 
   const data = matchData || defaultData;
 
+  // Suma real de los extras marcados — se usa para desglosar la
+  // compensación/el coste base, no solo para las insignias de arriba.
+  const extrasTotal =
+    (data.acceptsPets ? PET_SURCHARGE : 0) +
+    (data.hasChildSeat ? CHILD_SEAT_SURCHARGE : 0) +
+    (data.doorToDoor ? (data.doorToDoorSurcharge ?? 0) : 0);
+  const compensationWithoutExtras = data.compensation - extrasTotal;
+  const baseWithoutExtras = (data.basePrice ?? data.compensation) - extrasTotal;
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -166,18 +175,34 @@ const MatchPopup = ({ isOpen, onAccept, onReject, isDriverView = true, matchData
 
               {/* Price breakdown */}
               {isDriverView ? (
-                <div className="mb-1.5 px-2 py-0.5 rounded-md bg-muted/40 border border-border/40 flex items-center justify-between text-[9px]">
-                  <span className="text-muted-foreground">Compensación gastos</span>
-                  <span className="font-medium text-foreground">{data.compensation.toFixed(2)}€</span>
+                <div className="mb-1.5 px-2 py-1 rounded-md bg-muted/40 border border-border/40 space-y-0 text-[9px]">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Trayecto</span>
+                    <span className="text-foreground">{compensationWithoutExtras.toFixed(2)}€</span>
+                  </div>
+                  {extrasTotal > 0 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Extras (mascota/silla/puerta)</span>
+                      <span className="text-foreground">+{extrasTotal.toFixed(2)}€</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between border-t border-border/40 pt-0.5 font-bold">
+                    <span className="text-foreground">Compensación gastos</span>
+                    <span className="text-success">{data.compensation.toFixed(2)}€</span>
+                  </div>
                 </div>
               ) : (
                 <div className="mb-1.5 px-2 py-1 rounded-md bg-muted/40 border border-border/40 space-y-0 text-[10px]">
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Coste base del trayecto</span>
-                    <span className="text-foreground">
-                      {(data.basePrice ?? data.compensation).toFixed(2)}€
-                    </span>
+                    <span className="text-foreground">{baseWithoutExtras.toFixed(2)}€</span>
                   </div>
+                  {extrasTotal > 0 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Extras (mascota/silla/puerta)</span>
+                      <span className="text-foreground">+{extrasTotal.toFixed(2)}€</span>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Comisión VIMATCH (12%)</span>
                     <span className="text-foreground">
