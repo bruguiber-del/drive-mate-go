@@ -1,1 +1,6 @@
 project_id = "kjfxkyhwghtlawobbukq"
+
+# Precios de combustible son datos públicos — se puede llamar sin haber
+# iniciado sesión (la app funciona también como invitado).
+[functions.fuel-prices-along-route]
+verify_jwt = false

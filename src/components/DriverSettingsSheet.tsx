@@ -30,9 +30,12 @@ interface DriverSettingsSheetProps {
   initialSettings?: DriverSettingsData;
   /** Coste/km del vehículo activo — sin esto se usa el genérico. */
   costPerKm?: number;
+  /** Precio real detectado en las gasolineras de tu ruta ahora mismo, si hay
+   *  una activa — para que se note que el número de arriba no es fijo. */
+  fuelPriceInfo?: { pricePerLiter: number; stationCount: number } | null;
 }
 
-const DriverSettingsSheet = ({ isOpen, onClose, onSave, initialSettings, costPerKm }: DriverSettingsSheetProps) => {
+const DriverSettingsSheet = ({ isOpen, onClose, onSave, initialSettings, costPerKm, fuelPriceInfo }: DriverSettingsSheetProps) => {
   const [seats, setSeats] = useState(initialSettings?.seats ?? 3);
   const [maxDetour, setMaxDetour] = useState(initialSettings?.maxDetour ?? 5);
   const [doorToDoor, setDoorToDoor] = useState(initialSettings?.doorToDoor ?? true);
@@ -76,6 +79,12 @@ const DriverSettingsSheet = ({ isOpen, onClose, onSave, initialSettings, costPer
               <span className="text-xs font-normal text-muted-foreground">por persona</span>
             </p>
             <p className="text-[10px] text-muted-foreground mt-0.5">Después de la comisión del 12% de la app</p>
+            {fuelPriceInfo && (
+              <p className="text-[10px] text-success mt-0.5">
+                Combustible a {fuelPriceInfo.pricePerLiter.toFixed(3)}€/L — media real de {fuelPriceInfo.stationCount}{' '}
+                gasolinera{fuelPriceInfo.stationCount === 1 ? '' : 's'} en tu ruta
+              </p>
+            )}
           </div>
 
           {/* Seats - Compact segmented control */}

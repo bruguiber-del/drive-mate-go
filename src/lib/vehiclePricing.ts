@@ -39,7 +39,10 @@ export function inferVehicleCategory(model: string): VehicleCategory {
   return 'medium';
 }
 
-const FUEL_PRICE: Record<FuelType, number> = { gasoline: 1.65, diesel: 1.55, hybrid: 1.65, electric: 0 };
+// Precio de respaldo (€/L) cuando no hay ruta activa o falla la consulta en
+// vivo a las gasolineras — actualizado a precios reales de finales de 2026
+// (antes eran de hace tiempo: 1,65€/1,55€, ya muy por debajo de la realidad).
+const FUEL_PRICE: Record<FuelType, number> = { gasoline: 1.94, diesel: 1.93, hybrid: 1.94, electric: 0 };
 const MAINTENANCE = 0.10;
 
 const BASE_CONSUMPTION: Record<VehicleCategory, Record<FuelType, number>> = {
@@ -68,14 +71,18 @@ export const CATEGORY_LABELS: Record<VehicleCategory, string> = {
 export function calculateCostPerKm(
   category: VehicleCategory,
   fuelType: FuelType,
-  isVerified: boolean
+  isVerified: boolean,
+  /** €/L real de las gasolineras de la ruta, cuando se conoce — si no se
+   *  pasa, cae al precio de respaldo fijo. */
+  livePricePerLiter?: number | null,
 ): number {
   if (fuelType === 'electric' || category === 'electric') {
     const base = (isVerified ? 0.04 : 0.046) + MAINTENANCE;
     return Math.round(base * 1000) / 1000;
   }
   const consumption = BASE_CONSUMPTION[category][fuelType] * (isVerified ? 1 : 1.15);
-  const fuelCost = (consumption / 100) * FUEL_PRICE[fuelType];
+  const pricePerLiter = livePricePerLiter ?? FUEL_PRICE[fuelType];
+  const fuelCost = (consumption / 100) * pricePerLiter;
   return Math.round((fuelCost + MAINTENANCE) * 1000) / 1000;
 }
 

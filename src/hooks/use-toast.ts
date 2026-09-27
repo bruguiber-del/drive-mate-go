@@ -3,7 +3,11 @@ import { useState, useEffect, type ReactNode } from "react";
 import type { ToastActionElement, ToastProps } from "@/components/ui/toast";
 
 const TOAST_LIMIT = 1;
-const TOAST_REMOVE_DELAY = 1000000;
+// Antes eran 1.000.000 ms (16 min) — un toast ya cerrado (por tiempo o por
+// la X) se quedaba en el estado de React todo ese rato, solo invisible por
+// CSS. No bloqueaba avisos nuevos, pero sí era un resto sin sentido del
+// boilerplate original, nunca ajustado.
+const TOAST_REMOVE_DELAY = 1000;
 
 type ToasterToast = ToastProps & {
   id: string;

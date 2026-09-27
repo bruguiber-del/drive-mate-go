@@ -38,7 +38,9 @@ import { useNavigationState } from "@/hooks/useNavigationState";
 import { useUIModals } from "@/hooks/useUIModals";
 import { useVehicles } from "@/hooks/useVehicles";
 import { useDriverSimulation } from "@/hooks/useDriverSimulation";
+import { useFuelPricesAlongRoute } from "@/hooks/useFuelPricesAlongRoute";
 import { DOOR_TO_DOOR_SURCHARGE } from "@/lib/priceCalculator";
+import { calculateCostPerKm } from "@/lib/vehiclePricing";
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -129,13 +131,39 @@ const Index = () => {
   // activo, sin mirar las plazas.
   const passengerSimEnabled = isDriverMode && nav.isNavigating && multiTrip.freeSeats > 0;
 
+  // Precio medio real de combustible entre las gasolineras de la ruta actual
+  // (Ministerio, actualizado cada 5 min) — antes el coste por km del
+  // vehículo siempre usaba un precio fijo, sin importar lo que costara de
+  // verdad la gasolina/el diésel ese día en esa zona.
+  const { prices: fuelPricesAlongRoute } = useFuelPricesAlongRoute({
+    enabled: isDriverMode && nav.isNavigating,
+    routeCoordinates: nav.currentRoute?.coordinates ?? null,
+  });
+
+  const liveCostPerKm = useMemo(() => {
+    const vehicle = vehicles.activeVehicle;
+    if (!vehicle) return undefined;
+    const livePricePerLiter =
+      vehicle.fuelType === "diesel"
+        ? fuelPricesAlongRoute?.dieselA
+        : vehicle.fuelType === "gasoline" || vehicle.fuelType === "hybrid"
+          ? fuelPricesAlongRoute?.gasoline95
+          : null; // eléctrico no depende del precio de la gasolina
+    return calculateCostPerKm(
+      vehicle.category,
+      vehicle.fuelType,
+      vehicle.verificationStatus === "verified",
+      livePricePerLiter,
+    );
+  }, [vehicles.activeVehicle, fuelPricesAlongRoute]);
+
   const { currentPassenger: simulatedPassenger, dismissCurrent: dismissSimPassenger } = usePassengerSimulation({
     enabled: passengerSimEnabled && !modals.showMatchPopup,
     userLocation: realUserLocation,
     intervalMs: 12000,
     driverRoute: nav.currentRoute?.coordinates ?? null,
     driverDestination: nav.destinationCoords,
-    costPerKm: vehicles.activeVehicle?.costPerKm,
+    costPerKm: liveCostPerKm,
     maxDetourMinutes: driverSettings.maxDetour,
     driverPreferences: {
       acceptsPets: driverSettings.acceptsPets,
@@ -965,7 +993,17 @@ const Index = () => {
         isOpen={modals.showDriverSettings}
         onClose={modals.closeDriverSettings}
         initialSettings={driverSettings}
-        costPerKm={vehicles.activeVehicle?.costPerKm}
+        costPerKm={liveCostPerKm ?? vehicles.activeVehicle?.costPerKm}
+        fuelPriceInfo={(() => {
+          const vehicle = vehicles.activeVehicle;
+          if (!vehicle || !fuelPricesAlongRoute) return null;
+          const pricePerLiter =
+            vehicle.fuelType === "diesel" ? fuelPricesAlongRoute.dieselA
+            : vehicle.fuelType === "gasoline" || vehicle.fuelType === "hybrid" ? fuelPricesAlongRoute.gasoline95
+            : null;
+          if (pricePerLiter == null) return null;
+          return { pricePerLiter, stationCount: fuelPricesAlongRoute.stationCount };
+        })()}
         onSave={(settings) => {
           setDriverSettings({
             seats: settings.seats,

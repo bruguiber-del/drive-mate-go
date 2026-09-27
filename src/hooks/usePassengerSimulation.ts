@@ -169,10 +169,11 @@ function generatePassenger(
   const pickupDeviationKm = haversineKm(basePickup[0], basePickup[1], pickupLat, pickupLng);
   const dropoffDeviationKm = haversineKm(destPoint.baseLat, destPoint.baseLng, destPoint.lat, destPoint.lng);
   const routeDeviationKm = pickupDeviationKm + dropoffDeviationKm;
-  // ~150m: por debajo de eso se considera que la recogida/bajada coincide
-  // con la ruta y no hay desvío real que cobrar ni contar como tiempo extra.
-  const ON_ROUTE_THRESHOLD_KM = 0.15;
-  const detourKm = routeDeviationKm > ON_ROUTE_THRESHOLD_KM ? routeDeviationKm * 2 : 0; // ida y vuelta a la ruta
+  // El pasajero paga el desvío que causa, sea cual sea — por pequeño que
+  // sea, sigue siendo un desvío real fuera de la ruta del conductor. Antes
+  // por debajo de ~150m se consideraba "gratis", lo cual no es lo que
+  // se pidió: el desvío se cobra siempre, sin umbral mínimo.
+  const detourKm = routeDeviationKm * 2; // ida y vuelta a la ruta
   const detourMinutes = Math.ceil((detourKm / AVG_DETOUR_SPEED_KMH) * 60);
 
   // Límite duro: si el conductor puso "máx. 5 min", nunca se propone algo
@@ -188,8 +189,7 @@ function generatePassenger(
   const doorToDoor = driverPrefs?.doorToDoor ? Math.random() > 0.5 : false;
 
   // El pasajero paga los km que pasa de verdad en el coche (recogida →
-  // destino) — a menos que la recogida o la bajada no coincidan con la ruta
-  // del conductor, en cuyo caso también paga ese desvío real.
+  // destino) más el desvío real que le causa al conductor, sea cual sea.
   const billableKm = tripDistanceKm + detourKm;
   const pricing = calculatePrice({
     distanceKm: billableKm,

@@ -11,10 +11,10 @@ import {
 describe("calculatePrice", () => {
   it("applies the documented cost-sharing formula", () => {
     const r = calculatePrice({ distanceKm: 75, passengerCount: 2 });
-    expect(r.totalCost).toBe(20.25);
-    expect(r.basePrice).toBe(8.1);
-    expect(r.passengerPrice).toBe(9.07);
-    expect(r.driverTotalIncome).toBe(16.2);
+    expect(r.totalCost).toBe(16.95);
+    expect(r.basePrice).toBe(6.78);
+    expect(r.passengerPrice).toBe(7.59);
+    expect(r.driverTotalIncome).toBe(13.56);
     expect(r.trafficMultiplier).toBe(1);
   });
 

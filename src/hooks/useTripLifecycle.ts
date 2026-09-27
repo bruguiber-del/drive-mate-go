@@ -100,6 +100,12 @@ export function useTripLifecycle({
    */
   const handleMatchAccept = useCallback(async () => {
     let newTripId: string = activeTripId ?? crypto.randomUUID();
+    // Si ya había un viaje activo, este es el 2º/3º pasajero de la misma
+    // sesión — antes se repetía el mismo "¡Viaje aceptado!" en cada uno, y
+    // si se aceptaban varios seguidos rápido, el aviso se sustituía a sí
+    // mismo antes de llegar a cerrarse solo, dando la sensación de que
+    // nunca desaparecía.
+    const isFirstPassengerOfSession = !activeTripId;
 
     if (isDriverMode && simulatedPassenger) {
       // Un solo viaje (fila `trips`) por sesión de conducción, no uno por
@@ -163,10 +169,18 @@ export function useTripLifecycle({
 
         setMeetingPoint(mp);
         addMeetingPointWaypoints(mp, dropoff);
-        toast({ title: '¡Viaje aceptado!', description: 'Dirígete al punto de recogida.', duration: 1800 });
+        toast(
+          isFirstPassengerOfSession
+            ? { title: '¡Viaje aceptado!', description: 'Dirígete al punto de recogida.', duration: 1800 }
+            : { title: 'Nuevo pasajero añadido', description: simulatedPassenger.name, duration: 1800 },
+        );
       } else {
         addPassengerWaypoints(pickup, dropoff);
-        toast({ title: '¡Viaje aceptado!', description: 'Dirígete a recoger al pasajero.', duration: 1800 });
+        toast(
+          isFirstPassengerOfSession
+            ? { title: '¡Viaje aceptado!', description: 'Dirígete a recoger al pasajero.', duration: 1800 }
+            : { title: 'Nuevo pasajero añadido', description: simulatedPassenger.name, duration: 1800 },
+        );
       }
 
       dismissSimPassenger();

@@ -173,48 +173,35 @@ const MatchPopup = ({ isOpen, onAccept, onReject, isDriverView = true, matchData
                 </div>
               </div>
 
-              {/* Price breakdown */}
+              {/* Price breakdown — compacto: una línea de total y una de
+                  detalle, en vez de una fila por concepto. La comisión no se
+                  descuenta del conductor (la paga el pasajero encima), pero
+                  se deja visible aquí para que quede claro que sigue existiendo. */}
               {isDriverView ? (
-                <div className="mb-1.5 px-2 py-1 rounded-md bg-muted/40 border border-border/40 space-y-0 text-[9px]">
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Trayecto</span>
-                    <span className="text-foreground">{compensationWithoutExtras.toFixed(2)}€</span>
-                  </div>
-                  {extrasTotal > 0 && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Extras (mascota/silla/puerta)</span>
-                      <span className="text-foreground">+{extrasTotal.toFixed(2)}€</span>
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between border-t border-border/40 pt-0.5 font-bold">
+                <div className="mb-1.5 px-2 py-1 rounded-md bg-muted/40 border border-border/40 text-[9px]">
+                  <div className="flex items-center justify-between font-bold">
                     <span className="text-foreground">Compensación gastos</span>
                     <span className="text-success">{data.compensation.toFixed(2)}€</span>
                   </div>
+                  <p className="text-muted-foreground mt-0.5 leading-tight">
+                    Trayecto {compensationWithoutExtras.toFixed(2)}€
+                    {extrasTotal > 0 ? ` + extras ${extrasTotal.toFixed(2)}€` : ''}
+                    {' · '}el pasajero paga {(data.compensation * (1 + COMMISSION)).toFixed(2)}€ (incl. 12% comisión)
+                  </p>
                 </div>
               ) : (
-                <div className="mb-1.5 px-2 py-1 rounded-md bg-muted/40 border border-border/40 space-y-0 text-[10px]">
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Coste base del trayecto</span>
-                    <span className="text-foreground">{baseWithoutExtras.toFixed(2)}€</span>
-                  </div>
-                  {extrasTotal > 0 && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Extras (mascota/silla/puerta)</span>
-                      <span className="text-foreground">+{extrasTotal.toFixed(2)}€</span>
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Comisión VIMATCH (12%)</span>
-                    <span className="text-foreground">
-                      {(data.commissionAmount ?? data.compensation * COMMISSION).toFixed(2)}€
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between border-t border-border/40 pt-0.5 font-bold">
+                <div className="mb-1.5 px-2 py-1 rounded-md bg-muted/40 border border-border/40 text-[10px]">
+                  <div className="flex items-center justify-between font-bold">
                     <span className="text-foreground">Total a pagar</span>
                     <span className="text-secondary">
                       {(data.totalPrice ?? data.compensation * (1 + COMMISSION)).toFixed(2)}€
                     </span>
                   </div>
+                  <p className="text-muted-foreground mt-0.5 leading-tight">
+                    Trayecto {baseWithoutExtras.toFixed(2)}€
+                    {extrasTotal > 0 ? ` + extras ${extrasTotal.toFixed(2)}€` : ''}
+                    {' + '}comisión VIMATCH (12%) {(data.commissionAmount ?? data.compensation * COMMISSION).toFixed(2)}€
+                  </p>
                 </div>
               )}
 

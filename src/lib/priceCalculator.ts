@@ -3,9 +3,13 @@
 //   precio_por_pasajero = (coste_total / factor_ocupacion) × (1 + comision)
 
 // ── Constants (fuel + maintenance) ───────────────────────────────────────────
-export const FUEL_COST_PER_KM = 0.17;        // €/km (gasolina 1,65€, 6,5L/100km)
-export const MAINTENANCE_PER_KM = 0.10;      // €/km (ruedas, seguro, etc.)
-export const TOTAL_COST_PER_KM = FUEL_COST_PER_KM + MAINTENANCE_PER_KM; // 0.27 €/km
+// Respaldo genérico para cuando no hay un vehículo concreto (o su coste/km)
+// — un conductor real siempre tiene uno activo, así que esto rara vez se usa
+// para precios de verdad. Actualizado a precios de finales de 2026 (antes
+// asumía gasolina a 1,65€/L, ya muy por debajo de la realidad).
+export const FUEL_COST_PER_KM = 0.126;       // €/km (gasolina ~1,94€, 6,5L/100km)
+export const MAINTENANCE_PER_KM = 0.10;      // €/km (ruedas, revisiones, etc.)
+export const TOTAL_COST_PER_KM = FUEL_COST_PER_KM + MAINTENANCE_PER_KM; // ≈0,226 €/km
 export const COMMISSION = 0.12;              // 12% VIMATCH
 
 // Recargos fijos por extras — antes solo se enseñaban como texto informativo
@@ -68,10 +72,10 @@ export interface PriceBreakdown {
  * Calculate ride pricing using the VIMATCH cost-sharing formula.
  *
  * Example for 75km, 2 passengers, no detour, normal traffic:
- *   totalCost = 75 × 0.27 = 20.25€
- *   basePrice = 20.25 / 2.5 = 8.10€
- *   passengerPrice = 8.10 × 1.12 = 9.07€
- *   driverTotalIncome = 8.10 × 2 = 16.20€
+ *   totalCost = 75 × 0.226 = 16.95€
+ *   basePrice = 16.95 / 2.5 = 6.78€
+ *   passengerPrice = 6.78 × 1.12 = 7.59€
+ *   driverTotalIncome = 6.78 × 2 = 13.56€
  */
 export function calculatePrice({
   distanceKm,

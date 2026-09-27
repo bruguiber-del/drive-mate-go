@@ -42,11 +42,18 @@ describe("calculateCostPerKm", () => {
     const verified = calculateCostPerKm("medium", "gasoline", true);
     const unverified = calculateCostPerKm("medium", "gasoline", false);
     expect(unverified).toBeGreaterThan(verified);
-    expect(unverified).toBeCloseTo(verified + (6.5 * 0.15 / 100) * 1.65, 3);
+    expect(unverified).toBeCloseTo(verified + (6.5 * 0.15 / 100) * 1.94, 3);
   });
 
   it("computes the gasoline compact reference value", () => {
-    expect(calculateCostPerKm("medium", "gasoline", true)).toBeCloseTo(0.207, 3);
+    expect(calculateCostPerKm("medium", "gasoline", true)).toBeCloseTo(0.226, 3);
+  });
+
+  it("uses the live fuel price along the route when one is given, instead of the static fallback", () => {
+    const staticPrice = calculateCostPerKm("medium", "gasoline", true);
+    const withLivePrice = calculateCostPerKm("medium", "gasoline", true, 2.20);
+    expect(withLivePrice).not.toBe(staticPrice);
+    expect(withLivePrice).toBeCloseTo((6.5 / 100) * 2.20 + 0.10, 3);
   });
 
   it("uses a flat electric rate plus maintenance", () => {
