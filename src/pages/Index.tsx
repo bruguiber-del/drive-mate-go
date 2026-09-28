@@ -288,6 +288,8 @@ const Index = () => {
       tripPrice: simulatedPassenger.compensation,
       origin: simulatedPassenger.origin.name,
       destination: simulatedPassenger.destination.name,
+      tripDistanceKm: simulatedPassenger.tripDistanceKm,
+      detourKm: simulatedPassenger.detourKm,
     };
   }, [simulatedPassenger, isDriverMode, isDoorToDoor, driverSim.currentDriver]);
 
@@ -954,6 +956,7 @@ const Index = () => {
           }
           onDriverArrived={trip.handlePickup}
           tripData={activeTripData}
+          compact={modals.showMatchPopup}
         />
       </AnimatePresence>
 

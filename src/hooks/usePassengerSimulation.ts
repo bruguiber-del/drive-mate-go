@@ -11,6 +11,10 @@ export interface SimulatedPassenger {
   detourMinutes: number;
   pickupDistance: string;
   compensation: number;
+  /** Km del trayecto en sí (recogida → destino), sin contar el desvío. */
+  tripDistanceKm: number;
+  /** Km de desvío real fuera de la ruta del conductor (ida y vuelta). */
+  detourKm: number;
   acceptsPets: boolean;
   hasChildSeat: boolean;
   doorToDoor: boolean;
@@ -224,6 +228,8 @@ function generatePassenger(
     detourMinutes,
     pickupDistance: distM < 1000 ? `${Math.round(distM)}m` : `${(distM / 1000).toFixed(1)}km`,
     compensation: pricing.driverIncome,
+    tripDistanceKm,
+    detourKm,
     acceptsPets,
     hasChildSeat,
     doorToDoor,

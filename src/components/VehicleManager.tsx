@@ -4,7 +4,7 @@ import { X, Plus, Car, Trash2, ShieldCheck, Camera, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Vehicle, FUEL_LABELS, CATEGORY_LABELS } from '@/lib/vehiclePricing';
+import { Vehicle, FUEL_LABELS, CATEGORY_LABELS, calculateCostPerKm } from '@/lib/vehiclePricing';
 
 interface VehicleManagerProps {
   isOpen: boolean;
@@ -170,6 +170,15 @@ const VehicleManager = ({
               {/* Vehicle list */}
               {vehicles.map(v => {
                 const selected = v.id === activeVehicleId;
+                // Recalculado en vivo con la constante de precio de combustible
+                // actual — v.costPerKm es el valor guardado en el momento en que
+                // se dio de alta o se verificó el vehículo y se queda obsoleto en
+                // cuanto ese precio de referencia cambia.
+                const liveCostPerKm = calculateCostPerKm(
+                  v.category,
+                  v.fuelType,
+                  v.verificationStatus === 'verified',
+                );
                 return (
                   <div
                     key={v.id}
@@ -196,12 +205,18 @@ const VehicleManager = ({
                           {v.year} · {v.licensePlate} · {FUEL_LABELS[v.fuelType]} · {CATEGORY_LABELS[v.category]}
                         </p>
                         <p className="text-sm font-semibold text-primary mt-1">
-                          {v.costPerKm.toFixed(3)} €/km
+                          {liveCostPerKm.toFixed(3)} €/km
                         </p>
                         {v.verificationStatus === 'verified' ? (
                           <p className="text-[11px] text-success">Datos precisos</p>
                         ) : (
                           <p className="text-[11px] text-muted-foreground">Estimación conservadora (+15%)</p>
+                        )}
+                        {isSelectMode && (
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            Precio de referencia sin ruta activa. En cada viaje se ajusta a las
+                            gasolineras reales de tu trayecto y desvío.
+                          </p>
                         )}
 
                         {!isSelectMode && (

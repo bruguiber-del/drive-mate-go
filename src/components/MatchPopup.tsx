@@ -25,6 +25,10 @@ export interface MatchData {
     basePrice?: number;
     commissionAmount?: number;
     totalPrice?: number;
+    /** Driver view only — km del trayecto en sí, sin contar el desvío. */
+    tripDistanceKm?: number;
+    /** Driver view only — km de desvío real fuera de la ruta (ida y vuelta). */
+    detourKm?: number;
 }
 
 interface MatchPopupProps {
@@ -184,7 +188,10 @@ const MatchPopup = ({ isOpen, onAccept, onReject, isDriverView = true, matchData
                     <span className="text-success">{data.compensation.toFixed(2)}€</span>
                   </div>
                   <p className="text-muted-foreground mt-0.5 leading-tight">
-                    Trayecto {compensationWithoutExtras.toFixed(2)}€
+                    Trayecto + desvío {compensationWithoutExtras.toFixed(2)}€
+                    {data.tripDistanceKm != null && data.detourKm != null
+                      ? ` (${data.tripDistanceKm.toFixed(1)}km + ${data.detourKm.toFixed(1)}km desvío)`
+                      : ''}
                     {extrasTotal > 0 ? ` + extras ${extrasTotal.toFixed(2)}€` : ''}
                     {' · '}el pasajero paga {(data.compensation * (1 + COMMISSION)).toFixed(2)}€ (incl. 12% comisión)
                   </p>
