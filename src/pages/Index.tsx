@@ -22,7 +22,7 @@ import TripHistory from "@/components/TripHistory";
 import WalletSection from "@/components/WalletSection";
 import HelpSection from "@/components/HelpSection";
 import ActiveTripView from "@/components/ActiveTripView";
-import DropoffConfirmButtons from "@/components/DropoffConfirmButtons";
+import StopConfirmButtons from "@/components/StopConfirmButtons";
 import RatingModal from "@/components/RatingModal";
 import VehicleManager from "@/components/VehicleManager";
 
@@ -545,22 +545,58 @@ const Index = () => {
     }
   }, [multiStops, multiTrip, trip.activeTripId]);
 
-  // ── Botones de bajada, uno por pasajero a bordo ─────────────────────────────
-  // Al tocar uno desaparece al instante (confirmación del conductor), pero la
-  // plaza no se libera hasta un momento después — simula que el pasajero
-  // también tiene que confirmar su llegada, no solo el conductor.
+  // ── Botones de parada, uno por recogida/bajada pendiente ────────────────────
+  // Al tocar una bajada desaparece al instante (confirmación del conductor),
+  // pero la plaza no se libera hasta un momento después — simula que el
+  // pasajero también tiene que confirmar su llegada, no solo el conductor.
   const [pendingDropoffKeys, setPendingDropoffKeys] = useState<Set<string>>(new Set());
 
+  // Como mucho una parada de recogida a la vez: la siguiente parada física
+  // de la ruta, si es una recogida — antes esta acción vivía en un botón
+  // grande aparte en la tarjeta de abajo; ahora es una chapa más en la
+  // misma columna que las bajadas, para no tener dos sitios distintos con
+  // la misma responsabilidad.
+  const pickupButtonStop = useMemo(() => {
+    if (!multiPassengerWaypoints) return null;
+    const front = multiStops[0];
+    if (!front || front.kind !== "pickup") return null;
+    return {
+      key: `pickup-${front.passengerIds.join("-")}`,
+      label: front.label,
+      passengerIds: front.passengerIds,
+      kind: "pickup" as const,
+    };
+  }, [multiPassengerWaypoints, multiStops]);
+
+  // Antes incluía una parada de bajada para CUALQUIER pasajero trackeado,
+  // incluso los que todavía no se habían recogido — por eso el mismo
+  // nombre podía salir a la vez en la tarjeta de recogida y en la columna
+  // de bajada. Ahora solo entran los que de verdad están ya en el coche.
   const dropoffButtonStops = useMemo(() => {
     if (!multiPassengerWaypoints) return [];
+    const inCarIds = new Set(
+      multiTrip.passengers.filter((p) => p.status === "in_car").map((p) => p.passenger.id),
+    );
     return multiStops
-      .filter((s) => s.kind === "dropoff")
-      .map((s) => ({ key: s.passengerIds.join("-"), label: s.label, passengerIds: s.passengerIds }))
+      .filter((s) => s.kind === "dropoff" && s.passengerIds.every((id) => inCarIds.has(id)))
+      .map((s) => ({ key: s.passengerIds.join("-"), label: s.label, passengerIds: s.passengerIds, kind: "dropoff" as const }))
       .filter((s) => !pendingDropoffKeys.has(s.key));
-  }, [multiPassengerWaypoints, multiStops, pendingDropoffKeys]);
+  }, [multiPassengerWaypoints, multiStops, multiTrip.passengers, pendingDropoffKeys]);
 
-  const handleDropoffButtonConfirm = useCallback(
-    (stop: { key: string; label: string; passengerIds: string[] }) => {
+  // La recogida pendiente (si hay) va la primera — es la parada física más
+  // próxima — y detrás las bajadas, que se pueden confirmar en cualquier
+  // orden una vez a bordo.
+  const stopButtons = useMemo(
+    () => (pickupButtonStop ? [pickupButtonStop, ...dropoffButtonStops] : dropoffButtonStops),
+    [pickupButtonStop, dropoffButtonStops],
+  );
+
+  const handleStopButtonConfirm = useCallback(
+    (stop: { key: string; label: string; passengerIds: string[]; kind: "pickup" | "dropoff" }) => {
+      if (stop.kind === "pickup") {
+        handleMultiStopConfirm();
+        return;
+      }
       setPendingDropoffKeys((prev) => new Set(prev).add(stop.key));
       toast({ title: `Bajando a ${stop.label}...`, description: "Esperando su confirmación", duration: 1800 });
 
@@ -590,7 +626,7 @@ const Index = () => {
         toast({ title: `${stop.label} confirmó la bajada`, duration: 1800 });
       }, 2200);
     },
-    [multiTrip, trip.activeTripId, toast],
+    [handleMultiStopConfirm, multiTrip, trip.activeTripId, toast],
   );
 
   const handleActiveTripPickupAction = useCallback(() => {
@@ -957,14 +993,15 @@ const Index = () => {
           onDriverArrived={trip.handlePickup}
           tripData={activeTripData}
           compact={modals.showMatchPopup}
+          hasMoreStops={multiStops.length > 0}
         />
       </AnimatePresence>
 
       {trip.showActiveTrip && trip.activeTripRole === "driver" && (
-        <DropoffConfirmButtons
-          stops={dropoffButtonStops}
+        <StopConfirmButtons
+          stops={stopButtons}
           pendingKeys={pendingDropoffKeys}
-          onConfirm={handleDropoffButtonConfirm}
+          onConfirm={handleStopButtonConfirm}
         />
       )}
 

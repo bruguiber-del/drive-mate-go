@@ -22,12 +22,12 @@ interface ActiveTripViewProps {
   walkingMinutes?: number;
   /** Passenger view — called when confirming the driver has arrived */
   onDriverArrived?: () => void;
-  /** Driver view, varios pasajeros: true cuando, tras esta parada, quedan
-   *  más recogidas/bajadas pendientes — el botón pasa a confirmar la
-   *  siguiente parada en vez de cerrar el viaje entero. */
+  /** Driver view: true mientras queden recogidas/bajadas pendientes de
+   *  algún pasajero — esas acciones se confirman con las chapas del
+   *  lateral derecho (StopConfirmButtons), no desde esta tarjeta, así que
+   *  aquí se ocultan el punto de recogida y el botón de acción principal
+   *  para no duplicarlos. "Cancelar" sigue disponible siempre. */
   hasMoreStops?: boolean;
-  /** Texto del botón cuando hasMoreStops es true (p. ej. "Recoger a Ana"). */
-  nextStopLabel?: string;
   /** true cuando el MatchPopup también está abierto encima (nueva solicitud
    *  mientras ya hay un viaje en curso) — antes ambos se anclaban a bottom-0
    *  y el popup tapaba toda esta tarjeta salvo la cabecera. En compacto se
@@ -47,7 +47,7 @@ interface ActiveTripViewProps {
   };
 }
 
-const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onPickup, isTrackingActive = true, pickupEta, dropoffEta, driverVehicle, driverEta, walkingMinutes, onDriverArrived, hasMoreStops = false, nextStopLabel, tripData, compact = false }: ActiveTripViewProps) => {
+const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onPickup, isTrackingActive = true, pickupEta, dropoffEta, driverVehicle, driverEta, walkingMinutes, onDriverArrived, hasMoreStops = false, tripData, compact = false }: ActiveTripViewProps) => {
   const defaultData = {
     otherUser: userRole === 'driver' ? 'Ana M.' : 'Carlos G.',
     otherUserRating: 4.8,
@@ -103,7 +103,7 @@ const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onP
     // Only the inner card re-enables pointer events. Anclada solo a la
     // esquina inferior IZQUIERDA (no left-0 right-0) y con ancho acotado —
     // antes ocupaba todo el ancho y tapaba las chapas de parada del lateral
-    // derecho (DropoffConfirmButtons) cuando había varios pasajeros a bordo.
+    // derecho (StopConfirmButtons) cuando había varios pasajeros a bordo.
     <motion.div
       initial={{ y: 100, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
@@ -142,26 +142,31 @@ const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onP
         <div className="p-1.5 space-y-1">
           {/* Pickup point — sin la cuenta atrás grande cuando el conductor
               ya tiene su propio desglose "hasta recogida/hasta bajada" justo
-              debajo (si no, salía el mismo número dos veces). */}
-          <div className="flex items-center gap-1.5">
-            <div className="w-4 h-4 rounded bg-success/20 flex items-center justify-center shrink-0">
-              <MapPin className="w-2.5 h-2.5 text-success" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] text-muted-foreground truncate">{data.pickupPoint}</p>
-            </div>
-            {userRole === 'passenger' && (
-              <div className="flex items-baseline gap-0.5 shrink-0">
-                <Clock className="w-2.5 h-2.5 text-primary" />
-                <span className="text-sm font-bold text-foreground">
-                  {tripStatus === 'picked_up' || tripStatus === 'in_progress'
-                    ? dropoffEta ?? data.eta
-                    : pickupEta ?? data.eta}
-                </span>
-                <span className="text-[9px] text-muted-foreground">min</span>
+              debajo (si no, salía el mismo número dos veces). Para el
+              conductor con paradas pendientes, la recogida se confirma
+              desde la chapa del lateral derecho, no aquí — mostrarla
+              también en esta fila era la misma acción por duplicado. */}
+          {!(userRole === 'driver' && hasMoreStops) && (
+            <div className="flex items-center gap-1.5">
+              <div className="w-4 h-4 rounded bg-success/20 flex items-center justify-center shrink-0">
+                <MapPin className="w-2.5 h-2.5 text-success" />
               </div>
-            )}
-          </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-muted-foreground truncate">{data.pickupPoint}</p>
+              </div>
+              {userRole === 'passenger' && (
+                <div className="flex items-baseline gap-0.5 shrink-0">
+                  <Clock className="w-2.5 h-2.5 text-primary" />
+                  <span className="text-sm font-bold text-foreground">
+                    {tripStatus === 'picked_up' || tripStatus === 'in_progress'
+                      ? dropoffEta ?? data.eta
+                      : pickupEta ?? data.eta}
+                  </span>
+                  <span className="text-[9px] text-muted-foreground">min</span>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Passenger — vehicle identification */}
           {userRole === 'passenger' && driverVehicle && (
@@ -253,7 +258,7 @@ const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onP
             >
               <X className="w-3.5 h-3.5" />
             </Button>
-            {userRole === 'driver' && tripStatus === 'waiting' && (
+            {userRole === 'driver' && tripStatus === 'waiting' && !hasMoreStops && (
               <Button variant="driver" size="sm" className="flex-1 h-7 text-[10px] px-1" onClick={onPickup}>
                 Pasajero recogido
               </Button>
@@ -261,11 +266,6 @@ const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onP
             {userRole === 'passenger' && tripStatus === 'waiting' && (
               <Button variant="passenger" size="sm" className="flex-1 h-7 text-[10px] px-1" onClick={onDriverArrived ?? onPickup}>
                 Conductor llegado
-              </Button>
-            )}
-            {userRole === 'driver' && tripStatus === 'picked_up' && hasMoreStops && (
-              <Button variant="driver" size="sm" className="flex-1 h-7 text-[10px] px-1" onClick={onPickup}>
-                {nextStopLabel ?? 'Siguiente parada'}
               </Button>
             )}
             {tripStatus === 'picked_up' && !(userRole === 'driver' && hasMoreStops) && (
