@@ -548,82 +548,96 @@ const Index = () => {
   // pasajero también tiene que confirmar su llegada, no solo el conductor.
   const [pendingDropoffKeys, setPendingDropoffKeys] = useState<Set<string>>(new Set());
 
-  // Como mucho una parada de recogida a la vez: la siguiente parada física
-  // de la ruta, si es una recogida — antes esta acción vivía en un botón
-  // grande aparte en la tarjeta de abajo; ahora es una chapa más en la
-  // misma columna que las bajadas, para no tener dos sitios distintos con
-  // la misma responsabilidad.
-  const pickupButtonStop = useMemo(() => {
-    if (!multiPassengerWaypoints) return null;
-    const front = multiStops[0];
-    if (!front || front.kind !== "pickup") return null;
-    return {
-      key: `pickup-${front.passengerIds.join("-")}`,
-      label: front.label,
-      passengerIds: front.passengerIds,
-      kind: "pickup" as const,
-    };
-  }, [multiPassengerWaypoints, multiStops]);
+  // ETA acumulado (minutos) hasta cada parada de multiStops, reutilizando
+  // los mismos legDurations de la ruta activa que ya se usaban para
+  // pickupEta/dropoffEta del objetivo actual — aquí se calcula para TODAS
+  // las paradas, no solo la siguiente, porque cada pasajero tiene su
+  // propia chapa con su propio "tiempo hasta recogerlo"/"tiempo hasta
+  // dejarlo".
+  const multiStopEtaMinutes = useMemo(() => {
+    const legs = nav.currentRoute?.legDurations ?? [];
+    const sumTo = (idx: number) => Math.ceil(legs.slice(0, idx + 1).reduce((a, b) => a + b, 0) / 60);
+    return multiStops.map((_, i) => (legs.length > i ? sumTo(i) : undefined));
+  }, [multiStops, nav.currentRoute]);
 
-  // Antes incluía una parada de bajada para CUALQUIER pasajero trackeado,
-  // incluso los que todavía no se habían recogido — por eso el mismo
-  // nombre podía salir a la vez en la tarjeta de recogida y en la columna
-  // de bajada. Ahora solo entran los que de verdad están ya en el coche.
-  const dropoffButtonStops = useMemo(() => {
+  // Una chapa por pasajero trackeado (no solo la siguiente parada): cada
+  // una lleva su propio estado — transparente mientras espera recogida,
+  // verde en cuanto sube — y su propio ETA de recogida/bajada, en vez de
+  // depender de un único botón genérico para "la siguiente parada".
+  const passengerStopPills = useMemo(() => {
     if (!multiPassengerWaypoints) return [];
-    const inCarIds = new Set(
-      multiTrip.passengers.filter((p) => p.status === "in_car").map((p) => p.passenger.id),
-    );
-    return multiStops
-      .filter((s) => s.kind === "dropoff" && s.passengerIds.every((id) => inCarIds.has(id)))
-      .map((s) => ({ key: s.passengerIds.join("-"), label: s.label, passengerIds: s.passengerIds, kind: "dropoff" as const }))
-      .filter((s) => !pendingDropoffKeys.has(s.key));
-  }, [multiPassengerWaypoints, multiStops, multiTrip.passengers, pendingDropoffKeys]);
+    // No se filtran los pendientes de confirmar bajada — se quedan en la
+    // lista mostrando el spinner (StopConfirmButtons lo hace vía
+    // pendingKeys) hasta que confirmDropoff los quita de verdad, en vez de
+    // desaparecer de golpe antes de que la animación de "esperando
+    // confirmación" llegue a verse.
+    return multiTrip.passengers.map(({ passenger, status }) => {
+        const pickupIdx = multiStops.findIndex((s) => s.kind === "pickup" && s.passengerIds.includes(passenger.id));
+        const dropoffIdx = multiStops.findIndex((s) => s.kind === "dropoff" && s.passengerIds.includes(passenger.id));
+        return {
+          key: passenger.id,
+          passengerId: passenger.id,
+          name: passenger.name,
+          status,
+          pickupEtaMin: pickupIdx >= 0 ? multiStopEtaMinutes[pickupIdx] : undefined,
+          dropoffEtaMin: dropoffIdx >= 0 ? multiStopEtaMinutes[dropoffIdx] : undefined,
+        };
+      });
+  }, [multiPassengerWaypoints, multiTrip.passengers, multiStops, multiStopEtaMinutes]);
 
-  // La recogida pendiente (si hay) va la primera — es la parada física más
-  // próxima — y detrás las bajadas, que se pueden confirmar en cualquier
-  // orden una vez a bordo.
-  const stopButtons = useMemo(
-    () => (pickupButtonStop ? [pickupButtonStop, ...dropoffButtonStops] : dropoffButtonStops),
-    [pickupButtonStop, dropoffButtonStops],
+  const confirmPickupForPassenger = useCallback(
+    (passengerId: string) => {
+      const tripId = trip.activeTripId;
+      multiTrip.confirmPickup([passengerId]);
+      if (tripId) {
+        const tracked = multiTrip.passengers.find((p) => p.passenger.id === passengerId);
+        if (tracked) {
+          supabase
+            .from("trip_passengers")
+            .update({ status: "in_car", picked_up_at: new Date().toISOString() })
+            .eq("trip_id", tripId)
+            .eq("origin_lat", tracked.passenger.origin.lat)
+            .eq("origin_lng", tracked.passenger.origin.lng)
+            .eq("status", "waiting_pickup")
+            .then(() => {}, () => {});
+        }
+      }
+    },
+    [multiTrip, trip.activeTripId],
   );
 
   const handleStopButtonConfirm = useCallback(
-    (stop: { key: string; label: string; passengerIds: string[]; kind: "pickup" | "dropoff" }) => {
-      if (stop.kind === "pickup") {
-        handleMultiStopConfirm();
+    (stop: { passengerId: string; name: string; status: "waiting_pickup" | "in_car" }) => {
+      if (stop.status === "waiting_pickup") {
+        confirmPickupForPassenger(stop.passengerId);
         return;
       }
-      setPendingDropoffKeys((prev) => new Set(prev).add(stop.key));
-      toast({ title: `Bajando a ${stop.label}...`, description: "Esperando su confirmación", duration: 1800 });
+      setPendingDropoffKeys((prev) => new Set(prev).add(stop.passengerId));
+      toast({ title: `Bajando a ${stop.name}...`, description: "Esperando su confirmación", duration: 1800 });
 
       const tripId = trip.activeTripId;
-      const passengersSnapshot = multiTrip.passengers;
+      const tracked = multiTrip.passengers.find((p) => p.passenger.id === stop.passengerId);
       window.setTimeout(() => {
-        multiTrip.confirmDropoff(stop.passengerIds);
-        if (tripId) {
-          for (const id of stop.passengerIds) {
-            const tracked = passengersSnapshot.find((p) => p.passenger.id === id);
-            if (!tracked) continue;
-            supabase
-              .from("trip_passengers")
-              .update({ status: "dropped_off", dropped_off_at: new Date().toISOString() })
-              .eq("trip_id", tripId)
-              .eq("destination_lat", tracked.passenger.destination.lat)
-              .eq("destination_lng", tracked.passenger.destination.lng)
-              .neq("status", "dropped_off")
-              .then(() => {}, () => {});
-          }
+        multiTrip.confirmDropoff([stop.passengerId]);
+        if (tripId && tracked) {
+          supabase
+            .from("trip_passengers")
+            .update({ status: "dropped_off", dropped_off_at: new Date().toISOString() })
+            .eq("trip_id", tripId)
+            .eq("destination_lat", tracked.passenger.destination.lat)
+            .eq("destination_lng", tracked.passenger.destination.lng)
+            .neq("status", "dropped_off")
+            .then(() => {}, () => {});
         }
         setPendingDropoffKeys((prev) => {
           const next = new Set(prev);
-          next.delete(stop.key);
+          next.delete(stop.passengerId);
           return next;
         });
-        toast({ title: `${stop.label} confirmó la bajada`, duration: 1800 });
+        toast({ title: `${stop.name} confirmó la bajada`, duration: 1800 });
       }, 2200);
     },
-    [handleMultiStopConfirm, multiTrip, trip.activeTripId, toast],
+    [confirmPickupForPassenger, multiTrip, trip.activeTripId, toast],
   );
 
   const handleActiveTripPickupAction = useCallback(() => {
@@ -996,7 +1010,7 @@ const Index = () => {
 
       {trip.showActiveTrip && trip.activeTripRole === "driver" && (
         <StopConfirmButtons
-          stops={stopButtons}
+          stops={passengerStopPills}
           pendingKeys={pendingDropoffKeys}
           onConfirm={handleStopButtonConfirm}
         />

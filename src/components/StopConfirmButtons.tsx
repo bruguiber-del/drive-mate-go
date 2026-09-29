@@ -2,43 +2,46 @@ import { memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, Loader2, MapPin } from 'lucide-react';
 
-export interface StopButton {
-  /** Identifica la parada de forma estable aunque cambie de posición en la lista. */
+export interface PassengerStopPill {
+  /** Id del pasajero — identifica la chapa de forma estable durante todo el
+   *  viaje, aunque cambie de estado (esperando → a bordo → bajado). */
   key: string;
-  label: string;
-  passengerIds: string[];
-  /** 'pickup' = todavía hay que recoger a este pasajero (como mucho una a
-   *  la vez: la siguiente parada física de la ruta). 'dropoff' = ya va a
-   *  bordo y hay que confirmar que se baja — puede haber varias a la vez,
-   *  en cualquier orden. */
-  kind: 'pickup' | 'dropoff';
+  passengerId: string;
+  name: string;
+  /** 'waiting_pickup' = todavía hay que recogerlo (chapa transparente).
+   *  'in_car' = ya va a bordo (chapa verde). Al confirmar la bajada, la
+   *  chapa desaparece de la lista y dejas ver la del siguiente pasajero. */
+  status: 'waiting_pickup' | 'in_car';
+  /** Minutos hasta recogerlo — solo se muestra mientras está esperando. */
+  pickupEtaMin?: number;
+  /** Minutos hasta dejarlo — se muestra siempre que se conozca. */
+  dropoffEtaMin?: number;
 }
 
 interface StopConfirmButtonsProps {
-  /** Paradas pendientes (recogida + bajada), en el orden real de la ruta —
-   *  la primera (la más próxima) va abajo del todo, las siguientes van
-   *  subiendo. */
-  stops: StopButton[];
-  /** Claves de paradas ya pulsadas, esperando la confirmación del pasajero. */
+  /** Una chapa por pasajero a bordo o pendiente de recoger — la primera
+   *  (la más próxima) va abajo del todo, las siguientes van subiendo. */
+  stops: PassengerStopPill[];
+  /** Ids de pasajero con una confirmación en curso (bajada esperando que el
+   *  pasajero también la confirme). */
   pendingKeys: Set<string>;
-  onConfirm: (stop: StopButton) => void;
+  onConfirm: (stop: PassengerStopPill) => void;
 }
 
-// Separación vertical entre botones — suficiente para no dar a dos a la vez
-// por error, y por debajo de la tarjeta del viaje activo.
-const BUTTON_SPACING_PX = 74;
-const BASE_BOTTOM_PX = 200;
+// Separación mínima pero segura: suficiente para no dar a dos chapas a la
+// vez sin querer, sin desperdiciar el espacio del mapa como antes.
+const BUTTON_SPACING_PX = 44;
+const BASE_BOTTOM_PX = 130;
 
 /**
- * Un botón por parada pendiente (recogida o bajada) apilado en el lateral
- * derecho del mapa, en el orden en que van a ocurrir de verdad — el de
- * abajo es la próxima. Antes recogida y bajada vivían en sitios separados
- * (recogida en la tarjeta grande de abajo, bajada aquí) y un pasajero
- * todavía sin recoger podía aparecer también en la lista de bajada; ahora
- * es una sola lista, distinguida por icono/color (pin de recogida vs.
- * check verde de bajada), y solo incluye pasajeros de verdad a bordo para
- * la bajada. Al confirmar uno desaparece y los demás bajan un hueco, como
- * un ascensor. Semitransparentes a propósito para no tapar el mapa.
+ * Una chapa por pasajero del viaje (no solo la "siguiente parada"), apiladas
+ * en el lateral derecho del mapa — la de abajo del todo es la más próxima.
+ * Cada una sirve para confirmar TANTO la subida como la bajada de ESE
+ * pasajero: mientras espera a que lo recojan aparece transparente con
+ * "X min · Nombre · Y min" (tiempo hasta recogerlo, tiempo hasta dejarlo);
+ * en cuanto lo recoges se pone verde y opaca y solo enseña el tiempo hasta
+ * dejarlo; al confirmar la bajada desaparece y dejas ver la chapa del
+ * siguiente pasajero que ocupe ese hueco.
  */
 const StopConfirmButtons = ({ stops, pendingKeys, onConfirm }: StopConfirmButtonsProps) => {
   if (stops.length === 0) return null;
@@ -48,32 +51,43 @@ const StopConfirmButtons = ({ stops, pendingKeys, onConfirm }: StopConfirmButton
       <AnimatePresence>
         {stops.map((stop, index) => {
           const isPending = pendingKeys.has(stop.key);
-          const isPickup = stop.kind === 'pickup';
+          const waitingPickup = stop.status === 'waiting_pickup';
           return (
             <motion.button
               key={stop.key}
               initial={{ opacity: 0, scale: 0.7, y: -index * BUTTON_SPACING_PX + 12 }}
-              animate={{ opacity: 1, scale: 1, y: -index * BUTTON_SPACING_PX }}
+              animate={{ opacity: waitingPickup ? 0.45 : 1, scale: 1, y: -index * BUTTON_SPACING_PX }}
               exit={{ opacity: 0, scale: 0.6 }}
               transition={{ type: 'spring', damping: 22, stiffness: 280 }}
               disabled={isPending}
               onClick={() => onConfirm(stop)}
-              className={`absolute right-0 bottom-0 pointer-events-auto flex items-center gap-1.5 max-w-[42vw] px-3 py-2 rounded-full backdrop-blur-md border shadow-lg text-white disabled:opacity-50 ${
-                isPickup ? 'bg-warning/55 border-warning/50' : 'bg-success/55 border-success/50'
+              className={`absolute right-0 bottom-0 pointer-events-auto flex items-center gap-1 max-w-[52vw] px-2.5 py-1.5 rounded-full backdrop-blur-md border shadow-lg text-white disabled:opacity-50 ${
+                waitingPickup ? 'bg-foreground/30 border-foreground/30' : 'bg-success/70 border-success/60'
               }`}
             >
               {isPending ? (
-                <Loader2 className="w-3.5 h-3.5 shrink-0 animate-spin" />
-              ) : isPickup ? (
-                <MapPin className="w-3.5 h-3.5 shrink-0" />
+                <Loader2 className="w-3 h-3 shrink-0 animate-spin" />
+              ) : waitingPickup ? (
+                <MapPin className="w-3 h-3 shrink-0" />
               ) : (
-                <Check className="w-3.5 h-3.5 shrink-0" />
+                <Check className="w-3 h-3 shrink-0" />
               )}
-              <span className="text-xs font-semibold truncate">{stop.label}</span>
+              <span className="text-[11px] font-semibold truncate">
+                {waitingPickup
+                  ? `${stop.pickupEtaMin ?? '–'} min · ${stop.name} · ${stop.dropoffEtaMin ?? '–'} min`
+                  : `${stop.name} · ${stop.dropoffEtaMin ?? '–'} min`}
+              </span>
             </motion.button>
           );
         })}
       </AnimatePresence>
+      {/* Explicación, debajo de la chapa más próxima (la de abajo del todo). */}
+      <p
+        className="absolute right-0 max-w-[52vw] text-right text-[9px] leading-tight text-white/70 pointer-events-none"
+        style={{ bottom: -34 }}
+      >
+        Toca la chapa de cada pasajero para confirmar su recogida o su bajada
+      </p>
     </div>
   );
 };

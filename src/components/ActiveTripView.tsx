@@ -98,6 +98,32 @@ const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onP
     );
   }
 
+  // Conductor con paradas pendientes: toda la información (nombre, ETA de
+  // recogida/bajada) ya vive en las chapas de StopConfirmButtons, una por
+  // pasajero — repetirla aquí en una tarjeta grande era exactamente la
+  // misma información dos veces. Se queda solo un botón mínimo para poder
+  // cancelar el viaje entero.
+  if (userRole === 'driver' && hasMoreStops) {
+    return (
+      <motion.div
+        initial={{ scale: 0.7, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.7, opacity: 0 }}
+        className="fixed bottom-3 left-3 z-40"
+      >
+        <Button
+          variant="destructive"
+          size="icon-sm"
+          className="h-9 w-9 rounded-full shadow-lg"
+          onClick={onClose}
+          aria-label="Cancelar viaje"
+        >
+          <X className="w-4 h-4" />
+        </Button>
+      </motion.div>
+    );
+  }
+
   return (
     // Wrapper is non-interactive so it never blocks map drag/zoom/pinch.
     // Only the inner card re-enables pointer events. Anclada solo a la
