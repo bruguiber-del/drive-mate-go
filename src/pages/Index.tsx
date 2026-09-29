@@ -566,7 +566,7 @@ const Index = () => {
     // Por si se cancela con pasajeros todavía a bordo/pendientes — no deben
     // quedar plazas fantasma ocupadas para el próximo viaje.
     multiTrip.reset();
-    setPendingDropoffKeys(new Set());
+    setPendingStopKeys(new Set());
     setIsMultiPassengerTripActive(false);
     setLastKnownTripTotal(0);
     trip.handleTripEnd();
@@ -597,10 +597,13 @@ const Index = () => {
   }, [multiStops, multiTrip, trip.activeTripId]);
 
   // ── Botones de parada, uno por recogida/bajada pendiente ────────────────────
-  // Al tocar una bajada desaparece al instante (confirmación del conductor),
-  // pero la plaza no se libera hasta un momento después — simula que el
-  // pasajero también tiene que confirmar su llegada, no solo el conductor.
-  const [pendingDropoffKeys, setPendingDropoffKeys] = useState<Set<string>>(new Set());
+  // Cubre TANTO recogida como bajada — antes solo la bajada pasaba por aquí,
+  // así que tocar una chapa "esperando recogida" no daba ningún aviso ni
+  // pausa, y un segundo toque reflejo (normal cuando no ves que haya pasado
+  // nada) caía sobre la MISMA chapa ya convertida en verde y confirmaba la
+  // bajada al instante — parecía "un toque = baja directamente" cuando en
+  // realidad eran dos toques distintos sin que el primero se notara.
+  const [pendingStopKeys, setPendingStopKeys] = useState<Set<string>>(new Set());
 
   // ETA acumulado (minutos) hasta cada parada de multiStops, reutilizando
   // los mismos legDurations de la ruta activa que ya se usaban para
@@ -639,8 +642,30 @@ const Index = () => {
       });
   }, [multiPassengerWaypoints, multiTrip.passengers, multiStops, multiStopEtaMinutes]);
 
+  // Explica el gesto de las chapas UNA sola vez, la primera vez que aparece
+  // alguna en el viaje — antes había un texto fijo pegado a la chapa que,
+  // con varias a la vez, se solapaba con ellas y salía ilegible. Un toast
+  // no ocupa espacio permanente ni puede chocar con nada.
+  const hasShownStopHintRef = useRef(false);
+  useEffect(() => {
+    if (passengerStopPills.length === 0 || hasShownStopHintRef.current) return;
+    hasShownStopHintRef.current = true;
+    toast({
+      title: "Toca cada chapa para confirmarla",
+      description: "Recogida mientras espera, bajada en cuanto ya va a bordo",
+      duration: 3500,
+    });
+  }, [passengerStopPills.length, toast]);
+
   const confirmPickupForPassenger = useCallback(
-    (passengerId: string) => {
+    (passengerId: string, name: string) => {
+      // Igual que la bajada: se marca "pendiente" un momento corto (aquí no
+      // hay espera real que simular, es solo un cortafuegos anti-doble-toque)
+      // y se avisa con un toast — antes esto era totalmente silencioso, así
+      // que no había manera de saber si el primer toque había funcionado.
+      setPendingStopKeys((prev) => new Set(prev).add(passengerId));
+      toast({ title: `Recogiendo a ${name}`, duration: 1200 });
+
       const tripId = trip.activeTripId;
       multiTrip.confirmPickup([passengerId]);
       if (tripId) {
@@ -656,17 +681,24 @@ const Index = () => {
             .then(() => {}, () => {});
         }
       }
+      window.setTimeout(() => {
+        setPendingStopKeys((prev) => {
+          const next = new Set(prev);
+          next.delete(passengerId);
+          return next;
+        });
+      }, 700);
     },
-    [multiTrip, trip.activeTripId],
+    [multiTrip, trip.activeTripId, toast],
   );
 
   const handleStopButtonConfirm = useCallback(
     (stop: { passengerId: string; name: string; status: "waiting_pickup" | "in_car" }) => {
       if (stop.status === "waiting_pickup") {
-        confirmPickupForPassenger(stop.passengerId);
+        confirmPickupForPassenger(stop.passengerId, stop.name);
         return;
       }
-      setPendingDropoffKeys((prev) => new Set(prev).add(stop.passengerId));
+      setPendingStopKeys((prev) => new Set(prev).add(stop.passengerId));
       toast({ title: `Bajando a ${stop.name}...`, description: "Esperando su confirmación", duration: 1800 });
 
       const tripId = trip.activeTripId;
@@ -683,7 +715,7 @@ const Index = () => {
             .neq("status", "dropped_off")
             .then(() => {}, () => {});
         }
-        setPendingDropoffKeys((prev) => {
+        setPendingStopKeys((prev) => {
           const next = new Set(prev);
           next.delete(stop.passengerId);
           return next;
@@ -1088,7 +1120,7 @@ const Index = () => {
       {trip.showActiveTrip && trip.activeTripRole === "driver" && (
         <StopConfirmButtons
           stops={passengerStopPills}
-          pendingKeys={pendingDropoffKeys}
+          pendingKeys={pendingStopKeys}
           onConfirm={handleStopButtonConfirm}
         />
       )}

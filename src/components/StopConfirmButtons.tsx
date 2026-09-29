@@ -81,13 +81,6 @@ const StopConfirmButtons = ({ stops, pendingKeys, onConfirm }: StopConfirmButton
           );
         })}
       </AnimatePresence>
-      {/* Explicación, debajo de la chapa más próxima (la de abajo del todo). */}
-      <p
-        className="absolute right-0 max-w-[52vw] text-right text-[9px] leading-tight text-white/70 pointer-events-none"
-        style={{ bottom: -34 }}
-      >
-        Toca la chapa de cada pasajero para confirmar su recogida o su bajada
-      </p>
     </div>
   );
 };
