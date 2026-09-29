@@ -46,7 +46,9 @@ describe('NavigationOverlays', () => {
     );
     const text = container.textContent ?? '';
     expect(text).toContain('Gira a la derecha');
-    expect(text).toContain('En 250m');
+    // La distancia es ahora el dato grande, sin el prefijo "En " (estilo
+    // Waze: se lee de un vistazo, no como parte de una frase).
+    expect(text).toContain('250m');
     expect(text).not.toContain('MATCH');
     // La versión "aviso unificado" (con la fase del viaje) no debe aparecer sin viaje activo.
     expect(text).not.toContain('Continúa a tu destino');
@@ -93,6 +95,31 @@ describe('NavigationOverlays', () => {
     // banner "solo navegando" y el "aviso unificado" a la vez).
     const occurrences = text.split('Gira a la derecha').length - 1;
     expect(occurrences).toBe(1);
+  });
+
+  it('shows the roundabout exit number as a badge on the maneuver icon', () => {
+    const roundaboutStep = {
+      instruction: 'En la rotonda, toma la 2ª salida',
+      distance: 120,
+      duration: 15,
+      maneuver: { type: 'roundabout', modifier: 'right', location: [0, 0] as [number, number], exit: 2 },
+    };
+    const { container } = render(
+      <NavigationOverlays {...baseProps} isNavigating hasStartedDriving currentStep={roundaboutStep} />,
+    );
+    const text = container.textContent ?? '';
+    expect(text).toContain('2');
+    expect(text).toContain('rotonda');
+  });
+
+  it('does not show an exit badge for a regular turn', () => {
+    const { container } = render(
+      <NavigationOverlays {...baseProps} isNavigating hasStartedDriving currentStep={currentStep} />,
+    );
+    // El badge de salida es un <span> aparte con solo el número — un turn
+    // normal no debe tener ningún elemento así.
+    const badges = Array.from(container.querySelectorAll('span')).filter((el) => /^\d+$/.test(el.textContent ?? ''));
+    expect(badges.length).toBe(0);
   });
 
   it('shows the driver status chip only outside an active trip', () => {

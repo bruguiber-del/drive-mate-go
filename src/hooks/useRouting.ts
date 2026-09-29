@@ -15,6 +15,9 @@ export interface RouteStep {
     type: string;
     modifier?: string;
     location: [number, number];
+    /** Nº de salida en una rotonda (1 = la primera), solo en maniobras
+     *  type 'roundabout'/'rotary'/'roundabout turn'. */
+    exit?: number;
   };
   voiceInstructions?: VoiceInstruction[];
 }
@@ -204,6 +207,7 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
               type: s.maneuver?.type ?? '',
               modifier: s.maneuver?.modifier,
               location: s.maneuver?.location,
+              exit: s.maneuver?.exit,
             },
             voiceInstructions: (s.voiceInstructions ?? []).map((v: any) => ({
               distanceAlongGeometry: v.distanceAlongGeometry ?? 0,
