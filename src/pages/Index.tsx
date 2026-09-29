@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo, useEffect, useRef, lazy, Suspense } from "react";
 import { AnimatePresence } from "framer-motion";
+import { X } from "lucide-react";
 import { getManeuverIcon } from "@/lib/maneuverIcons";
 import { useVoiceGuidance } from "@/hooks/useVoiceGuidance";
 import { useToast } from "@/components/ui/use-toast";
@@ -103,6 +104,38 @@ const Index = () => {
   // ── Waypoints ───────────────────────────────────────────────────────────────
   const waypoints = useWaypoints();
   const { currentLeg, currentTarget, routeWaypoints, hasPassenger, cancelTrip, setFinalDestination } = waypoints;
+
+  // ── Paradas personales (gasolinera, súper...) ───────────────────────────────
+  // Añadidas a mano desde el buscador mientras se navega — se insertan en la
+  // ruta activa justo antes del destino final (después de cualquier recogida/
+  // bajada de pasajero pendiente, para no interponerse en un compromiso ya
+  // aceptado) y desaparecen al confirmarlas o cancelarlas a mano.
+  const [extraStops, setExtraStops] = useState<Array<{ id: string; lat: number; lng: number; name: string }>>([]);
+  /** Modo del buscador de NavigationSearch: 'destination' (por defecto,
+   *  sustituye el destino) o 'stop' (añade una parada sin tocarlo). */
+  const [searchMode, setSearchMode] = useState<"destination" | "stop">("destination");
+
+  const handleOpenAddStopSearch = useCallback(() => {
+    setSearchMode("stop");
+    modals.openNavigationSearch();
+  }, [modals]);
+
+  const handleOpenDestinationSearch = useCallback(() => {
+    setSearchMode("destination");
+    modals.openNavigationSearch();
+  }, [modals]);
+
+  const handleAddStop = useCallback(
+    (name: string, coords: { lng: number; lat: number }) => {
+      setExtraStops((prev) => [...prev, { id: crypto.randomUUID(), lat: coords.lat, lng: coords.lng, name }]);
+      toast({ title: `Parada añadida: ${name}`, description: "Se suma a tu ruta actual", duration: 1800 });
+    },
+    [toast],
+  );
+
+  const handleRemoveExtraStop = useCallback((id: string) => {
+    setExtraStops((prev) => prev.filter((s) => s.id !== id));
+  }, []);
 
   // ── Cross-hook bridge: nav.onStop must call trip.handleTripEnd which is
   //    declared after nav. Use a ref to break the cycle without TDZ issues.
@@ -352,7 +385,28 @@ const Index = () => {
     return stops;
   }, [trip.activeTripRole, isMultiPassengerTripActive, multiStops, nav.destinationCoords]);
 
-  const effectiveWaypoints = multiPassengerWaypoints ?? routeWaypoints;
+  // Las paradas personales se insertan justo antes del destino final —
+  // detrás de cualquier recogida/bajada de pasajero pendiente, para no
+  // interponerse en un compromiso ya aceptado, pero antes de llegar al
+  // destino. Con eso basta para que tanto el cálculo de ruta
+  // (intermediateRouteWaypoints) como los marcadores del mapa
+  // (mapWaypointMarkers) las incluyan automáticamente, sin tocar nada más.
+  const effectiveWaypoints = useMemo(() => {
+    const base = multiPassengerWaypoints ?? routeWaypoints;
+    if (extraStops.length === 0) return base;
+    const errandWaypoints: Waypoint[] = extraStops.map((s) => ({
+      id: `errand-${s.id}`,
+      type: "errand",
+      lat: s.lat,
+      lng: s.lng,
+      name: s.name,
+      completed: false,
+    }));
+    const finalIdx = base.findIndex((w) => w.type === "final_destination");
+    return finalIdx === -1
+      ? [...base, ...errandWaypoints]
+      : [...base.slice(0, finalIdx), ...errandWaypoints, ...base.slice(finalIdx)];
+  }, [multiPassengerWaypoints, routeWaypoints, extraStops]);
 
   const effectiveCurrentTarget = multiPassengerWaypoints ? multiPassengerWaypoints[0] ?? null : currentTarget;
 
@@ -901,6 +955,7 @@ const Index = () => {
   const handleStopNavigation = useCallback(() => {
     voice.cancelSpeech();
     nav.handleStopNavigation();
+    setExtraStops([]);
   }, [voice, nav]);
 
   // ─── Render ────────────────────────────────────────────────────────────────
@@ -933,7 +988,7 @@ const Index = () => {
         {/* Top Bar */}
         <NavTopBar
           onOpenMenu={modals.openSettingsMenu}
-          onOpenSearch={modals.openNavigationSearch}
+          onOpenSearch={handleOpenDestinationSearch}
           destination={nav.destination}
           isNavigating={nav.isNavigating}
           travelMode={nav.travelMode}
@@ -942,7 +997,29 @@ const Index = () => {
           isMuted={voice.isMuted}
           onToggleMuted={voice.toggleMuted}
           onStopNavigation={handleStopNavigation}
+          onOpenAddStop={isDriverMode ? handleOpenAddStopSearch : undefined}
         />
+
+        {/* Paradas personales activas — chip por cada una con su cruz para
+            quitarla; no hace falta abrir ningún menú para gestionarlas. */}
+        {extraStops.length > 0 && (
+          // top-40, no top-16: a esa altura ya está el aviso de navegación
+          // (NavigationOverlays), que ahora es más alto por el icono grande.
+          <div className="absolute top-40 left-3 right-3 z-10 flex flex-wrap gap-1.5 pointer-events-none">
+            {extraStops.map((stop) => (
+              <button
+                key={stop.id}
+                onClick={() => handleRemoveExtraStop(stop.id)}
+                className="pointer-events-auto flex items-center gap-1 pl-2.5 pr-1.5 py-1 rounded-full text-[11px] font-medium text-white shadow-lg"
+                style={{ background: "hsl(190, 80%, 42%)" }}
+                aria-label={`Quitar parada: ${stop.name}`}
+              >
+                <span className="truncate max-w-[120px]">{stop.name}</span>
+                <X className="w-3 h-3 shrink-0" />
+              </button>
+            ))}
+          </div>
+        )}
 
         <NavigationOverlays
           isNavigating={nav.isNavigating}
@@ -1024,6 +1101,8 @@ const Index = () => {
         userLocation={realUserLocation}
         travelMode={nav.travelMode}
         onTravelModeChange={nav.setTravelMode}
+        mode={searchMode}
+        onAddStop={handleAddStop}
       />
 
 

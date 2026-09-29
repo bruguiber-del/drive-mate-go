@@ -2,7 +2,9 @@ import { useState, useCallback, useMemo } from 'react';
 
 export interface Waypoint {
   id: string;
-  type: 'pickup' | 'dropoff' | 'meeting_point' | 'final_destination';
+  /** 'errand' = parada personal del conductor (gasolinera, súper...) añadida
+   *  a mano desde el buscador — no pertenece a ningún pasajero. */
+  type: 'pickup' | 'dropoff' | 'meeting_point' | 'final_destination' | 'errand';
   lat: number;
   lng: number;
   name: string;

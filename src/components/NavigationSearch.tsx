@@ -18,6 +18,13 @@ interface NavigationSearchProps {
   /** Modo de transporte seleccionado; se conserva entre aperturas del buscador. */
   travelMode: TravelMode;
   onTravelModeChange: (mode: TravelMode) => void;
+  /** 'destination' (por defecto) sustituye el destino actual, como hasta
+   *  ahora. 'stop' añade el sitio elegido como parada intermedia de la
+   *  ruta activa (gasolinera, súper...) sin tocar el destino final — usa
+   *  onAddStop en vez de onNavigate y no muestra el selector de modo de
+   *  transporte ni los destinos recientes. */
+  mode?: 'destination' | 'stop';
+  onAddStop?: (name: string, coords: { lng: number; lat: number }) => void;
 }
 
 const TRAVEL_MODES: { value: TravelMode; label: string; icon: typeof Car }[] = [
@@ -128,7 +135,17 @@ const categoryRank = (categories: string[]): number => {
 const newSessionToken = () =>
   (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`);
 
-const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation, travelMode, onTravelModeChange }: NavigationSearchProps) => {
+const NavigationSearch = ({
+  isOpen,
+  onClose,
+  onNavigate,
+  userLocation,
+  travelMode,
+  onTravelModeChange,
+  mode = 'destination',
+  onAddStop,
+}: NavigationSearchProps) => {
+  const isStopMode = mode === 'stop';
   const [destination, setDestination] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -244,8 +261,12 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation, travelMod
     // no hace falta llamar a Mapbox para resolverlas.
     if (result.localCoords) {
       const coords = { lng: result.localCoords.lng, lat: result.localCoords.lat };
-      saveRecentDestination({ name: result.name, address: result.place_name, coords });
-      onNavigate(result.place_name, coords, travelMode);
+      if (isStopMode) {
+        onAddStop?.(result.name, coords);
+      } else {
+        saveRecentDestination({ name: result.name, address: result.place_name, coords });
+        onNavigate(result.place_name, coords, travelMode);
+      }
       setDestination('');
       onClose();
       return;
@@ -265,8 +286,12 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation, travelMod
       const coords = data?.features?.[0]?.geometry?.coordinates;
       if (Array.isArray(coords)) {
         const c = { lng: coords[0], lat: coords[1] };
-        saveRecentDestination({ name: result.name, address: result.place_name, coords: c });
-        onNavigate(result.place_name, c, travelMode);
+        if (isStopMode) {
+          onAddStop?.(result.name, c);
+        } else {
+          saveRecentDestination({ name: result.name, address: result.place_name, coords: c });
+          onNavigate(result.place_name, c, travelMode);
+        }
         setDestination('');
         onClose();
       }
@@ -336,8 +361,12 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation, travelMod
   const handleSelectCategoryResult = (result: SearchResult) => {
     if (!result.localCoords) return;
     const coords = { lng: result.localCoords.lng, lat: result.localCoords.lat };
-    saveRecentDestination({ name: result.name, address: result.place_name, coords });
-    onNavigate(result.place_name, coords, travelMode);
+    if (isStopMode) {
+      onAddStop?.(result.name, coords);
+    } else {
+      saveRecentDestination({ name: result.name, address: result.place_name, coords });
+      onNavigate(result.place_name, coords, travelMode);
+    }
     setActiveCategory(null);
     setCategoryResults([]);
     onClose();
@@ -360,27 +389,37 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation, travelMod
                 <Button variant="ghost" size="icon-sm" onClick={onClose}>
                   <X className="w-5 h-5" />
                 </Button>
-                <h2 className="text-lg font-bold text-foreground">¿A dónde quieres ir?</h2>
+                <h2 className="text-lg font-bold text-foreground">
+                  {isStopMode ? 'Añadir parada en la ruta' : '¿A dónde quieres ir?'}
+                </h2>
               </div>
+              {isStopMode && (
+                <p className="text-xs text-muted-foreground mt-1 ml-11">
+                  Se añade a tu ruta actual sin cambiar el destino final.
+                </p>
+              )}
             </div>
 
-            {/* Travel mode selector */}
-            <div className="px-4 pt-3 flex gap-2">
-              {TRAVEL_MODES.map(({ value, label, icon: Icon }) => (
-                <button
-                  key={value}
-                  onClick={() => onTravelModeChange(value)}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-medium transition-colors ${
-                    travelMode === value
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted text-muted-foreground'
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
-                  {label}
-                </button>
-              ))}
-            </div>
+            {/* Travel mode selector — no aplica al añadir una parada, la
+                ruta activa ya tiene su propio modo de transporte. */}
+            {!isStopMode && (
+              <div className="px-4 pt-3 flex gap-2">
+                {TRAVEL_MODES.map(({ value, label, icon: Icon }) => (
+                  <button
+                    key={value}
+                    onClick={() => onTravelModeChange(value)}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-medium transition-colors ${
+                      travelMode === value
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted text-muted-foreground'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4" />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* Search Input */}
             <div className="p-4">
@@ -487,7 +526,7 @@ const NavigationSearch = ({ isOpen, onClose, onNavigate, userLocation, travelMod
             )}
 
             {/* Recent Destinations - only show when no search results/category active */}
-            {!activeCategory && searchResults.length === 0 && !destination && (
+            {!isStopMode && !activeCategory && searchResults.length === 0 && !destination && (
               <div className="flex-1 p-4 overflow-auto">
                 <div className="flex items-center gap-2 mb-3">
                   <Clock className="w-4 h-4 text-muted-foreground" />

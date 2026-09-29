@@ -12,6 +12,10 @@ export const WAYPOINT_COLORS: Record<string, string> = {
   // tu propio marcador y la línea de ruta): antes compartían el mismo azul
   // y el destino final se confundía con tu punto de ubicación.
   final_destination: 'hsl(4, 86%, 58%)',
+  // 🔵 Cian — parada personal (gasolinera, súper...), un tono que no se usa
+  // en ningún otro tipo de parada para que nunca se confunda con una
+  // recogida/bajada de pasajero.
+  errand: 'hsl(190, 80%, 42%)',
 };
 
 export const WAYPOINT_LABELS: Record<string, string> = {
@@ -19,6 +23,7 @@ export const WAYPOINT_LABELS: Record<string, string> = {
   pickup: 'Parada 1 — Recogida',
   dropoff: 'Destino pasajero',
   final_destination: 'Destino',
+  errand: 'Parada',
 };
 
 export const WAYPOINT_ICONS: Record<string, string> = {
@@ -30,6 +35,10 @@ export const WAYPOINT_ICONS: Record<string, string> = {
   // Flag icon for dropoff
   dropoff: '<path d="M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6z"/>',
   final_destination: '<path d="M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6z"/>',
+  // Mismo pin genérico que meeting_point — el color cian ya lo distingue
+  // como parada personal sin arriesgar un icono nuevo mal formado.
+  errand:
+    '<path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 4.5a2.5 2.5 0 010 5 2.5 2.5 0 010-5z"/>',
 };
 
 export const buildMarkerEl = (color: string, iconPath: string, label?: string, dashed = false) => {
