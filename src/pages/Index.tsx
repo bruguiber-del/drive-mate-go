@@ -111,11 +111,20 @@ const Index = () => {
    *  bajado al último, para que el botón de abajo pase a "Finalizar" en vez
    *  de volver al comportamiento antiguo de un solo pasajero. */
   const [isMultiPassengerTripActive, setIsMultiPassengerTripActive] = useState(false);
-  /** Snapshot of activeTripData taken right before the trip is closed, so
-   *  RatingModal shows the real person/trip instead of placeholder data —
-   *  by the time it opens, acceptedPassenger/driverSim.currentDriver are
-   *  already cleared. */
-  const [lastTripSummary, setLastTripSummary] = useState<{ userName: string; tripInfo: string } | null>(null);
+  /** TODOS los pasajeros aceptados en este viaje, acumulado — a diferencia
+   *  de multiTrip.passengers, nunca se borra a uno al confirmar su bajada,
+   *  para que RatingModal pueda valorarlos a todos aunque ya se hayan
+   *  bajado del coche antes de pulsar "Finalizar". */
+  const [tripPassengerHistory, setTripPassengerHistory] = useState<SimulatedPassenger[]>([]);
+  /** Snapshot tomado justo antes de cerrar el viaje, para que RatingModal
+   *  enseñe los datos reales (todos los pasajeros + lo ahorrado) en vez de
+   *  placeholders — para entonces acceptedPassenger/driverSim.currentDriver/
+   *  multiTrip.passengers ya están vacíos. */
+  const [lastTripSummary, setLastTripSummary] = useState<{
+    tripInfo: string;
+    targets: { id: string; name: string }[];
+    totalSaved: number;
+  } | null>(null);
 
   // ── Vehicles ────────────────────────────────────────────────────────────────
   const vehicles = useVehicles();
@@ -625,15 +634,30 @@ const Index = () => {
     nav.destination,
   ]);
 
-  // Guarda quién iba en el viaje justo antes de cerrarlo — acceptedPassenger
-  // y driverSim.currentDriver se limpian en el mismo instante en que
-  // showActiveTrip pasa a false, así que RatingModal ya no podría leerlos.
+  // Guarda quién iba en el viaje justo antes de cerrarlo — acceptedPassenger,
+  // driverSim.currentDriver y multiTrip.passengers se limpian en el mismo
+  // instante en que showActiveTrip pasa a false, así que RatingModal ya no
+  // podría leerlos. Para el conductor se usa tripPassengerHistory (TODOS
+  // los aceptados, no solo los que quedan a bordo) y totalTripCompensation
+  // (que ya cae a lastKnownTripTotal cuando la lista está vacía) — antes
+  // solo se guardaba activeTripData.otherUser, que con varios pasajeros ya
+  // solo decía "Viaje completado"/"De camino a tu destino", no un nombre.
   const handleTripEndWithSummary = useCallback(() => {
-    if (activeTripData) {
+    const tripInfo = activeTripData ? `${activeTripData.origin} → ${activeTripData.destination}` : "";
+    if (trip.activeTripRole === "driver" && tripPassengerHistory.length > 0) {
       setLastTripSummary({
-        userName: activeTripData.otherUser,
-        tripInfo: `${activeTripData.origin} → ${activeTripData.destination}`,
+        tripInfo,
+        targets: tripPassengerHistory.map((p) => ({ id: p.id, name: p.name })),
+        totalSaved: totalTripCompensation,
       });
+    } else if (trip.activeTripRole === "passenger" && driverSim.currentDriver) {
+      setLastTripSummary({
+        tripInfo,
+        targets: [{ id: driverSim.currentDriver.id, name: driverSim.currentDriver.name }],
+        totalSaved: 0,
+      });
+    } else {
+      setLastTripSummary(null);
     }
     // Por si se cancela con pasajeros todavía a bordo/pendientes — no deben
     // quedar plazas fantasma ocupadas para el próximo viaje.
@@ -642,8 +666,9 @@ const Index = () => {
     setIsMultiPassengerTripActive(false);
     setLastKnownTripTotal(0);
     setHasArrivedAtFinalDestination(false);
+    setTripPassengerHistory([]);
     trip.handleTripEnd();
-  }, [activeTripData, trip, multiTrip]);
+  }, [activeTripData, trip, multiTrip, tripPassengerHistory, totalTripCompensation, driverSim.currentDriver]);
 
   /** Confirma la recogida de la parada actual — las bajadas ya no pasan por
    *  aquí, van por los botones apilados de la derecha (uno por pasajero). */
@@ -877,6 +902,9 @@ const Index = () => {
       // camino a su parada, o incluso ya recogido, sin que esto lo pise.
       multiTrip.acceptPassenger(simulatedPassenger);
       setIsMultiPassengerTripActive(true);
+      setTripPassengerHistory((prev) =>
+        prev.some((p) => p.id === simulatedPassenger.id) ? prev : [...prev, simulatedPassenger],
+      );
     }
     trip.handleMatchAccept();
   }, [modals, trip, isDriverMode, simulatedPassenger, multiTrip]);
@@ -1062,6 +1090,7 @@ const Index = () => {
     nav.handleStopNavigation();
     setExtraStops([]);
     setHasArrivedAtFinalDestination(false);
+    setTripPassengerHistory([]);
   }, [voice, nav]);
 
   // ─── Render ────────────────────────────────────────────────────────────────
@@ -1279,15 +1308,22 @@ const Index = () => {
       <RatingModal
         isOpen={trip.showRating}
         onClose={trip.closeRating}
-        onSubmit={() => {
+        onSubmit={(results) => {
+          const targets = lastTripSummary?.targets ?? [];
+          // El 10% solo se gana valorando a TODAS las personas del viaje,
+          // no con dejar a una sin valorar.
+          const allRated = targets.length > 0 && targets.every((t) => results.some((r) => r.id === t.id));
           toast({
             title: "¡Gracias por tu valoración!",
-            description: "Has obtenido un 10% de descuento en tu próximo viaje",
-            duration: 1800,
+            description: allRated
+              ? "Has valorado a todos — 10% de descuento en tu próximo viaje"
+              : "Valora a todos la próxima vez para conseguir el 10% de descuento",
+            duration: 2200,
           });
         }}
-        userName={lastTripSummary?.userName ?? ""}
+        targets={lastTripSummary?.targets ?? []}
         tripInfo={lastTripSummary?.tripInfo ?? ""}
+        totalSaved={lastTripSummary?.totalSaved}
       />
 
       <VehicleManager
