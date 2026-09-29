@@ -490,7 +490,15 @@ const Index = () => {
     return multiTrip.passengers.find((p) => p.passenger.id === frontId)?.passenger ?? null;
   }, [multiPassengerWaypoints, multiStops, multiTrip.passengers]);
 
-  const displayPassenger = frontStopPassenger ?? acceptedPassenger;
+  // acceptedPassenger es un respaldo para el instante en que se acaba de
+  // aceptar a alguien y multiStops todavía no se ha recalculado — pero solo
+  // tiene sentido MIENTRAS quede algún pasajero de verdad a bordo/pendiente.
+  // Sin este "&& multiTrip.passengers.length > 0", en cuanto se bajaba al
+  // último pasajero, frontStopPassenger pasaba a null correctamente pero el
+  // respaldo devolvía al ÚLTIMO aceptado (ya bajado hace rato), y su nombre
+  // y su punto de recogida se quedaban pegados en la tarjeta con un ETA roto.
+  const displayPassenger =
+    frontStopPassenger ?? (multiTrip.passengers.length > 0 ? acceptedPassenger : null);
   const extraPassengerCount = Math.max(0, multiTrip.passengers.length - 1);
 
   // Con varios pasajeros a bordo, la compensación del viaje es la suma de
@@ -514,6 +522,21 @@ const Index = () => {
 
   // ── Derived: real data for ActiveTripView (driver & passenger) ─────────────
   const activeTripData = useMemo(() => {
+    // Ya se bajó a todo el mundo pero todavía no se ha pulsado "Finalizar"
+    // — antes esto caía en el "if" de abajo con displayPassenger a null y
+    // se enseñaba el marcador de ejemplo ("Ana M." / Huesca), que tampoco
+    // tenía sentido. Aquí se muestra el total real ganado en el viaje.
+    if (trip.activeTripRole === "driver" && multiPassengerWaypoints && multiTrip.passengers.length === 0) {
+      return {
+        otherUser: "Viaje completado",
+        otherUserRating: 0,
+        origin: "",
+        destination: "",
+        pickupPoint: "",
+        eta: 0,
+        price: totalTripCompensation,
+      };
+    }
     if (trip.activeTripRole === "driver" && displayPassenger) {
       return {
         otherUser: displayPassenger.name + (extraPassengerCount > 0 ? ` (+${extraPassengerCount} más)` : ""),
@@ -544,6 +567,8 @@ const Index = () => {
   }, [
     trip.activeTripRole,
     trip.meetingPoint,
+    multiPassengerWaypoints,
+    multiTrip.passengers,
     displayPassenger,
     extraPassengerCount,
     totalTripCompensation,
