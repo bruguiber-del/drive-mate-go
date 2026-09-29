@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { Users, Timer, PawPrint, Baby, MapPin, User, Euro, Save, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { calculatePrice, PET_SURCHARGE, CHILD_SEAT_SURCHARGE, DOOR_TO_DOOR_SURCHARGE } from '@/lib/priceCalculator';
+import { calculatePrice, PET_SURCHARGE, CHILD_SEAT_SURCHARGE } from '@/lib/priceCalculator';
 import {
   Drawer,
   DrawerContent,
@@ -54,11 +54,11 @@ const DriverSettingsSheet = ({ isOpen, onClose, onSave, initialSettings, costPer
   // tengas marcados ya sumados — antes era un "4 - 8€" fijo sin relación
   // con nada de lo que hubiera en este mismo panel.
   const compensationRange = useMemo(() => {
-    const extras = { hasPet: acceptsPets, hasChildSeat, isDoorToDoor: doorToDoor };
+    const extras = { hasPet: acceptsPets, hasChildSeat };
     const short = calculatePrice({ distanceKm: 5, passengerCount: 1, costPerKm, ...extras });
     const long = calculatePrice({ distanceKm: 20, passengerCount: 1, costPerKm, ...extras });
     return { low: short.driverIncome, high: long.driverIncome };
-  }, [acceptsPets, hasChildSeat, doorToDoor, costPerKm]);
+  }, [acceptsPets, hasChildSeat, costPerKm]);
 
   return (
     <Drawer open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -147,7 +147,9 @@ const DriverSettingsSheet = ({ isOpen, onClose, onSave, initialSettings, costPer
             <PawPrint className={cn("w-4 h-4 shrink-0", acceptsPets ? "text-primary" : "text-muted-foreground")} />
             <div className="flex-1 text-left min-w-0">
               <p className="text-sm font-medium text-foreground leading-tight">Acepto mascotas</p>
-              <p className="text-[11px] text-muted-foreground">Recargo +{PET_SURCHARGE.toFixed(0)}€ automático</p>
+              <p className="text-[11px] text-muted-foreground">
+                Aportación de {PET_SURCHARGE.toFixed(0)}€ por protección y limpieza del vehículo
+              </p>
             </div>
             <div className={cn(
               "w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all",
@@ -169,7 +171,9 @@ const DriverSettingsSheet = ({ isOpen, onClose, onSave, initialSettings, costPer
             <Baby className={cn("w-4 h-4 shrink-0", hasChildSeat ? "text-secondary" : "text-muted-foreground")} />
             <div className="flex-1 text-left min-w-0">
               <p className="text-sm font-medium text-foreground leading-tight">Silla infantil</p>
-              <p className="text-[11px] text-muted-foreground">Recargo +{CHILD_SEAT_SURCHARGE.toFixed(0)}€ automático</p>
+              <p className="text-[11px] text-muted-foreground">
+                Aportación de {CHILD_SEAT_SURCHARGE.toFixed(0)}€ por amortización y ocupación del sistema
+              </p>
             </div>
             <div className={cn(
               "w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all",
@@ -197,7 +201,7 @@ const DriverSettingsSheet = ({ isOpen, onClose, onSave, initialSettings, costPer
             <MapPin className={cn("w-4 h-4 shrink-0", doorToDoor ? "text-success" : "text-muted-foreground")} />
             <div className="flex-1 text-left min-w-0">
               <p className="text-sm font-medium text-foreground leading-tight">Puerta a puerta</p>
-              <p className="text-[11px] text-muted-foreground">Recargo +{DOOR_TO_DOOR_SURCHARGE.toFixed(2)}€ automático</p>
+              <p className="text-[11px] text-muted-foreground">Sin coste aparte — solo el desvío real que cause</p>
             </div>
             <div className={cn(
               "w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all",
@@ -211,7 +215,8 @@ const DriverSettingsSheet = ({ isOpen, onClose, onSave, initialSettings, costPer
             <div className="flex items-start gap-1.5 px-3 mb-2">
               <Info className="w-3 h-3 text-muted-foreground shrink-0 mt-0.5" />
               <p className="text-[10px] text-muted-foreground">
-                Se suma automáticamente al precio de cada viaje con recogida puerta a puerta.
+                No lleva ninguna tarifa fija: si recoger o dejar exactamente en la puerta te desvía
+                de tu ruta, esos km de más se cobran igual que cualquier otro desvío, ni más ni menos.
               </p>
             </div>
           )}

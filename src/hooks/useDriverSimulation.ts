@@ -75,7 +75,6 @@ export function generateSimulatedDriver(
     traffic: 'normal',
     hasPet: !!passengerPrefs?.hasPet,
     hasChildSeat: !!passengerPrefs?.needsChildSeat,
-    isDoorToDoor: !!passengerPrefs?.doorToDoor,
   });
   const distanceM = Math.round(randomInRange(200, 2000));
 

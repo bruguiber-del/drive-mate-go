@@ -39,7 +39,6 @@ import { useUIModals } from "@/hooks/useUIModals";
 import { useVehicles } from "@/hooks/useVehicles";
 import { useDriverSimulation } from "@/hooks/useDriverSimulation";
 import { useFuelPricesAlongRoute } from "@/hooks/useFuelPricesAlongRoute";
-import { DOOR_TO_DOOR_SURCHARGE } from "@/lib/priceCalculator";
 import { calculateCostPerKm } from "@/lib/vehiclePricing";
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -264,7 +263,6 @@ const Index = () => {
         acceptsPets: d.acceptsPets,
         hasChildSeat: d.hasChildSeat,
         doorToDoor: isDoorToDoor,
-        doorToDoorSurcharge: isDoorToDoor ? DOOR_TO_DOOR_SURCHARGE : 0,
         origin: "Tu ubicación",
         destination: "Tu destino",
         vehicle: d.vehicle,
@@ -284,7 +282,6 @@ const Index = () => {
       acceptsPets: simulatedPassenger.acceptsPets,
       hasChildSeat: simulatedPassenger.hasChildSeat,
       doorToDoor: simulatedPassenger.doorToDoor,
-      doorToDoorSurcharge: simulatedPassenger.doorToDoor ? DOOR_TO_DOOR_SURCHARGE : 0,
       tripPrice: simulatedPassenger.compensation,
       origin: simulatedPassenger.origin.name,
       destination: simulatedPassenger.destination.name,

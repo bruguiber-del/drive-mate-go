@@ -288,7 +288,9 @@ const PassengerSettingsSheet = ({ isOpen, onClose, onSave, userLocation, initial
             <PawPrint className={cn("w-4 h-4 shrink-0", hasPet ? "text-primary" : "text-muted-foreground")} />
             <div className="flex-1 text-left min-w-0">
               <p className="text-sm font-medium text-foreground leading-tight">Llevo mascota</p>
-              <p className="text-[11px] text-muted-foreground">Recargo +{PET_SURCHARGE.toFixed(0)}€ automático</p>
+              <p className="text-[11px] text-muted-foreground">
+                Aportación de {PET_SURCHARGE.toFixed(0)}€ por protección y limpieza del vehículo
+              </p>
             </div>
             <div className={cn(
               "w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all",
@@ -310,7 +312,9 @@ const PassengerSettingsSheet = ({ isOpen, onClose, onSave, userLocation, initial
             <Baby className={cn("w-4 h-4 shrink-0", needsChildSeat ? "text-secondary" : "text-muted-foreground")} />
             <div className="flex-1 text-left min-w-0">
               <p className="text-sm font-medium text-foreground leading-tight">Necesito silla infantil</p>
-              <p className="text-[11px] text-muted-foreground">Recargo +{CHILD_SEAT_SURCHARGE.toFixed(0)}€ automático</p>
+              <p className="text-[11px] text-muted-foreground">
+                Aportación de {CHILD_SEAT_SURCHARGE.toFixed(0)}€ por amortización y ocupación del sistema
+              </p>
             </div>
             <div className={cn(
               "w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all",
@@ -332,7 +336,7 @@ const PassengerSettingsSheet = ({ isOpen, onClose, onSave, userLocation, initial
             <MapPin className={cn("w-4 h-4 shrink-0", doorToDoor ? "text-success" : "text-muted-foreground")} />
             <div className="flex-1 text-left min-w-0">
               <p className="text-sm font-medium text-foreground leading-tight">Puerta a puerta</p>
-              <p className="text-[11px] text-muted-foreground">Recargo adicional por desvío</p>
+              <p className="text-[11px] text-muted-foreground">Sin coste fijo — pagas solo el desvío real que causes</p>
             </div>
             <div className={cn(
               "w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all",

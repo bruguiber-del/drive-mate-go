@@ -12,11 +12,14 @@ export const MAINTENANCE_PER_KM = 0.10;      // €/km (ruedas, revisiones, etc.
 export const TOTAL_COST_PER_KM = FUEL_COST_PER_KM + MAINTENANCE_PER_KM; // ≈0,226 €/km
 export const COMMISSION = 0.12;              // 12% VIMATCH
 
-// Recargos fijos por extras — antes solo se enseñaban como texto informativo
-// en los ajustes y en la ventana de match, sin sumarse de verdad al precio.
-export const PET_SURCHARGE = 2;              // €, mascota a bordo
-export const CHILD_SEAT_SURCHARGE = 1;       // €, sistema de retención infantil
-export const DOOR_TO_DOOR_SURCHARGE = 1.2;   // €, recogida exacta en la puerta
+// Aportaciones fijas por extras — justificadas como reparto de un coste real
+// del conductor (material de protección, limpieza, amortización del
+// accesorio), nunca como un suplemento de tarifa comercial. La LOTT exige
+// que el cobro del carpooling sea estrictamente reparto de costes: por eso
+// "puerta a puerta" NO lleva aportación fija (ver más abajo) — su único
+// coste real es el desvío que cause, y ese ya se cobra por km real.
+export const PET_SURCHARGE = 2;              // €, material de protección + limpieza del habitáculo
+export const CHILD_SEAT_SURCHARGE = 1;       // €, amortización y ocupación del sistema de retención infantil
 
 // Occupancy factors (NOT linear: more passengers, less penalty per seat)
 const OCCUPANCY_FACTORS: Record<number, number> = {
@@ -40,10 +43,11 @@ export interface PriceInput {
   traffic?: TrafficFactor;
   /** Cost per km of the active vehicle; falls back to the generic constant */
   costPerKm?: number;
-  /** Extras — cada uno añade su recargo fijo, de verdad, al precio final. */
+  /** Extras — cada uno añade su aportación fija, de verdad, al precio final.
+   *  "Puerta a puerta" no está aquí: no tiene coste propio más allá del
+   *  desvío que cause, y ese ya se cobra por detourKm real (ver abajo). */
   hasPet?: boolean;
   hasChildSeat?: boolean;
-  isDoorToDoor?: boolean;
 }
 
 
@@ -62,7 +66,7 @@ export interface PriceBreakdown {
   commissionAmount: number;
   /** Detour surcharge applied to base price */
   detourSurcharge: number;
-  /** Suma de recargos por mascota/silla infantil/puerta a puerta */
+  /** Suma de aportaciones fijas por mascota/silla infantil */
   extrasSurcharge: number;
   /** Traffic multiplier applied */
   trafficMultiplier: number;
@@ -85,7 +89,6 @@ export function calculatePrice({
   costPerKm,
   hasPet = false,
   hasChildSeat = false,
-  isDoorToDoor = false,
 }: PriceInput): PriceBreakdown {
   const factor = OCCUPANCY_FACTORS[passengerCount] ?? OCCUPANCY_FACTORS[1];
   const trafficMultiplier = TRAFFIC_MULTIPLIER[traffic];
@@ -94,12 +97,14 @@ export function calculatePrice({
   const totalCost = distanceKm * costPerKmToUse;
   const detourSurcharge = detourKm * costPerKmToUse;
 
-  // Recargos fijos — no dependen del tráfico ni se reparten por ocupación,
-  // son un extra directo de este pasajero.
+  // Aportaciones fijas — no dependen del tráfico ni se reparten por
+  // ocupación, son un coste real directo de este pasajero (material,
+  // limpieza, amortización). "Puerta a puerta" no suma nada aquí: su coste
+  // real ya está dentro de detourSurcharge, según los km que de verdad
+  // desvíe recoger/dejar exactamente en la puerta.
   const extrasSurcharge =
     (hasPet ? PET_SURCHARGE : 0) +
-    (hasChildSeat ? CHILD_SEAT_SURCHARGE : 0) +
-    (isDoorToDoor ? DOOR_TO_DOOR_SURCHARGE : 0);
+    (hasChildSeat ? CHILD_SEAT_SURCHARGE : 0);
 
   // Base price per passenger before commission
   const basePrice = (totalCost / factor + detourSurcharge) * trafficMultiplier + extrasSurcharge;

@@ -12,8 +12,9 @@ export interface MatchData {
     pickupDistance: string;
     acceptsPets?: boolean;
     hasChildSeat?: boolean;
+    /** Puerta a puerta no lleva coste propio — su desvío ya está dentro de
+     *  compensation/basePrice, cobrado por km real, no como aportación fija. */
     doorToDoor?: boolean;
-    doorToDoorSurcharge?: number;
     tripPrice?: number; // Auto-calculated price
     origin?: string;
     destination?: string;
@@ -49,7 +50,6 @@ const MatchPopup = ({ isOpen, onAccept, onReject, isDriverView = true, matchData
     acceptsPets: true,
     hasChildSeat: false,
     doorToDoor: true,
-    doorToDoorSurcharge: 1.20,
     tripPrice: 6.50,
     origin: 'Huesca',
     destination: 'Zaragoza',
@@ -59,10 +59,11 @@ const MatchPopup = ({ isOpen, onAccept, onReject, isDriverView = true, matchData
 
   // Suma real de los extras marcados — se usa para desglosar la
   // compensación/el coste base, no solo para las insignias de arriba.
+  // Puerta a puerta no suma nada aquí: su único coste (el desvío que
+  // cause) ya está dentro de compensation/basePrice, cobrado por km real.
   const extrasTotal =
     (data.acceptsPets ? PET_SURCHARGE : 0) +
-    (data.hasChildSeat ? CHILD_SEAT_SURCHARGE : 0) +
-    (data.doorToDoor ? (data.doorToDoorSurcharge ?? 0) : 0);
+    (data.hasChildSeat ? CHILD_SEAT_SURCHARGE : 0);
   const compensationWithoutExtras = data.compensation - extrasTotal;
   const baseWithoutExtras = (data.basePrice ?? data.compensation) - extrasTotal;
 
@@ -120,7 +121,7 @@ const MatchPopup = ({ isOpen, onAccept, onReject, isDriverView = true, matchData
                   {data.doorToDoor && (
                     <div className="flex items-center gap-1 px-1.5 py-0.5 bg-success/20 rounded-full">
                       <MapPin className="w-3 h-3 text-success" />
-                      <span className="text-[10px] text-success">+{data.doorToDoorSurcharge?.toFixed(2)}€</span>
+                      <span className="text-[10px] text-success">Puerta a puerta</span>
                     </div>
                   )}
                 </div>

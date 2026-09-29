@@ -194,15 +194,21 @@ function generatePassenger(
 
   // El pasajero paga los km que pasa de verdad en el coche (recogida →
   // destino) más el desvío real que le causa al conductor, sea cual sea.
-  const billableKm = tripDistanceKm + detourKm;
+  // Van SEPARADOS a calculatePrice (no fusionados en un solo distanceKm):
+  // el trayecto se reparte por el factor de ocupación (el conductor iba
+  // a hacerlo igualmente), pero el desvío son km que el conductor NO
+  // haría si no fuera por este pasajero, así que se cobra entero — antes,
+  // al fusionarlos, el desvío también se dividía por el factor de
+  // ocupación y el conductor cobraba casi la mitad de lo que debía por
+  // desviarse.
   const pricing = calculatePrice({
-    distanceKm: billableKm,
+    distanceKm: tripDistanceKm,
+    detourKm,
     passengerCount: 1,
     traffic: 'normal',
     costPerKm,
     hasPet: acceptsPets,
     hasChildSeat,
-    isDoorToDoor: doorToDoor,
   });
 
 
