@@ -42,6 +42,26 @@ import { useDriverSimulation } from "@/hooks/useDriverSimulation";
 import { useFuelPricesAlongRoute } from "@/hooks/useFuelPricesAlongRoute";
 import { calculateCostPerKm } from "@/lib/vehiclePricing";
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Distancia entre dos puntos GPS en metros — para detectar cuándo el
+ *  conductor llega de verdad a su destino final. */
+function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+/** Radio dentro del cual se considera que el conductor ha llegado a su
+ *  destino final — mismo orden de magnitud que el umbral de "desviado de
+ *  la ruta" que ya usa useRouting. */
+const FINAL_ARRIVAL_RADIUS_M = 60;
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 const Index = () => {
@@ -67,6 +87,11 @@ const Index = () => {
   const [isDoorToDoor, setIsDoorToDoor] = useState(false);
   const [isPassengerMode, setIsPassengerMode] = useState(false);
   const [realUserLocation, setRealUserLocation] = useState<[number, number] | null>(null);
+  /** true solo cuando el conductor, sin pasajeros ya a bordo/pendientes, ha
+   *  llegado de verdad (por GPS) a su propio destino final — no se pone a
+   *  true solo por haber bajado al último pasajero, que puede quedar a
+   *  varios km todavía. */
+  const [hasArrivedAtFinalDestination, setHasArrivedAtFinalDestination] = useState(false);
   /** Origen editable, viaje para otra persona y programación (PassengerSettingsSheet) */
   const [passengerTripSetup, setPassengerTripSetup] = useState<{
     originText: string;
@@ -520,20 +545,40 @@ const Index = () => {
       : lastKnownTripTotal
     : (displayPassenger?.compensation ?? 0);
 
+  // Detecta la llegada real (GPS) al destino final del conductor, solo
+  // relevante una vez que ya no queda ningún pasajero a bordo/pendiente —
+  // antes se daba el viaje por "completado" en el instante de bajar al
+  // último, aunque el conductor todavía tuviera que seguir conduciendo
+  // kilómetros hasta su propio destino.
+  useEffect(() => {
+    if (hasArrivedAtFinalDestination) return;
+    if (!multiPassengerWaypoints || multiTrip.passengers.length > 0) return;
+    if (!nav.destinationCoords || !realUserLocation) return;
+    const distM = haversineMeters(
+      realUserLocation[0],
+      realUserLocation[1],
+      nav.destinationCoords.lat,
+      nav.destinationCoords.lng,
+    );
+    if (distM <= FINAL_ARRIVAL_RADIUS_M) setHasArrivedAtFinalDestination(true);
+  }, [hasArrivedAtFinalDestination, multiPassengerWaypoints, multiTrip.passengers, nav.destinationCoords, realUserLocation]);
+
   // ── Derived: real data for ActiveTripView (driver & passenger) ─────────────
   const activeTripData = useMemo(() => {
     // Ya se bajó a todo el mundo pero todavía no se ha pulsado "Finalizar"
     // — antes esto caía en el "if" de abajo con displayPassenger a null y
     // se enseñaba el marcador de ejemplo ("Ana M." / Huesca), que tampoco
-    // tenía sentido. Aquí se muestra el total real ganado en el viaje.
+    // tenía sentido. "Viaje completado" solo aparece al llegar de verdad
+    // (GPS) al destino final del conductor — bajar al último pasajero no
+    // significa que ya no quede nada de trayecto por delante.
     if (trip.activeTripRole === "driver" && multiPassengerWaypoints && multiTrip.passengers.length === 0) {
       return {
-        otherUser: "Viaje completado",
+        otherUser: hasArrivedAtFinalDestination ? "Viaje completado" : "De camino a tu destino",
         otherUserRating: 0,
-        origin: "",
-        destination: "",
-        pickupPoint: "",
-        eta: 0,
+        origin: "Tu ubicación",
+        destination: nav.destinationCoords?.name ?? "",
+        pickupPoint: nav.destinationCoords?.name ?? "",
+        eta: hasArrivedAtFinalDestination ? 0 : pickupEta ?? nav.dynamicETA?.minutes ?? 0,
         price: totalTripCompensation,
       };
     }
@@ -574,6 +619,8 @@ const Index = () => {
     totalTripCompensation,
     pickupEta,
     nav.dynamicETA,
+    nav.destinationCoords,
+    hasArrivedAtFinalDestination,
     driverSim.currentDriver,
     nav.destination,
   ]);
@@ -594,6 +641,7 @@ const Index = () => {
     setPendingStopKeys(new Set());
     setIsMultiPassengerTripActive(false);
     setLastKnownTripTotal(0);
+    setHasArrivedAtFinalDestination(false);
     trip.handleTripEnd();
   }, [activeTripData, trip, multiTrip]);
 
@@ -1013,6 +1061,7 @@ const Index = () => {
     voice.cancelSpeech();
     nav.handleStopNavigation();
     setExtraStops([]);
+    setHasArrivedAtFinalDestination(false);
   }, [voice, nav]);
 
   // ─── Render ────────────────────────────────────────────────────────────────
