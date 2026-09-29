@@ -223,10 +223,19 @@ const Index = () => {
     );
   }, [vehicles.activeVehicle, fuelPricesAlongRoute]);
 
+  // Nombres de quien ya va a bordo o pendiente de recoger — para que una
+  // solicitud nueva nunca repita el nombre de alguien que ya está en el
+  // coche (antes podían coincidir y parecía la misma persona duplicada).
+  const activeSimPassengerNames = useMemo(
+    () => new Set(multiTrip.passengers.map((p) => p.passenger.name)),
+    [multiTrip.passengers],
+  );
+
   const { currentPassenger: simulatedPassenger, dismissCurrent: dismissSimPassenger } = usePassengerSimulation({
     enabled: passengerSimEnabled && !modals.showMatchPopup,
     userLocation: realUserLocation,
-    intervalMs: 12000,
+    // +10s sobre los 12s que había — llegaban demasiado seguidas.
+    intervalMs: 22000,
     driverRoute: nav.currentRoute?.coordinates ?? null,
     driverDestination: nav.destinationCoords,
     costPerKm: liveCostPerKm,
@@ -237,6 +246,7 @@ const Index = () => {
       doorToDoor: driverSettings.doorToDoor,
       genderPreference: driverSettings.genderPreference,
     },
+    activePassengerNames: activeSimPassengerNames,
   });
 
   // ── Trip lifecycle ──────────────────────────────────────────────────────────

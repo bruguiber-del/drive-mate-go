@@ -117,6 +117,9 @@ function generatePassenger(
   costPerKm?: number,
   maxDetourMinutes?: number,
   driverPrefs?: DriverMatchPreferences,
+  /** Nombres ya en uso por pasajeros que el conductor ya lleva a bordo o
+   *  pendientes de recoger — se evita repetirlos en una solicitud nueva. */
+  excludeNames?: Set<string>,
 ): SimulatedPassenger | null {
 
   // Index of the driver's current position along the route
@@ -159,7 +162,15 @@ function generatePassenger(
     driverPrefs?.genderPreference === 'women' ? 'women'
     : driverPrefs?.genderPreference === 'men' ? 'men'
     : Math.random() > 0.5 ? 'women' : 'men';
-  const names = gender === 'women' ? PASSENGER_NAMES_WOMEN : PASSENGER_NAMES_MEN;
+  // Antes se elegía al azar de la lista entera sin mirar si ese nombre ya
+  // estaba en uso — con solo 5 nombres por género y varios pasajeros a
+  // bordo a la vez, era fácil que dos "personas" distintas salieran con el
+  // mismo nombre y pareciera un bug de duplicado. Si se agotan los 5 (poco
+  // probable, pero posible con 4 plazas), se acepta la repetición: mejor
+  // eso que no proponer más solicitudes.
+  const namesPool = gender === 'women' ? PASSENGER_NAMES_WOMEN : PASSENGER_NAMES_MEN;
+  const availableNames = excludeNames ? namesPool.filter((n) => !excludeNames.has(n)) : namesPool;
+  const names = availableNames.length > 0 ? availableNames : namesPool;
   const name = names[Math.floor(Math.random() * names.length)];
 
   const distM = distanceToDriverKm * 1000;
@@ -256,17 +267,24 @@ interface UsePassengerSimulationOptions {
   /** Mascotas / silla infantil / puerta a puerta / preferencia de género que
    *  el conductor marcó en sus ajustes — filtran de verdad las solicitudes. */
   driverPreferences?: DriverMatchPreferences;
+  /** Nombres de pasajeros que el conductor ya lleva a bordo o tiene
+   *  pendientes de recoger — para no proponer una solicitud nueva con el
+   *  mismo nombre y que parezca la misma persona duplicada. */
+  activePassengerNames?: Set<string>;
 }
 
 export function usePassengerSimulation({
   enabled,
   userLocation,
-  intervalMs = 8000,
+  // +10s sobre lo que había — llegaban solicitudes demasiado seguidas para
+  // sentirse "normal".
+  intervalMs = 18000,
   driverRoute,
   driverDestination,
   costPerKm,
   maxDetourMinutes,
   driverPreferences,
+  activePassengerNames,
 }: UsePassengerSimulationOptions) {
   const [currentPassenger, setCurrentPassenger] = useState<SimulatedPassenger | null>(null);
   const [pendingPassengers, setPendingPassengers] = useState<SimulatedPassenger[]>([]);
@@ -279,11 +297,13 @@ export function usePassengerSimulation({
   const costRef = useRef<number | undefined>(costPerKm);
   const maxDetourRef = useRef<number | undefined>(maxDetourMinutes);
   const prefsRef = useRef<DriverMatchPreferences | undefined>(driverPreferences);
+  const activeNamesRef = useRef<Set<string> | undefined>(activePassengerNames);
   useEffect(() => { routeRef.current = driverRoute ?? null; }, [driverRoute]);
   useEffect(() => { destRef.current = driverDestination ?? null; }, [driverDestination]);
   useEffect(() => { costRef.current = costPerKm; }, [costPerKm]);
   useEffect(() => { maxDetourRef.current = maxDetourMinutes; }, [maxDetourMinutes]);
   useEffect(() => { prefsRef.current = driverPreferences; }, [driverPreferences]);
+  useEffect(() => { activeNamesRef.current = activePassengerNames; }, [activePassengerNames]);
 
   const generateNew = useCallback(() => {
     if (!userLocation) return;
@@ -298,6 +318,7 @@ export function usePassengerSimulation({
     if (!route || route.length < 2) return;
     const passenger = generatePassenger(
       lat, lng, route, destRef.current ?? null, costRef.current, maxDetourRef.current, prefsRef.current,
+      activeNamesRef.current,
     );
 
     if (!passenger) return;
