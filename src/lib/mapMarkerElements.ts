@@ -69,33 +69,27 @@ export const buildMarkerEl = (color: string, iconPath: string, label?: string, d
   return el;
 };
 
+// Siempre una flecha orientable, navegando o no — antes, sin ruta activa,
+// era un punto plano sin ninguna dirección; ahora que el rumbo puede venir
+// de la brújula del dispositivo (útil incluso parado), tiene sentido
+// enseñarlo también en reposo. La rotación en grados (heading) ya viene
+// resuelta desde fuera: brújula > GPS > "apunta al destino".
 export const buildUserMarkerEl = (showRoute: boolean, heading: number) => {
   const el = document.createElement('div');
   el.style.pointerEvents = 'none';
-  if (showRoute) {
-    el.innerHTML = `
-      <div style="transform: rotate(${heading}deg);">
-        <div style="
-          width:30px;height:30px;border-radius:9999px;
-          background:${ROUTE_COLOR};border:2px solid white;
-          box-shadow:0 4px 12px rgba(0,0,0,0.5);
-          display:flex;align-items:center;justify-content:center;
-        ">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
-            <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/>
-          </svg>
-        </div>
-      </div>`;
-  } else {
-    el.innerHTML = `
-      <div style="position:relative;">
-        <div style="
-          width:20px;height:20px;border-radius:9999px;
-          background:${ROUTE_COLOR};border:2px solid white;
-          box-shadow:0 4px 12px rgba(0,0,0,0.5);
-        "></div>
-      </div>`;
-  }
+  el.innerHTML = `
+    <div style="transform: rotate(${heading}deg); transition: transform 0.15s linear;">
+      <div style="
+        width:${showRoute ? 30 : 26}px;height:${showRoute ? 30 : 26}px;border-radius:9999px;
+        background:${ROUTE_COLOR};border:2px solid white;
+        box-shadow:0 4px 12px rgba(0,0,0,0.5);
+        display:flex;align-items:center;justify-content:center;
+      ">
+        <svg width="${showRoute ? 16 : 14}" height="${showRoute ? 16 : 14}" viewBox="0 0 24 24" fill="white">
+          <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/>
+        </svg>
+      </div>
+    </div>`;
   return el;
 };
 

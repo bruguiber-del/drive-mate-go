@@ -44,6 +44,9 @@ interface ActiveTripViewProps {
     price: number;
     acceptsPets?: boolean;
     hasChildSeat?: boolean;
+    /** Km que quedan hasta el destino — solo se usa en la tarjeta mínima del
+     *  conductor sin pasajeros ya a bordo/pendientes. */
+    distanceKm?: string;
   };
 }
 
@@ -120,6 +123,48 @@ const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onP
         >
           <X className="w-4 h-4" />
         </Button>
+      </motion.div>
+    );
+  }
+
+  // Conductor sin pasajeros ya a bordo/pendientes (todos bajados, o nunca
+  // hubo ninguno): nada de avatar/estrellas/punto de recogida tiene sentido
+  // aquí, solo cuánto queda para llegar — antes se reutilizaba la tarjeta
+  // completa de pasajero y salía "★0" y "? min hasta bajada del pasajero"
+  // (un dato que ya no existe, porque no hay a quién bajar).
+  if (userRole === 'driver' && tripStatus === 'picked_up' && !hasMoreStops) {
+    return (
+      <motion.div
+        initial={{ y: 40, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: 40, opacity: 0 }}
+        className="fixed bottom-3 left-3 z-40 pointer-events-none"
+      >
+        <div className="glass-strong rounded-xl overflow-hidden pointer-events-auto flex items-center gap-2 px-2.5 py-2">
+          <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
+            <Navigation className="w-4 h-4 text-primary" />
+          </div>
+          <div className="min-w-0">
+            {data.distanceKm ? (
+              <>
+                <p className="text-sm font-bold text-foreground leading-tight whitespace-nowrap">
+                  {data.eta} min · {data.distanceKm} km
+                </p>
+                <p className="text-[9px] text-muted-foreground leading-tight">hasta destino</p>
+              </>
+            ) : (
+              <p className="text-sm font-bold text-success leading-tight whitespace-nowrap">¡Has llegado!</p>
+            )}
+          </div>
+          <Button
+            variant="driver"
+            size="sm"
+            className="h-7 text-[10px] px-2 ml-1 shrink-0"
+            onClick={onClose}
+          >
+            Finalizar
+          </Button>
+        </div>
       </motion.div>
     );
   }

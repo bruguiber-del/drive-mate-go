@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { useRouting, RouteData, TravelMode } from '@/hooks/useRouting';
+import { useDeviceHeading } from '@/hooks/useDeviceHeading';
 import { MAPBOX_TOKEN, MAPBOX_STYLE } from '@/lib/mapboxConfig';
 import {
   MIN_MOVE_METERS,
@@ -141,6 +142,9 @@ const MapView = ({
 
   const [rawUserLocation, setRawUserLocation] = useState<[number, number] | null>(null);
   const [userHeading, setUserHeading] = useState<number | null>(null);
+  // Rumbo de brújula real del dispositivo — responde a girar el móvil en la
+  // mano, esté parado o en movimiento (a diferencia del rumbo GPS de abajo).
+  const { heading: compassHeading, requestPermission: requestCompassPermission } = useDeviceHeading();
   const [positionHistory, setPositionHistory] = useState<[number, number][]>([]);
   const [mapReady, setMapReady] = useState(false);
   const [speedTier, setSpeedTier] = useState<SpeedTier>('city');
@@ -194,6 +198,11 @@ const MapView = ({
   const getHeading = useCallback((): number => {
     if (simulatedHeading != null) return simulatedHeading;
 
+    // Brújula real del dispositivo — prioridad sobre todo lo demás, porque
+    // es la única fuente que responde a girar el móvil en la mano estando
+    // parado (el rumbo GPS y el de "apunta al destino" de abajo no).
+    if (compassHeading != null) return compassHeading;
+
     // Con ruta activa hacia un destino: orienta SIEMPRE hacia él,
     // haya movimiento o no — la app muestra la línea recta al destino.
     if (showRoute && bearingToTarget !== null) return bearingToTarget;
@@ -217,7 +226,7 @@ const MapView = ({
       return (Math.atan2(dLng, dLat) * 180) / Math.PI;
     }
     return 0;
-  }, [simulatedHeading, userHeading, positionHistory, hasReliableMovement, bearingToTarget, showRoute]);
+  }, [simulatedHeading, compassHeading, userHeading, positionHistory, hasReliableMovement, bearingToTarget, showRoute]);
 
   const centerOnUser = useCallback(() => {
     if (!map.current || !userLocation) return;
@@ -306,6 +315,22 @@ const MapView = ({
       map.current = null;
     };
   }, []);
+
+  // ── Brújula: pide permiso al primer toque real sobre el mapa ───────────────
+  // iOS Safari exige que DeviceOrientationEvent.requestPermission() se llame
+  // dentro de un gesto del usuario — pedirlo en un efecto sin más no hace
+  // nada ahí. El primer toque sobre el mapa (arrastrar, tocar un marcador...)
+  // cuenta como gesto real, así que basta con enganchar esto una sola vez.
+  useEffect(() => {
+    const el = mapContainer.current;
+    if (!el) return;
+    const handleFirstTouch = () => {
+      requestCompassPermission();
+      el.removeEventListener('pointerdown', handleFirstTouch);
+    };
+    el.addEventListener('pointerdown', handleFirstTouch, { once: true });
+    return () => el.removeEventListener('pointerdown', handleFirstTouch);
+  }, [requestCompassPermission]);
 
   // ── Watch user GPS ────────────────────────────────────────────────────────
   useEffect(() => {

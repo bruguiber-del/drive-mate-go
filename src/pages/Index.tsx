@@ -589,6 +589,7 @@ const Index = () => {
         pickupPoint: nav.destinationCoords?.name ?? "",
         eta: hasArrivedAtFinalDestination ? 0 : pickupEta ?? nav.dynamicETA?.minutes ?? 0,
         price: totalTripCompensation,
+        distanceKm: hasArrivedAtFinalDestination ? undefined : nav.dynamicETA?.distanceKm,
       };
     }
     if (trip.activeTripRole === "driver" && displayPassenger) {
