@@ -1215,7 +1215,6 @@ const Index = () => {
           showStartDrivingCta={nav.isNavigating && !nav.hasStartedDriving && !trip.showActiveTrip}
           onStartDriving={nav.startDriving}
           showBar={!trip.showActiveTrip}
-          tripActive={trip.showActiveTrip}
           isDriverMode={isDriverMode}
           onDriverToggle={handleDriverToggle}
           onOpenDriverSettings={modals.openDriverSettings}

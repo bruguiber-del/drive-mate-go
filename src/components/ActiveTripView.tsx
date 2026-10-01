@@ -72,7 +72,7 @@ const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onP
         initial={{ scale: 0.7, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.7, opacity: 0 }}
-        className="fixed bottom-3 left-3 z-40"
+        className="fixed bottom-3 left-1/2 -translate-x-1/2 z-40"
       >
         <Button
           variant="destructive"
@@ -98,7 +98,7 @@ const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onP
         initial={{ y: 40, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 40, opacity: 0 }}
-        className="fixed bottom-3 left-3 z-40 pointer-events-none"
+        className="fixed bottom-3 left-1/2 -translate-x-1/2 z-40 pointer-events-none"
       >
         <div className="glass-strong rounded-xl overflow-hidden pointer-events-auto flex items-center gap-2 px-2.5 py-2">
           <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">

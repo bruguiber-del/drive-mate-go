@@ -107,7 +107,18 @@ function isPickupAheadOnRoute(
 // Velocidad media estimada para traducir el desvío en km a minutos —
 // sustituye al valor puramente aleatorio que había antes y que no tenía
 // relación ninguna con el ajuste real de "desvío máximo" del conductor.
-const AVG_DETOUR_SPEED_KMH = 28;
+// Más baja que una velocidad de crucero a propósito: un desvío implica
+// calles secundarias, giros y arrancar/parar, no carretera fluida.
+const AVG_DETOUR_SPEED_KMH = 22;
+
+// La desviación pickup/dropoff se mide en línea recta (haversine) entre el
+// punto de la ruta y el punto real de recogida/bajada — pero por calle de
+// verdad, con giros y sin poder cortar en diagonal, se recorre bastante
+// más que esa distancia recta. Sin esto, el desvío que se usa para filtrar
+// contra "máx. X min" del conductor salía optimista, y la ruta real que
+// luego calcula Mapbox (con los puntos ya aceptados) acababa añadiendo
+// bastante más tiempo del que el filtro había dejado pasar.
+const ROAD_DISTANCE_FACTOR = 1.6;
 
 function generatePassenger(
   userLat: number,
@@ -193,7 +204,9 @@ function generatePassenger(
   // sea, sigue siendo un desvío real fuera de la ruta del conductor. Antes
   // por debajo de ~150m se consideraba "gratis", lo cual no es lo que
   // se pidió: el desvío se cobra siempre, sin umbral mínimo.
-  const detourKm = routeDeviationKm * 2; // ida y vuelta a la ruta
+  // ×2 por ida y vuelta a la ruta, ×ROAD_DISTANCE_FACTOR porque la
+  // distancia recta entre dos puntos no es la que se conduce de verdad.
+  const detourKm = routeDeviationKm * 2 * ROAD_DISTANCE_FACTOR;
   const detourMinutes = Math.ceil((detourKm / AVG_DETOUR_SPEED_KMH) * 60);
 
   // Límite duro y ACUMULADO: si el conductor puso "máx. 5 min", el total
