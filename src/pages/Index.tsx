@@ -703,6 +703,14 @@ const Index = () => {
     trip.handleTripEnd();
   }, [activeTripData, trip, multiTrip, tripPassengerHistory, totalTripCompensation, driverSim.currentDriver]);
 
+  // Cierra el viaje solo al llegar de verdad (GPS) a tu destino — ya no
+  // hace falta pulsar "Finalizar" a mano. handleTripEndWithSummary pone
+  // hasArrivedAtFinalDestination de vuelta a false, así que este efecto no
+  // se repite.
+  useEffect(() => {
+    if (hasArrivedAtFinalDestination) handleTripEndWithSummary();
+  }, [hasArrivedAtFinalDestination, handleTripEndWithSummary]);
+
   /** Confirma la recogida de la parada actual — las bajadas ya no pasan por
    *  aquí, van por los botones apilados de la derecha (uno por pasajero). */
   const handleMultiStopConfirm = useCallback(() => {

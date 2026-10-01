@@ -91,7 +91,10 @@ const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onP
   // hubo ninguno): nada de avatar/estrellas/punto de recogida tiene sentido
   // aquí, solo cuánto queda para llegar — antes se reutilizaba la tarjeta
   // completa de pasajero y salía "★0" y "? min hasta bajada del pasajero"
-  // (un dato que ya no existe, porque no hay a quién bajar).
+  // (un dato que ya no existe, porque no hay a quién bajar). Sin botón de
+  // "Finalizar": el viaje se cierra solo al llegar de verdad (GPS) a tu
+  // destino, no hace falta confirmarlo a mano — ese botón además quedaba
+  // poco legible pegado a los controles de zoom.
   if (userRole === 'driver' && tripStatus === 'picked_up' && !hasMoreStops) {
     return (
       <motion.div
@@ -116,14 +119,6 @@ const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onP
               <p className="text-sm font-bold text-success leading-tight whitespace-nowrap">¡Has llegado!</p>
             )}
           </div>
-          <Button
-            variant="driver"
-            size="sm"
-            className="h-7 text-[10px] px-2 ml-1 shrink-0"
-            onClick={onClose}
-          >
-            Finalizar
-          </Button>
         </div>
       </motion.div>
     );

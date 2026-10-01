@@ -111,24 +111,34 @@ const DriverSettingsSheet = ({ isOpen, onClose, onSave, initialSettings, costPer
             </div>
           </div>
 
-          {/* Max Detour - Compact */}
+          {/* Max Detour - Compact. Por pasajero: lo que aporta CADA
+              candidato individualmente, no la suma de todos los que ya
+              llevas — así puedes poner un tope bajo sin que rechace a un
+              segundo o tercer pasajero solo por venir detrás de otro. */}
           <div className="mb-4">
             <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-2">
               <Timer className="w-3.5 h-3.5" />
-              Desvío máximo: <span className="text-foreground font-bold">+{maxDetour} min</span>
+              Desvío máximo por pasajero:{' '}
+              <span className="text-foreground font-bold">
+                {maxDetour === 0 ? 'en la ruta' : `+${maxDetour} min`}
+              </span>
             </label>
             <input
               type="range"
-              min={2}
+              min={0}
               max={15}
+              step={1}
               value={maxDetour}
               onChange={(e) => setMaxDetour(Number(e.target.value))}
               className="w-full h-1.5 bg-muted rounded-full appearance-none cursor-pointer accent-primary"
             />
             <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5">
-              <span>2 min</span>
+              <span>En la ruta</span>
               <span>15 min</span>
             </div>
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Se aplica a cada pasajero por separado, no a la suma de todos.
+            </p>
           </div>
 
           {/* Section 2: Trip Preferences */}

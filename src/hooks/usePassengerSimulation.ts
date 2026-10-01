@@ -227,10 +227,11 @@ async function fetchRealRoute(
 /** Fase 2 — desvío 100% real: construye la ruta de verdad (paradas ya
  *  aceptadas + esta candidata, en el orden óptimo que respeta recoger antes
  *  de bajar) y la manda a Mapbox. Compara esa duración real contra la ruta
- *  real actual (desvío que aporta SOLO esta candidata, para el precio) y
- *  contra la ruta original sin nadie (desvío TOTAL acumulado, para el
- *  límite de los ajustes). Si Mapbox no responde, no se ofrece el
- *  candidato — mejor no proponerlo que proponerlo con un desvío inventado. */
+ *  real actual para sacar lo que aporta SOLO esta candidata — el desvío es
+ *  POR PASAJERO, no la suma acumulada del viaje entero, así que el límite
+ *  de los ajustes se compara contra esa cifra individual. Si Mapbox no
+ *  responde, no se ofrece el candidato — mejor no proponerlo que
+ *  proponerlo con un desvío inventado. */
 async function verifyRealDetour(
   driverLat: number,
   driverLng: number,
@@ -240,7 +241,6 @@ async function verifyRealDetour(
   finalDestination: { lat: number; lng: number } | null,
   existingRouteDurationS: number,
   existingRouteDistanceM: number,
-  originalDurationS: number | null,
   maxDetourMinutes?: number,
 ): Promise<{ detourMinutes: number; detourKm: number } | null> {
   const rawStops: Array<{ kind: 'pickup' | 'dropoff'; lat: number; lng: number; passengerId: string; passengerName: string }> = [];
@@ -263,19 +263,14 @@ async function verifyRealDetour(
   const real = await fetchRealRoute(points);
   if (!real) return null;
 
-  // Límite ACUMULADO real: la ruta completa con esta candidata, comparada
-  // con la ruta original de cero pasajeros, nunca puede pasar del máximo
-  // de los ajustes + 1 min de cortesía — entre TODOS los pasajeros juntos,
-  // no por pasajero.
-  if (maxDetourMinutes != null && originalDurationS != null) {
-    const totalDetourMinutes = Math.ceil((real.durationS - originalDurationS) / 60);
-    if (totalDetourMinutes > maxDetourMinutes + 1) return null;
-  }
-
-  // Lo que aporta SOLO esta candidata (para su precio) — la ruta completa
-  // con ella puesta, menos la ruta real actual sin ella.
+  // Lo que aporta SOLO esta candidata — la ruta completa con ella puesta,
+  // menos la ruta real actual sin ella. Es la cifra que se compara contra
+  // el máximo de los ajustes (por pasajero) Y la que se usa para su precio.
   const detourMinutes = Math.max(0, Math.ceil((real.durationS - existingRouteDurationS) / 60));
   const detourKm = Math.max(0, (real.distanceM - existingRouteDistanceM) / 1000);
+
+  if (maxDetourMinutes != null && detourMinutes > maxDetourMinutes) return null;
+
   return { detourMinutes, detourKm };
 }
 
@@ -287,8 +282,10 @@ interface UsePassengerSimulationOptions {
   driverDestination?: { lat: number; lng: number; name: string } | null;
   /** Cost per km of the driver's active vehicle */
   costPerKm?: number;
-  /** Desvío máximo (min) fijado en los ajustes del conductor — tope TOTAL
-   *  real entre todos los pasajeros, con 1 min de cortesía. */
+  /** Desvío máximo (min) fijado en los ajustes del conductor — tope POR
+   *  PASAJERO: lo que aporta cada candidato individualmente, no la suma de
+   *  todos los que ya llevas. 0 = solo se ofrecen candidatos que caben
+   *  prácticamente en tu ruta tal cual, sin desviarte nada. */
   maxDetourMinutes?: number;
   /** Mascotas / silla infantil / puerta a puerta / preferencia de género que
    *  el conductor marcó en sus ajustes — filtran de verdad las solicitudes. */
@@ -387,7 +384,6 @@ export function usePassengerSimulation({
       destRef.current ?? null,
       existingDuration,
       existingDistance,
-      originalDurationRef.current ?? null,
       maxDetourRef.current,
     );
     isGeneratingRef.current = false;
