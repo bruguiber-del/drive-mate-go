@@ -38,9 +38,6 @@ interface ActiveTripViewProps {
     price: number;
     acceptsPets?: boolean;
     hasChildSeat?: boolean;
-    /** Km que quedan hasta el destino — solo se usa en la tarjeta mínima del
-     *  conductor sin pasajeros ya a bordo/pendientes. */
-    distanceKm?: string;
   };
 }
 
@@ -61,12 +58,16 @@ const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onP
 
   if (!isOpen) return null;
 
-  // Conductor con paradas pendientes: toda la información (nombre, ETA de
-  // recogida/bajada) ya vive en las chapas de StopConfirmButtons, una por
-  // pasajero — repetirla aquí en una tarjeta grande era exactamente la
-  // misma información dos veces. Se queda solo un botón mínimo para poder
-  // cancelar el viaje entero.
-  if (userRole === 'driver' && hasMoreStops) {
+  // Conductor con paradas pendientes, O sin ninguna ya (todos bajados,
+  // camino de su propio destino): nada de avatar/estrellas/ETA tiene
+  // sentido aquí — con paradas pendientes, ese detalle ya vive en las
+  // chapas de StopConfirmButtons; sin paradas, el ETA/km hasta destino ya
+  // lo da el aviso de navegación de arriba, repetirlo abajo en una chapa
+  // aparte (encima pegada a los controles de zoom) era la misma
+  // información dos veces. Se queda solo un botón mínimo para cancelar el
+  // viaje entero — no hace falta más: el cierre normal, al llegar de
+  // verdad (GPS) a tu destino, ya es automático.
+  if (userRole === 'driver' && (hasMoreStops || tripStatus === 'picked_up')) {
     return (
       <motion.div
         initial={{ scale: 0.7, opacity: 0 }}
@@ -83,43 +84,6 @@ const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onP
         >
           <X className="w-4 h-4" />
         </Button>
-      </motion.div>
-    );
-  }
-
-  // Conductor sin pasajeros ya a bordo/pendientes (todos bajados, o nunca
-  // hubo ninguno): nada de avatar/estrellas/punto de recogida tiene sentido
-  // aquí, solo cuánto queda para llegar — antes se reutilizaba la tarjeta
-  // completa de pasajero y salía "★0" y "? min hasta bajada del pasajero"
-  // (un dato que ya no existe, porque no hay a quién bajar). Sin botón de
-  // "Finalizar": el viaje se cierra solo al llegar de verdad (GPS) a tu
-  // destino, no hace falta confirmarlo a mano — ese botón además quedaba
-  // poco legible pegado a los controles de zoom.
-  if (userRole === 'driver' && tripStatus === 'picked_up' && !hasMoreStops) {
-    return (
-      <motion.div
-        initial={{ y: 40, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        exit={{ y: 40, opacity: 0 }}
-        className="fixed bottom-3 left-1/2 -translate-x-1/2 z-40 pointer-events-none"
-      >
-        <div className="glass-strong rounded-xl overflow-hidden pointer-events-auto flex items-center gap-2 px-2.5 py-2">
-          <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
-            <Navigation className="w-4 h-4 text-primary" />
-          </div>
-          <div className="min-w-0">
-            {data.distanceKm ? (
-              <>
-                <p className="text-sm font-bold text-foreground leading-tight whitespace-nowrap">
-                  {data.eta} min · {data.distanceKm} km
-                </p>
-                <p className="text-[9px] text-muted-foreground leading-tight">hasta destino</p>
-              </>
-            ) : (
-              <p className="text-sm font-bold text-success leading-tight whitespace-nowrap">¡Has llegado!</p>
-            )}
-          </div>
-        </div>
       </motion.div>
     );
   }

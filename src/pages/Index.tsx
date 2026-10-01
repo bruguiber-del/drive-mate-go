@@ -568,22 +568,13 @@ const Index = () => {
   const extraPassengerCount = Math.max(0, multiTrip.passengers.length - 1);
 
   // Con varios pasajeros a bordo, la compensación del viaje es la suma de
-  // todos, no solo la del siguiente en bajarse — antes solo se mostraba la
-  // de uno, aunque llevaras a más gente pagando cada uno lo suyo.
-  const [lastKnownTripTotal, setLastKnownTripTotal] = useState(0);
-  useEffect(() => {
-    if (multiTrip.passengers.length > 0) {
-      setLastKnownTripTotal(multiTrip.passengers.reduce((sum, p) => sum + p.passenger.compensation, 0));
-    }
-  }, [multiTrip.passengers]);
-
+  // TODOS los aceptados en el viaje (tripPassengerHistory), no solo los que
+  // quedan a bordo ahora mismo — usar multiTrip.passengers (que se va
+  // vaciando a medida que bajas gente) hacía que el total fuera ENCOGIENDO
+  // con cada bajada, hasta terminar mostrando solo la del último pasajero
+  // en vez de la suma de los tres.
   const totalTripCompensation = multiPassengerWaypoints
-    ? multiTrip.passengers.length > 0
-      ? multiTrip.passengers.reduce((sum, p) => sum + p.passenger.compensation, 0)
-      // Al bajar al último pasajero la lista queda vacía un instante antes de
-      // pulsar "Finalizar" — se mantiene el último total real en vez de caer
-      // a 0€ justo al terminar.
-      : lastKnownTripTotal
+    ? tripPassengerHistory.reduce((sum, p) => sum + p.compensation, 0)
     : (displayPassenger?.compensation ?? 0);
 
   // Detecta la llegada real (GPS) al destino final del conductor, solo
@@ -621,7 +612,6 @@ const Index = () => {
         pickupPoint: nav.destinationCoords?.name ?? "",
         eta: hasArrivedAtFinalDestination ? 0 : pickupEta ?? nav.dynamicETA?.minutes ?? 0,
         price: totalTripCompensation,
-        distanceKm: hasArrivedAtFinalDestination ? undefined : nav.dynamicETA?.distanceKm,
       };
     }
     if (trip.activeTripRole === "driver" && displayPassenger) {
@@ -671,10 +661,10 @@ const Index = () => {
   // driverSim.currentDriver y multiTrip.passengers se limpian en el mismo
   // instante en que showActiveTrip pasa a false, así que RatingModal ya no
   // podría leerlos. Para el conductor se usa tripPassengerHistory (TODOS
-  // los aceptados, no solo los que quedan a bordo) y totalTripCompensation
-  // (que ya cae a lastKnownTripTotal cuando la lista está vacía) — antes
-  // solo se guardaba activeTripData.otherUser, que con varios pasajeros ya
-  // solo decía "Viaje completado"/"De camino a tu destino", no un nombre.
+  // los aceptados, no solo los que quedan a bordo), de donde también sale
+  // totalTripCompensation — antes solo se guardaba activeTripData.otherUser,
+  // que con varios pasajeros ya solo decía "Viaje completado"/"De camino a
+  // tu destino", no un nombre.
   const handleTripEndWithSummary = useCallback(() => {
     const tripInfo = activeTripData ? `${activeTripData.origin} → ${activeTripData.destination}` : "";
     if (trip.activeTripRole === "driver" && tripPassengerHistory.length > 0) {
@@ -697,7 +687,6 @@ const Index = () => {
     multiTrip.reset();
     setPendingStopKeys(new Set());
     setIsMultiPassengerTripActive(false);
-    setLastKnownTripTotal(0);
     setHasArrivedAtFinalDestination(false);
     setTripPassengerHistory([]);
     trip.handleTripEnd();
