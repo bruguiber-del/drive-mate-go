@@ -55,6 +55,19 @@ interface SearchResult {
   /** Presente solo en resultados locales (lista de aeropuertos) — evita
    *  tener que llamar a /retrieve, ya que las coordenadas ya se conocen. */
   localCoords?: { lat: number; lng: number };
+  /** Minutos de conducción real (Mapbox Directions Matrix) desde tu
+   *  posición hasta este sitio — solo en resultados de categoría. */
+  detourMin?: number;
+}
+
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 interface RecentDestination {
@@ -154,6 +167,9 @@ const NavigationSearch = ({
   const [categoryResults, setCategoryResults] = useState<SearchResult[]>([]);
   const [isCategorySearching, setIsCategorySearching] = useState(false);
   const sessionTokenRef = useRef<string>(newSessionToken());
+  /** Para descartar una respuesta de la Matrix API si mientras tanto se
+   *  cambió o cerró la categoría activa. */
+  const categoryRequestIdRef = useRef(0);
 
   // Nueva sesión de autocompletado cada vez que se abre el buscador, y
   // refresca la lista de recientes por si se navegó desde otra pantalla.
@@ -170,6 +186,7 @@ const NavigationSearch = ({
       return;
     }
     // Escribir en el buscador cancela una categoría activa (gasolineras, etc.)
+    categoryRequestIdRef.current++;
     setActiveCategory(null);
     setCategoryResults([]);
 
@@ -313,7 +330,9 @@ const NavigationSearch = ({
   /** Busca sitios de una categoría (gasolineras, gimnasios...) cerca de ti,
    *  como los atajos de Google Maps debajo del buscador. */
   const handleCategoryClick = async (categoryId: string) => {
+    const requestId = ++categoryRequestIdRef.current;
     if (activeCategory === categoryId) {
+      categoryRequestIdRef.current++;
       setActiveCategory(null);
       setCategoryResults([]);
       return;
@@ -347,12 +366,60 @@ const NavigationSearch = ({
           ? { lng: f.geometry.coordinates[0], lat: f.geometry.coordinates[1] }
           : undefined,
       })).filter((r: SearchResult) => r.localCoords);
+
+      // De más cerca a más lejos — en línea recta de entrada (inmediato),
+      // y se reordena por tiempo real de conducción en cuanto llega la matriz.
+      if (userLocation) {
+        results.sort(
+          (a, b) =>
+            haversineKm(userLocation[0], userLocation[1], a.localCoords!.lat, a.localCoords!.lng) -
+            haversineKm(userLocation[0], userLocation[1], b.localCoords!.lat, b.localCoords!.lng),
+        );
+      }
       setCategoryResults(results);
+
+      // Minutos reales de conducción a cada sitio — una sola llamada a la
+      // Matrix API de Mapbox (no N llamadas a Directions por resultado).
+      if (userLocation && results.length > 0) {
+        fetchCategoryDetours(userLocation, results, requestId);
+      }
     } catch (error) {
       console.error('Category search error:', error);
       setCategoryResults([]);
     } finally {
       setIsCategorySearching(false);
+    }
+  };
+
+  /** Rellena `detourMin` de cada resultado con el tiempo de conducción real
+   *  desde tu posición (Directions Matrix, una sola petición) y reordena la
+   *  lista por ese tiempo real en vez de la línea recta usada como adelanto. */
+  const fetchCategoryDetours = async (origin: [number, number], results: SearchResult[], requestId: number) => {
+    try {
+      const coords = [
+        `${origin[1]},${origin[0]}`,
+        ...results.map((r) => `${r.localCoords!.lng},${r.localCoords!.lat}`),
+      ].join(';');
+      const params = new URLSearchParams({
+        access_token: MAPBOX_TOKEN,
+        sources: '0',
+        annotations: 'duration',
+      });
+      const response = await fetch(
+        `https://api.mapbox.com/directions-matrix/v1/mapbox/driving/${coords}?${params.toString()}`
+      );
+      const data = await response.json();
+      const durations: (number | null)[] | undefined = data?.durations?.[0];
+      if (!Array.isArray(durations) || requestId !== categoryRequestIdRef.current) return;
+
+      const withDetour = results.map((r, i) => ({
+        ...r,
+        detourMin: typeof durations[i + 1] === 'number' ? Math.round(durations[i + 1] / 60) : undefined,
+      }));
+      withDetour.sort((a, b) => (a.detourMin ?? Infinity) - (b.detourMin ?? Infinity));
+      setCategoryResults(withDetour);
+    } catch (error) {
+      console.error('Matrix error:', error);
     }
   };
 
@@ -492,7 +559,10 @@ const NavigationSearch = ({
                         className="w-full flex items-center gap-4 p-4 hover:bg-muted/50 transition-colors border-b border-border/50 last:border-0"
                       >
                         <MapPin className="w-5 h-5 text-primary shrink-0" />
-                        <p className="text-left text-foreground text-sm line-clamp-2">{result.place_name}</p>
+                        <p className="text-left text-foreground text-sm line-clamp-2 flex-1 min-w-0">{result.place_name}</p>
+                        {result.detourMin != null && (
+                          <span className="text-xs font-semibold text-primary shrink-0">+{result.detourMin} min</span>
+                        )}
                       </motion.button>
                     ))}
                   </div>

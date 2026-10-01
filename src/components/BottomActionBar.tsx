@@ -8,40 +8,27 @@ interface BottomActionBarProps {
   /** Show the "Iniciar conducción" CTA (route exists, user hasn't started moving yet). */
   showStartDrivingCta: boolean;
   onStartDriving: () => void;
-  /** Hide SOLO el chip de ETA/destino mientras hay un viaje activo (esa
-   *  info ya la da el aviso de navegación de arriba). Los toggles de modo
-   *  Y los botones de zoom/centrar ya NO dependen de esto: van siempre en
-   *  el mismo sitio fijo, haya o no viaje activo. */
-  showBar: boolean;
   isDriverMode: boolean;
   onDriverToggle: () => void;
   onOpenDriverSettings: () => void;
   isPassengerMode: boolean;
   onPassengerToggle: () => void;
   onOpenPassengerSettings: () => void;
-  isNavigating: boolean;
-  dynamicETA: { minutes: number } | null;
-  destination: string;
 }
 
 /** Bottom overlay: the "start driving" CTA; the driver/passenger mode
- * toggles — ALWAYS in the same fixed left-side spot, below the "add stop"
- * search button, whether idle or mid-trip, per explicit instruction; and
- * — unless a trip is active — the live ETA chip and the zoom/locate
- * controls. Purely presentational: all state lives in the parent. */
+ * toggles and the zoom/locate controls — ALWAYS in the same fixed spots,
+ * whether idle or mid-trip, per explicit instruction. Purely
+ * presentational: all state lives in the parent. */
 const BottomActionBar = ({
   showStartDrivingCta,
   onStartDriving,
-  showBar,
   isDriverMode,
   onDriverToggle,
   onOpenDriverSettings,
   isPassengerMode,
   onPassengerToggle,
   onOpenPassengerSettings,
-  isNavigating,
-  dynamicETA,
-  destination,
 }: BottomActionBarProps) => {
   return (
     <>
@@ -87,26 +74,9 @@ const BottomActionBar = ({
         </div>
       </div>
 
-      {/* Chip de ETA/destino — solo tiene sentido sin viaje activo (con
-          viaje activo esa info ya la da el aviso de navegación de arriba). */}
-      {showBar && isNavigating && dynamicETA && (
-        <motion.div
-          className="absolute bottom-20 right-3 pointer-events-none"
-          initial={{ opacity: 0, x: -10 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.3 }}
-        >
-          <div className="glass-strong rounded-lg px-2 py-1.5 flex items-center gap-2 pointer-events-auto">
-            <Navigation className="w-3 h-3 text-primary shrink-0" />
-            <span className="text-xs text-foreground truncate">{destination}</span>
-            <span className="text-xs font-bold text-primary shrink-0">· {dynamicETA.minutes} min</span>
-          </div>
-        </motion.div>
-      )}
-
       {/* Zoom/centrar — SIEMPRE visibles, haya o no viaje activo, fijos en
           la esquina inferior derecha debajo de las chapas de pasajero
-          (que empiezan en bottom:130) — antes desaparecían del todo con
+          (que empiezan en bottom:160) — antes desaparecían del todo con
           un viaje activo, igual que les pasaba antes a los toggles de
           modo. */}
       <div className="fixed right-3 z-30 pointer-events-none" style={{ bottom: 20 }}>

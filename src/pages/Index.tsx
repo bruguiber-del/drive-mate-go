@@ -1231,16 +1231,12 @@ const Index = () => {
         <BottomActionBar
           showStartDrivingCta={nav.isNavigating && !nav.hasStartedDriving && !trip.showActiveTrip}
           onStartDriving={nav.startDriving}
-          showBar={!trip.showActiveTrip}
           isDriverMode={isDriverMode}
           onDriverToggle={handleDriverToggle}
           onOpenDriverSettings={modals.openDriverSettings}
           isPassengerMode={isPassengerMode}
           onPassengerToggle={handlePassengerToggle}
           onOpenPassengerSettings={modals.openPassengerSettings}
-          isNavigating={nav.isNavigating}
-          dynamicETA={liveETA}
-          destination={nav.destination}
         />
       </MapView>
       </Suspense>

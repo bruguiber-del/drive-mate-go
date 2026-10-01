@@ -31,7 +31,10 @@ interface StopConfirmButtonsProps {
 // Separación mínima pero segura: suficiente para no dar a dos chapas a la
 // vez sin querer, sin desperdiciar el espacio del mapa como antes.
 const BUTTON_SPACING_PX = 44;
-const BASE_BOTTOM_PX = 130;
+// 130 dejaba la chapa (y su leyenda, 16px más abajo) pegada a la columna de
+// zoom/centrar de BottomActionBar (bottom:20, ~104px de alto) — subida a
+// 160 para que quede un hueco claro entre ambas.
+const BASE_BOTTOM_PX = 160;
 
 /**
  * Una chapa por pasajero del viaje (no solo la "siguiente parada"), apiladas
