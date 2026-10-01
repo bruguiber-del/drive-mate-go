@@ -8,8 +8,17 @@ interface BottomActionBarProps {
   /** Show the "Iniciar conducción" CTA (route exists, user hasn't started moving yet). */
   showStartDrivingCta: boolean;
   onStartDriving: () => void;
-  /** Hide the whole bar (CTA + toggles + zoom) while a trip is active. */
+  /** Hide el ETA/zoom/locate mientras hay un viaje activo — esos sí
+   *  chocarían con la tarjeta de viaje y el total compensado, que ocupan
+   *  esa misma franja de abajo. Los toggles de modo ya no dependen de
+   *  esto (ver tripActive): se quedan visibles siempre, solo cambian de
+   *  sitio. */
   showBar: boolean;
+  /** true mientras hay un viaje activo — mueve los toggles de modo (y sus
+   *  engranajes) a una columna junto a la lupa de "añadir parada" (misma
+   *  esquina, por encima), para que sigan visibles sin pisar la tarjeta
+   *  de viaje ni el total compensado que ocupan el resto de esa franja. */
+  tripActive: boolean;
   isDriverMode: boolean;
   onDriverToggle: () => void;
   onOpenDriverSettings: () => void;
@@ -21,13 +30,17 @@ interface BottomActionBarProps {
   destination: string;
 }
 
-/** Bottom overlay: the "start driving" CTA, and — unless a trip is active —
- * the driver/passenger mode toggles, the live ETA chip, and the zoom/locate
- * controls. Purely presentational: all state lives in the parent. */
+/** Bottom overlay: the "start driving" CTA; the driver/passenger mode
+ * toggles (always visible — in the normal row when idle, moved to a
+ * left-side column during an active trip so they don't collide with
+ * trip-specific controls); and — unless a trip is active — the live ETA
+ * chip and the zoom/locate controls. Purely presentational: all state
+ * lives in the parent. */
 const BottomActionBar = ({
   showStartDrivingCta,
   onStartDriving,
   showBar,
+  tripActive,
   isDriverMode,
   onDriverToggle,
   onOpenDriverSettings,
@@ -54,7 +67,10 @@ const BottomActionBar = ({
         </motion.div>
       )}
 
-      {showBar && (
+      {/* Fila de siempre: toggles + ETA + zoom/locate juntos — sin cambios
+          respecto a antes. Se oculta entera con un viaje activo (ver más
+          abajo la versión en columna para ese caso). */}
+      {showBar && !tripActive && (
         <motion.div
           className="absolute bottom-0 left-0 right-0 p-3 pb-6 safe-area-inset-bottom pointer-events-none"
           initial={{ y: 20, opacity: 0 }}
@@ -107,6 +123,33 @@ const BottomActionBar = ({
             </div>
           </div>
         </motion.div>
+      )}
+
+      {/* Viaje activo: los toggles no desaparecen, se suben en columna
+          justo encima de la lupa de "añadir parada" (misma esquina
+          inferior izquierda) — lejos de la tarjeta de viaje y el total
+          compensado, que siguen teniendo toda la franja de abajo libre. */}
+      {tripActive && (
+        <div className="fixed left-3 z-30 pointer-events-none" style={{ bottom: 185 }}>
+          <div className="flex flex-col items-start gap-2 pointer-events-auto">
+            <div className="flex items-center gap-2">
+              <DriverToggle isDriver={isDriverMode} onToggle={onDriverToggle} />
+              {isDriverMode && (
+                <Button variant="glass" size="icon" className="w-9 h-9" onClick={onOpenDriverSettings}>
+                  <Settings className="w-4 h-4" />
+                </Button>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <PassengerToggle isPassenger={isPassengerMode} onToggle={onPassengerToggle} />
+              {isPassengerMode && (
+                <Button variant="glass" size="icon" className="w-9 h-9" onClick={onOpenPassengerSettings}>
+                  <Settings className="w-4 h-4" />
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

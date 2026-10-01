@@ -248,6 +248,10 @@ const Index = () => {
       genderPreference: driverSettings.genderPreference,
     },
     activePassengerNames: activeSimPassengerNames,
+    // Desvío real ya acumulado por los pasajeros actuales (diferencia de
+    // duración entre la ruta real con sus paradas y la ruta directa) — el
+    // máximo de los ajustes es un tope TOTAL entre todos, no por pasajero.
+    existingDetourMinutes: nav.detourMinutes ?? 0,
   });
 
   // ── Trip lifecycle ──────────────────────────────────────────────────────────
@@ -1175,12 +1179,12 @@ const Index = () => {
           <div className="fixed left-3 z-30 pointer-events-none" style={{ bottom: 130 }}>
             <Button
               variant="glass"
-              size="icon-sm"
+              size="icon"
               className="pointer-events-auto rounded-full shadow-lg"
               onClick={handleOpenAddStopSearch}
               aria-label="Añadir parada"
             >
-              <Search className="w-4 h-4 text-primary" />
+              <Search className="w-5 h-5 text-primary" />
             </Button>
           </div>
         )}
@@ -1211,6 +1215,7 @@ const Index = () => {
           showStartDrivingCta={nav.isNavigating && !nav.hasStartedDriving && !trip.showActiveTrip}
           onStartDriving={nav.startDriving}
           showBar={!trip.showActiveTrip}
+          tripActive={trip.showActiveTrip}
           isDriverMode={isDriverMode}
           onDriverToggle={handleDriverToggle}
           onOpenDriverSettings={modals.openDriverSettings}

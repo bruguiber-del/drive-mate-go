@@ -120,6 +120,11 @@ function generatePassenger(
   /** Nombres ya en uso por pasajeros que el conductor ya lleva a bordo o
    *  pendientes de recoger — se evita repetirlos en una solicitud nueva. */
   excludeNames?: Set<string>,
+  /** Desvío REAL ya acumulado por los pasajeros que el conductor ya lleva
+   *  a bordo o pendientes de recoger (diferencia real de duración de ruta,
+   *  no la suma de estimaciones geométricas individuales) — el máximo del
+   *  conductor es un tope TOTAL entre todos los pasajeros, no por pasajero. */
+  existingDetourMinutes?: number,
 ): SimulatedPassenger | null {
 
   // Index of the driver's current position along the route
@@ -191,10 +196,14 @@ function generatePassenger(
   const detourKm = routeDeviationKm * 2; // ida y vuelta a la ruta
   const detourMinutes = Math.ceil((detourKm / AVG_DETOUR_SPEED_KMH) * 60);
 
-  // Límite duro: si el conductor puso "máx. 5 min", nunca se propone algo
-  // que le desvíe más de 6 — antes esto ni se comprobaba, porque el
-  // desvío mostrado era un número aleatorio sin relación con la geometría.
-  if (maxDetourMinutes != null && detourMinutes > maxDetourMinutes + 1) return null;
+  // Límite duro y ACUMULADO: si el conductor puso "máx. 5 min", el total
+  // entre TODOS los pasajeros (los que ya lleva + este nuevo) nunca puede
+  // pasar de 6 (5 + 1 de cortesía) — antes cada solicitud se comprobaba
+  // sola, sin saber cuánto desvío ya llevaba acumulado el conductor por
+  // otros pasajeros, así que con 3 a bordo el desvío real podía triplicar
+  // el límite puesto en los ajustes.
+  const totalDetourIfAccepted = (existingDetourMinutes ?? 0) + detourMinutes;
+  if (maxDetourMinutes != null && totalDetourIfAccepted > maxDetourMinutes + 1) return null;
 
   // Nunca se propone una solicitud que el conductor no podría aceptar — antes
   // mascota/silla/puerta a puerta salían al azar sin mirar lo que el
@@ -271,6 +280,10 @@ interface UsePassengerSimulationOptions {
    *  pendientes de recoger — para no proponer una solicitud nueva con el
    *  mismo nombre y que parezca la misma persona duplicada. */
   activePassengerNames?: Set<string>;
+  /** Desvío REAL ya acumulado por los pasajeros actuales (diferencia de
+   *  duración entre la ruta real con sus paradas y la ruta directa sin
+   *  ninguna) — maxDetourMinutes es un tope TOTAL, no por pasajero. */
+  existingDetourMinutes?: number;
 }
 
 export function usePassengerSimulation({
@@ -285,6 +298,7 @@ export function usePassengerSimulation({
   maxDetourMinutes,
   driverPreferences,
   activePassengerNames,
+  existingDetourMinutes,
 }: UsePassengerSimulationOptions) {
   const [currentPassenger, setCurrentPassenger] = useState<SimulatedPassenger | null>(null);
   const [pendingPassengers, setPendingPassengers] = useState<SimulatedPassenger[]>([]);
@@ -298,12 +312,14 @@ export function usePassengerSimulation({
   const maxDetourRef = useRef<number | undefined>(maxDetourMinutes);
   const prefsRef = useRef<DriverMatchPreferences | undefined>(driverPreferences);
   const activeNamesRef = useRef<Set<string> | undefined>(activePassengerNames);
+  const existingDetourRef = useRef<number | undefined>(existingDetourMinutes);
   useEffect(() => { routeRef.current = driverRoute ?? null; }, [driverRoute]);
   useEffect(() => { destRef.current = driverDestination ?? null; }, [driverDestination]);
   useEffect(() => { costRef.current = costPerKm; }, [costPerKm]);
   useEffect(() => { maxDetourRef.current = maxDetourMinutes; }, [maxDetourMinutes]);
   useEffect(() => { prefsRef.current = driverPreferences; }, [driverPreferences]);
   useEffect(() => { activeNamesRef.current = activePassengerNames; }, [activePassengerNames]);
+  useEffect(() => { existingDetourRef.current = existingDetourMinutes; }, [existingDetourMinutes]);
 
   const generateNew = useCallback(() => {
     if (!userLocation) return;
@@ -318,7 +334,7 @@ export function usePassengerSimulation({
     if (!route || route.length < 2) return;
     const passenger = generatePassenger(
       lat, lng, route, destRef.current ?? null, costRef.current, maxDetourRef.current, prefsRef.current,
-      activeNamesRef.current,
+      activeNamesRef.current, existingDetourRef.current,
     );
 
     if (!passenger) return;
