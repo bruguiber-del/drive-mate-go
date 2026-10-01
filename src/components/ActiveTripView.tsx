@@ -28,12 +28,6 @@ interface ActiveTripViewProps {
    *  aquí se ocultan el punto de recogida y el botón de acción principal
    *  para no duplicarlos. "Cancelar" sigue disponible siempre. */
   hasMoreStops?: boolean;
-  /** true cuando el MatchPopup también está abierto encima (nueva solicitud
-   *  mientras ya hay un viaje en curso) — antes ambos se anclaban a bottom-0
-   *  y el popup tapaba toda esta tarjeta salvo la cabecera. En compacto se
-   *  reduce a una barra fina y se sube por encima del popup en vez de
-   *  solaparse con él. */
-  compact?: boolean;
   tripData?: {
     otherUser: string;
     otherUserRating: number;
@@ -50,7 +44,7 @@ interface ActiveTripViewProps {
   };
 }
 
-const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onPickup, isTrackingActive = true, pickupEta, dropoffEta, driverVehicle, driverEta, walkingMinutes, onDriverArrived, hasMoreStops = false, tripData, compact = false }: ActiveTripViewProps) => {
+const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onPickup, isTrackingActive = true, pickupEta, dropoffEta, driverVehicle, driverEta, walkingMinutes, onDriverArrived, hasMoreStops = false, tripData }: ActiveTripViewProps) => {
   const defaultData = {
     otherUser: userRole === 'driver' ? 'Ana M.' : 'Carlos G.',
     otherUserRating: 4.8,
@@ -66,40 +60,6 @@ const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onP
   const data = tripData || defaultData;
 
   if (!isOpen) return null;
-
-  // Barra fina cuando el MatchPopup también está abierto — se ancla por
-  // encima de él (que ocupa hasta 38vh) para que nunca se solapen ni se
-  // tape ninguno de los dos.
-  if (compact) {
-    return (
-      <motion.div
-        initial={{ y: 40, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        exit={{ y: 40, opacity: 0 }}
-        className="fixed left-0 right-0 z-40 px-3 pointer-events-none"
-        style={{ bottom: 'calc(38vh + 0.5rem)' }}
-      >
-        <div className="glass-strong rounded-xl overflow-hidden max-w-md mx-auto pointer-events-auto px-3 py-1.5 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
-              userRole === 'driver' ? 'bg-primary' : 'bg-secondary'
-            }`}>
-              <User className="w-3 h-3 text-primary-foreground" />
-            </div>
-            <p className="text-xs font-semibold text-foreground truncate">{data.otherUser}</p>
-            <div className="flex items-center gap-0.5 shrink-0">
-              <Star className="w-2.5 h-2.5 text-warning fill-warning" />
-              <span className="text-[10px] text-muted-foreground">{data.otherUserRating}</span>
-            </div>
-          </div>
-          <span className="text-[10px] text-muted-foreground shrink-0">Viaje en curso</span>
-          <span className={`text-xs font-bold shrink-0 ${userRole === 'driver' ? 'text-success' : 'text-foreground'}`}>
-            {userRole === 'driver' ? '+' : ''}€{data.price.toFixed(2)}
-          </span>
-        </div>
-      </motion.div>
-    );
-  }
 
   // Conductor con paradas pendientes: toda la información (nombre, ETA de
   // recogida/bajada) ya vive en las chapas de StopConfirmButtons, una por

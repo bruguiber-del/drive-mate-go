@@ -51,7 +51,7 @@ interface NavigationOverlaysProps {
   ManeuverIcon: LucideIcon;
   currentLeg: TripLeg;
   currentTargetName: string | null;
-  dynamicETA: { minutes: number } | null;
+  dynamicETA: { minutes: number; distanceKm?: string } | null;
   detourMinutes: number | null;
   driverSeats: number;
   driverMaxDetour: number;
@@ -150,9 +150,11 @@ const NavigationOverlays = ({
       )}
 
       {/* Turn-by-turn banner — SOLO cuando navegando SIN viaje activo. La
-          distancia es el dato grande (como Waze/Google Maps): es lo que se
-          lee de un vistazo conduciendo, la frase completa queda debajo más
-          pequeña. */}
+          distancia de la maniobra es el dato grande (como Waze/Google
+          Maps): es lo que se lee de un vistazo conduciendo, la frase
+          completa queda debajo más pequeña. A la derecha, lo que queda de
+          TODO el trayecto (km y min), que va bajando según avanzas — antes
+          no se enseñaba en ningún sitio arriba. */}
       {isNavigating && hasStartedDriving && !showActiveTrip && currentStep && (
         <motion.div
           className="absolute top-16 left-4 right-4 pointer-events-none z-10"
@@ -169,6 +171,14 @@ const NavigationOverlays = ({
                 {currentStep.instruction}
               </p>
             </div>
+            {dynamicETA?.distanceKm && (
+              <div className="text-right shrink-0 border-l border-border/40 pl-2.5">
+                <p className="text-sm font-bold text-primary leading-tight tabular-nums">
+                  {dynamicETA.distanceKm} km
+                </p>
+                <p className="text-[9px] text-muted-foreground leading-tight">{dynamicETA.minutes} min restantes</p>
+              </div>
+            )}
           </div>
         </motion.div>
       )}
@@ -191,7 +201,9 @@ const NavigationOverlays = ({
                   {formatDistance(currentStep.distance)}
                 </p>
                 {dynamicETA && (
-                  <span className="text-[10px] text-primary font-semibold shrink-0">· {dynamicETA.minutes} min</span>
+                  <span className="text-[10px] text-primary font-semibold shrink-0">
+                    · {dynamicETA.minutes} min{dynamicETA.distanceKm ? ` · ${dynamicETA.distanceKm} km` : ''}
+                  </span>
                 )}
               </div>
               <p className="text-[11px] font-medium text-foreground leading-tight line-clamp-1 mt-0.5">

@@ -81,6 +81,16 @@ const StopConfirmButtons = ({ stops, pendingKeys, onConfirm }: StopConfirmButton
           );
         })}
       </AnimatePresence>
+      {/* Explicación corta, en una sola línea — la anterior tenía varias
+         líneas y, al estar anclada por el borde inferior, crecía hacia
+         arriba y acababa solapando la chapa de abajo. whitespace-nowrap
+         evita que eso vuelva a pasar. */}
+      <p
+        className="absolute right-0 text-[8px] text-white/60 whitespace-nowrap pointer-events-none"
+        style={{ bottom: -16 }}
+      >
+        Toca para confirmar
+      </p>
     </div>
   );
 };

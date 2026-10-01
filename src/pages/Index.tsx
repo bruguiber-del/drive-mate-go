@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef, lazy, Suspense } from "react";
 import { AnimatePresence } from "framer-motion";
-import { X } from "lucide-react";
+import { X, Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { getManeuverIcon } from "@/lib/maneuverIcons";
 import { useVoiceGuidance } from "@/hooks/useVoiceGuidance";
 import { useToast } from "@/components/ui/use-toast";
@@ -1143,7 +1144,6 @@ const Index = () => {
           isMuted={voice.isMuted}
           onToggleMuted={voice.toggleMuted}
           onStopNavigation={handleStopNavigation}
-          onOpenAddStop={isDriverMode ? handleOpenAddStopSearch : undefined}
         />
 
         {/* Paradas personales activas — chip por cada una con su cruz para
@@ -1164,6 +1164,24 @@ const Index = () => {
                 <X className="w-3 h-3 shrink-0" />
               </button>
             ))}
+          </div>
+        )}
+
+        {/* Añadir parada — lupa en la esquina inferior izquierda, a la
+            misma altura que las chapas de pasajero del lateral derecho.
+            Antes era un "+" en la barra de arriba, lejos de donde está
+            toda la demás acción del viaje. */}
+        {isDriverMode && nav.isNavigating && (
+          <div className="fixed left-3 z-30 pointer-events-none" style={{ bottom: 130 }}>
+            <Button
+              variant="glass"
+              size="icon-sm"
+              className="pointer-events-auto rounded-full shadow-lg"
+              onClick={handleOpenAddStopSearch}
+              aria-label="Añadir parada"
+            >
+              <Search className="w-4 h-4 text-primary" />
+            </Button>
           </div>
         )}
 
@@ -1226,7 +1244,6 @@ const Index = () => {
           }
           onDriverArrived={trip.handlePickup}
           tripData={activeTripData}
-          compact={modals.showMatchPopup}
           hasMoreStops={multiStops.length > 0}
         />
       </AnimatePresence>
@@ -1237,6 +1254,20 @@ const Index = () => {
           pendingKeys={pendingStopKeys}
           onConfirm={handleStopButtonConfirm}
         />
+      )}
+
+      {/* Total compensado por ahora en este viaje — esquina inferior
+          derecha, bajo las chapas de parada. Antes, cuando llegaba una
+          solicitud nueva, salía una barra en mitad de la pantalla con el
+          viaje en curso; ahora esa barra desaparece del todo y este total
+          persistente la sustituye. */}
+      {trip.showActiveTrip && trip.activeTripRole === "driver" && totalTripCompensation > 0 && (
+        <div className="fixed right-3 bottom-3 z-30 pointer-events-none">
+          <div className="glass-strong rounded-full px-3 py-1.5 flex items-center gap-1.5 border border-success/30">
+            <span className="text-[9px] text-muted-foreground">Compensado</span>
+            <span className="text-sm font-bold text-success">+{totalTripCompensation.toFixed(2)}€</span>
+          </div>
+        </div>
       )}
 
       {/* Modals */}

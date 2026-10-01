@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Menu, Volume2, VolumeX, X, Plus } from "lucide-react";
+import { Menu, Volume2, VolumeX, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import SearchBar from "@/components/SearchBar";
 import type { TravelMode } from "@/hooks/useRouting";
@@ -17,11 +17,6 @@ interface NavTopBarProps {
   isMuted: boolean;
   onToggleMuted: () => void;
   onStopNavigation: () => void;
-  /** Abre el buscador en modo "añadir parada" (gasolinera, súper...) sin
-   *  tocar el destino final — solo tiene sentido mientras se navega, por
-   *  eso vive aquí y no en la barra de búsqueda normal (esa se desactiva
-   *  al navegar precisamente para no tocar el destino sin querer). */
-  onOpenAddStop?: () => void;
 }
 
 /** Top bar: hamburger menu, the universal destination search bar, and — only
@@ -37,7 +32,6 @@ const NavTopBar = ({
   isMuted,
   onToggleMuted,
   onStopNavigation,
-  onOpenAddStop,
 }: NavTopBarProps) => {
   // Descompone la espera en dos fases con nombre, en vez de un "Navegando..."
   // fijo mientras no hay nada que ver todavía — así se nota qué está pasando.
@@ -76,17 +70,6 @@ const NavTopBar = ({
             animate={{ scale: 1 }}
             className="pointer-events-auto flex shrink-0 items-center gap-1.5"
           >
-            {onOpenAddStop && (
-              <Button
-                variant="glass"
-                size="icon-sm"
-                className="shrink-0"
-                onClick={onOpenAddStop}
-                aria-label="Añadir parada"
-              >
-                <Plus className="w-4 h-4 text-primary" />
-              </Button>
-            )}
             <Button
               variant="glass"
               size="icon-sm"
