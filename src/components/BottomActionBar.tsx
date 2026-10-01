@@ -8,10 +8,9 @@ interface BottomActionBarProps {
   /** Show the "Iniciar conducción" CTA (route exists, user hasn't started moving yet). */
   showStartDrivingCta: boolean;
   onStartDriving: () => void;
-  /** Hide SOLO el ETA/zoom/locate mientras hay un viaje activo — esos sí
-   *  chocarían con la tarjeta de viaje y el total compensado, que ocupan
-   *  esa misma franja de abajo a la derecha/centro. Los toggles de modo
-   *  (ver más abajo) ya NO dependen de esto en absoluto: van siempre en
+  /** Hide SOLO el chip de ETA/destino mientras hay un viaje activo (esa
+   *  info ya la da el aviso de navegación de arriba). Los toggles de modo
+   *  Y los botones de zoom/centrar ya NO dependen de esto: van siempre en
    *  el mismo sitio fijo, haya o no viaje activo. */
   showBar: boolean;
   isDriverMode: boolean;
@@ -88,40 +87,41 @@ const BottomActionBar = ({
         </div>
       </div>
 
-      {/* ETA + zoom/locate — se sigue ocultando con un viaje activo (ahí sí
-          chocaría con la tarjeta de viaje y el total compensado). */}
-      {showBar && (
+      {/* Chip de ETA/destino — solo tiene sentido sin viaje activo (con
+          viaje activo esa info ya la da el aviso de navegación de arriba). */}
+      {showBar && isNavigating && dynamicETA && (
         <motion.div
-          className="absolute bottom-0 right-0 p-3 pb-6 safe-area-inset-bottom pointer-events-none"
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
+          className="absolute bottom-20 right-3 pointer-events-none"
+          initial={{ opacity: 0, x: -10 }}
+          animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.3 }}
         >
-          <div className="flex items-center gap-2 pointer-events-auto">
-            {isNavigating && dynamicETA && (
-              <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="min-w-0">
-                <div className="glass-strong rounded-lg px-2 py-1.5 flex items-center gap-2">
-                  <Navigation className="w-3 h-3 text-primary shrink-0" />
-                  <span className="text-xs text-foreground truncate">{destination}</span>
-                  <span className="text-xs font-bold text-primary shrink-0">· {dynamicETA.minutes} min</span>
-                </div>
-              </motion.div>
-            )}
-
-            <div className="flex flex-col gap-1">
-              <Button variant="glass" size="icon" className="w-8 h-8" onClick={() => (window as any).__mapZoomIn?.()}>
-                <span className="text-sm font-bold text-foreground">+</span>
-              </Button>
-              <Button variant="glass" size="icon" className="w-8 h-8" onClick={() => (window as any).__mapZoomOut?.()}>
-                <span className="text-sm font-bold text-foreground">−</span>
-              </Button>
-              <Button variant="glass" size="icon" className="w-8 h-8" onClick={() => (window as any).__mapCenterOnUser?.()}>
-                <Locate className="w-4 h-4 text-primary" />
-              </Button>
-            </div>
+          <div className="glass-strong rounded-lg px-2 py-1.5 flex items-center gap-2 pointer-events-auto">
+            <Navigation className="w-3 h-3 text-primary shrink-0" />
+            <span className="text-xs text-foreground truncate">{destination}</span>
+            <span className="text-xs font-bold text-primary shrink-0">· {dynamicETA.minutes} min</span>
           </div>
         </motion.div>
       )}
+
+      {/* Zoom/centrar — SIEMPRE visibles, haya o no viaje activo, fijos en
+          la esquina inferior derecha debajo de las chapas de pasajero
+          (que empiezan en bottom:130) — antes desaparecían del todo con
+          un viaje activo, igual que les pasaba antes a los toggles de
+          modo. */}
+      <div className="fixed right-3 z-30 pointer-events-none" style={{ bottom: 20 }}>
+        <div className="flex flex-col gap-1 pointer-events-auto">
+          <Button variant="glass" size="icon" className="w-8 h-8" onClick={() => (window as any).__mapZoomIn?.()}>
+            <span className="text-sm font-bold text-foreground">+</span>
+          </Button>
+          <Button variant="glass" size="icon" className="w-8 h-8" onClick={() => (window as any).__mapZoomOut?.()}>
+            <span className="text-sm font-bold text-foreground">−</span>
+          </Button>
+          <Button variant="glass" size="icon" className="w-8 h-8" onClick={() => (window as any).__mapCenterOnUser?.()}>
+            <Locate className="w-4 h-4 text-primary" />
+          </Button>
+        </div>
+      </div>
     </>
   );
 };

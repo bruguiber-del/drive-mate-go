@@ -39,6 +39,9 @@ interface UseNavigationStateReturn {
   /** Duration (s) of the very first route computed for the trip, before any
    *  passenger pickup was added as an intermediate stop. */
   originalDuration: number | null;
+  /** Distance (m) of that same very first route — junto con originalDuration,
+   *  es la base real para medir el desvío en km, no solo en minutos. */
+  originalDistance: number | null;
 
   // Derived
   /** { minutes, distanceKm } computed from currentRoute; null when no route */
@@ -82,6 +85,7 @@ export function useNavigationState({
   const [currentRoute, setCurrentRouteState] = useState<RouteData | null>(null);
   const [isRouteLoading, setIsRouteLoading] = useState(false);
   const [originalDuration, setOriginalDuration] = useState<number | null>(null);
+  const [originalDistance, setOriginalDistance] = useState<number | null>(null);
   const [travelMode, setTravelMode] = useState<TravelMode>('driving');
 
   // Simulation disabled for real-GPS MVP. The marker only moves when the
@@ -94,6 +98,9 @@ export function useNavigationState({
     setCurrentRouteState(route);
     if (route?.duration) {
       setOriginalDuration(prev => (prev == null ? route.duration : prev));
+    }
+    if (route?.distance) {
+      setOriginalDistance(prev => (prev == null ? route.distance : prev));
     }
   }, []);
 
@@ -110,6 +117,7 @@ export function useNavigationState({
       // esto antes de tiempo, así que no aporta nada exigirlo aparte.
       setHasStartedDriving(true);
       setOriginalDuration(null);
+      setOriginalDistance(null);
       setFinalDestination({ lat: coords.lat, lng: coords.lng, name: dest });
       toast({ title: `Ruta hacia ${dest}`, duration: 1500 });
     },
@@ -130,6 +138,7 @@ export function useNavigationState({
     setCurrentRouteState(null);
     setIsRouteLoading(false);
     setOriginalDuration(null);
+    setOriginalDistance(null);
     setTravelMode('driving');
     cancelTrip();
     onStop?.();
@@ -164,6 +173,7 @@ export function useNavigationState({
     isRouteLoading,
     travelMode,
     originalDuration,
+    originalDistance,
     dynamicETA,
     detourMinutes,
     handleNavigate,

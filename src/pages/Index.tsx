@@ -232,6 +232,20 @@ const Index = () => {
     [multiTrip.passengers],
   );
 
+  // Forma mínima de cada pasajero ya aceptado que necesita el verificador
+  // de desvío real (posición de recogida/bajada + si ya está a bordo).
+  const activeSimTrackedPassengers = useMemo(
+    () =>
+      multiTrip.passengers.map(({ passenger, status }) => ({
+        id: passenger.id,
+        name: passenger.name,
+        origin: { lat: passenger.origin.lat, lng: passenger.origin.lng },
+        destination: { lat: passenger.destination.lat, lng: passenger.destination.lng },
+        status,
+      })),
+    [multiTrip.passengers],
+  );
+
   const { currentPassenger: simulatedPassenger, dismissCurrent: dismissSimPassenger } = usePassengerSimulation({
     enabled: passengerSimEnabled && !modals.showMatchPopup,
     userLocation: realUserLocation,
@@ -248,10 +262,13 @@ const Index = () => {
       genderPreference: driverSettings.genderPreference,
     },
     activePassengerNames: activeSimPassengerNames,
-    // Desvío real ya acumulado por los pasajeros actuales (diferencia de
-    // duración entre la ruta real con sus paradas y la ruta directa) — el
-    // máximo de los ajustes es un tope TOTAL entre todos, no por pasajero.
-    existingDetourMinutes: nav.detourMinutes ?? 0,
+    activeTrackedPassengers: activeSimTrackedPassengers,
+    // Línea base 100% real (nada de estimaciones): la ruta real actual, ya
+    // con las paradas aceptadas, y la ruta original de cero pasajeros —
+    // ambas calculadas de verdad por Mapbox, no geometría aproximada.
+    existingRouteDurationS: nav.currentRoute?.duration ?? null,
+    existingRouteDistanceM: nav.currentRoute?.distance ?? null,
+    originalDurationS: nav.originalDuration,
   });
 
   // ── Trip lifecycle ──────────────────────────────────────────────────────────
@@ -1260,13 +1277,14 @@ const Index = () => {
         />
       )}
 
-      {/* Total compensado por ahora en este viaje — esquina inferior
-          derecha, bajo las chapas de parada. Antes, cuando llegaba una
-          solicitud nueva, salía una barra en mitad de la pantalla con el
-          viaje en curso; ahora esa barra desaparece del todo y este total
-          persistente la sustituye. */}
+      {/* Total compensado por ahora en este viaje — centrado abajo, junto a
+          la tarjeta de cancelar/destino (la esquina inferior derecha ahora
+          es de los botones fijos de zoom/centrar). Antes, cuando llegaba
+          una solicitud nueva, salía una barra en mitad de la pantalla con
+          el viaje en curso; ahora esa barra desaparece del todo y este
+          total persistente la sustituye. */}
       {trip.showActiveTrip && trip.activeTripRole === "driver" && totalTripCompensation > 0 && (
-        <div className="fixed right-3 bottom-3 z-30 pointer-events-none">
+        <div className="fixed left-1/2 -translate-x-1/2 z-30 pointer-events-none" style={{ bottom: 70 }}>
           <div className="glass-strong rounded-full px-3 py-1.5 flex items-center gap-1.5 border border-success/30">
             <span className="text-[9px] text-muted-foreground">Compensado</span>
             <span className="text-sm font-bold text-success">+{totalTripCompensation.toFixed(2)}€</span>

@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { calculatePrice } from '@/lib/priceCalculator';
+import { MAPBOX_TOKEN } from '@/lib/mapboxConfig';
+import { clusterPlannedStops, findOptimalStopOrder } from '@/lib/multiStopPlanning';
 
 export interface SimulatedPassenger {
   id: string;
@@ -18,6 +20,16 @@ export interface SimulatedPassenger {
   acceptsPets: boolean;
   hasChildSeat: boolean;
   doorToDoor: boolean;
+}
+
+/** Pasajero ya aceptado/a bordo — la forma mínima que hace falta para medir
+ *  el desvío real combinado con un candidato nuevo. */
+export interface ActiveTrackedPassenger {
+  id: string;
+  name: string;
+  origin: { lat: number; lng: number };
+  destination: { lat: number; lng: number };
+  status: 'waiting_pickup' | 'in_car';
 }
 
 const PASSENGER_NAMES_WOMEN = ['María G.', 'Ana P.', 'Laura M.', 'Lucía T.', 'Marta V.'];
@@ -65,8 +77,6 @@ function findPointNearRoute(
   const [lat, lng] = routeCoords[randomIdx];
   const offsetLat = (Math.random() - 0.5) * 0.01;
   const offsetLng = (Math.random() - 0.5) * 0.01;
-  // baseLat/baseLng: el punto exacto sobre la ruta, antes del desplazamiento
-  // — necesario para medir cuánto se desvía de verdad de la ruta real.
   return { lat: lat + offsetLat, lng: lng + offsetLng, baseLat: lat, baseLng: lng };
 }
 
@@ -104,86 +114,64 @@ function isPickupAheadOnRoute(
   return pickupRouteIdx > driverRouteIdx;
 }
 
-// Velocidad media estimada para traducir el desvío en km a minutos —
-// sustituye al valor puramente aleatorio que había antes y que no tenía
-// relación ninguna con el ajuste real de "desvío máximo" del conductor.
-// Más baja que una velocidad de crucero a propósito: un desvío implica
-// calles secundarias, giros y arrancar/parar, no carretera fluida.
-const AVG_DETOUR_SPEED_KMH = 22;
+interface CandidateDraft {
+  pickupLat: number;
+  pickupLng: number;
+  destLat: number;
+  destLng: number;
+  name: string;
+  gender: 'women' | 'men';
+  rating: number;
+  pickupDistanceLabel: string;
+  tripDistanceKm: number;
+  acceptsPets: boolean;
+  hasChildSeat: boolean;
+  doorToDoor: boolean;
+}
 
-// La desviación pickup/dropoff se mide en línea recta (haversine) entre el
-// punto de la ruta y el punto real de recogida/bajada — pero por calle de
-// verdad, con giros y sin poder cortar en diagonal, se recorre bastante
-// más que esa distancia recta. Sin esto, el desvío que se usa para filtrar
-// contra "máx. X min" del conductor salía optimista, y la ruta real que
-// luego calcula Mapbox (con los puntos ya aceptados) acababa añadiendo
-// bastante más tiempo del que el filtro había dejado pasar.
-const ROAD_DISTANCE_FACTOR = 1.6;
-
-function generatePassenger(
+/** Fase 1 — geometría y elegibilidad básicas, todo síncrono: dónde iría
+ *  recogida/bajada, si está dentro del radio razonable, nombre sin
+ *  repetir... Nada de desvío todavía: eso se mide de verdad en la fase 2
+ *  con una llamada real a Mapbox, no se estima aquí. */
+function buildCandidateDraft(
   userLat: number,
   userLng: number,
   driverRoute: [number, number][],
-  driverDestination: { lat: number; lng: number; name: string } | null,
-  costPerKm?: number,
-  maxDetourMinutes?: number,
   driverPrefs?: DriverMatchPreferences,
-  /** Nombres ya en uso por pasajeros que el conductor ya lleva a bordo o
-   *  pendientes de recoger — se evita repetirlos en una solicitud nueva. */
   excludeNames?: Set<string>,
-  /** Desvío REAL ya acumulado por los pasajeros que el conductor ya lleva
-   *  a bordo o pendientes de recoger (diferencia real de duración de ruta,
-   *  no la suma de estimaciones geométricas individuales) — el máximo del
-   *  conductor es un tope TOTAL entre todos los pasajeros, no por pasajero. */
-  existingDetourMinutes?: number,
-): SimulatedPassenger | null {
-
-  // Index of the driver's current position along the route
+): CandidateDraft | null {
   let driverIdx = 0;
   let minD = Infinity;
   for (let i = 0; i < driverRoute.length; i++) {
     const d = haversineKm(userLat, userLng, driverRoute[i][0], driverRoute[i][1]);
     if (d < minD) { minD = d; driverIdx = i; }
   }
-  // Pickup must come from a point AHEAD of the driver on the route
   if (driverIdx >= driverRoute.length - 2) return null;
   const pickupIdx =
     driverIdx + 1 + Math.floor(Math.random() * Math.max(1, Math.floor((driverRoute.length - driverIdx) * 0.5)));
   const basePickup = driverRoute[Math.min(pickupIdx, driverRoute.length - 2)];
-  // Small offset so it sits on a nearby street, not exactly on the polyline
   const pickupLat = basePickup[0] + (Math.random() - 0.5) * 0.006;
   const pickupLng = basePickup[1] + (Math.random() - 0.5) * 0.008;
 
-  // Pickup must be ahead of the driver along their route
   if (!isPickupAheadOnRoute(userLat, userLng, pickupLat, pickupLng, driverRoute)) {
     return null;
   }
 
-  // Distancia desde donde está el conductor ahora mismo hasta la recogida —
-  // solo para descartar candidatos absurdamente lejos y para el texto "a
-  // X m/km" que se le muestra. NO es el desvío real: esa distancia la
-  // conduce el conductor de todas formas, vaya o no a por el pasajero.
+  // Solo para descartar candidatos absurdamente lejos y el texto "a X m/km"
+  // — NO es el desvío real: esa distancia la conduce el conductor de todas
+  // formas, vaya o no a por el pasajero.
   const distanceToDriverKm = haversineKm(userLat, userLng, pickupLat, pickupLng);
   const maxPickupDistanceKm = 8;
   if (distanceToDriverKm > maxPickupDistanceKm) return null;
 
-  // Passenger destination must lie further along the driver's route
   const destSlice = driverRoute.slice(Math.min(pickupIdx + 1, driverRoute.length - 1));
   const destPoint = findPointNearRoute(destSlice);
   if (!destPoint) return null;
 
-  // El género de la solicitud respeta la preferencia real del conductor —
-  // antes el ajuste se guardaba pero nunca filtraba nada.
   const gender: 'women' | 'men' =
     driverPrefs?.genderPreference === 'women' ? 'women'
     : driverPrefs?.genderPreference === 'men' ? 'men'
     : Math.random() > 0.5 ? 'women' : 'men';
-  // Antes se elegía al azar de la lista entera sin mirar si ese nombre ya
-  // estaba en uso — con solo 5 nombres por género y varios pasajeros a
-  // bordo a la vez, era fácil que dos "personas" distintas salieran con el
-  // mismo nombre y pareciera un bug de duplicado. Si se agotan los 5 (poco
-  // probable, pero posible con 4 plazas), se acepta la repetición: mejor
-  // eso que no proponer más solicitudes.
   const namesPool = gender === 'women' ? PASSENGER_NAMES_WOMEN : PASSENGER_NAMES_MEN;
   const availableNames = excludeNames ? namesPool.filter((n) => !excludeNames.has(n)) : namesPool;
   const names = availableNames.length > 0 ? availableNames : namesPool;
@@ -191,88 +179,104 @@ function generatePassenger(
 
   const distM = distanceToDriverKm * 1000;
   const tripDistanceKm = haversineKm(pickupLat, pickupLng, destPoint.lat, destPoint.lng);
-  // Minimum trip length so prices aren't nonsense
   if (tripDistanceKm < 2) return null;
 
-  // Desvío REAL fuera de la ruta: cuánto se aparta la recogida/bajada del
-  // punto exacto de la ruta, no toda la distancia hasta llegar ahí (esa la
-  // conduce el conductor igualmente hacia su propio destino).
-  const pickupDeviationKm = haversineKm(basePickup[0], basePickup[1], pickupLat, pickupLng);
-  const dropoffDeviationKm = haversineKm(destPoint.baseLat, destPoint.baseLng, destPoint.lat, destPoint.lng);
-  const routeDeviationKm = pickupDeviationKm + dropoffDeviationKm;
-  // El pasajero paga el desvío que causa, sea cual sea — por pequeño que
-  // sea, sigue siendo un desvío real fuera de la ruta del conductor. Antes
-  // por debajo de ~150m se consideraba "gratis", lo cual no es lo que
-  // se pidió: el desvío se cobra siempre, sin umbral mínimo.
-  // ×2 por ida y vuelta a la ruta, ×ROAD_DISTANCE_FACTOR porque la
-  // distancia recta entre dos puntos no es la que se conduce de verdad.
-  const detourKm = routeDeviationKm * 2 * ROAD_DISTANCE_FACTOR;
-  const detourMinutes = Math.ceil((detourKm / AVG_DETOUR_SPEED_KMH) * 60);
-
-  // Límite duro y ACUMULADO: si el conductor puso "máx. 5 min", el total
-  // entre TODOS los pasajeros (los que ya lleva + este nuevo) nunca puede
-  // pasar de 6 (5 + 1 de cortesía) — antes cada solicitud se comprobaba
-  // sola, sin saber cuánto desvío ya llevaba acumulado el conductor por
-  // otros pasajeros, así que con 3 a bordo el desvío real podía triplicar
-  // el límite puesto en los ajustes.
-  const totalDetourIfAccepted = (existingDetourMinutes ?? 0) + detourMinutes;
-  if (maxDetourMinutes != null && totalDetourIfAccepted > maxDetourMinutes + 1) return null;
-
-  // Nunca se propone una solicitud que el conductor no podría aceptar — antes
-  // mascota/silla/puerta a puerta salían al azar sin mirar lo que el
-  // conductor había marcado en sus ajustes.
   const acceptsPets = driverPrefs?.acceptsPets ? Math.random() > 0.6 : false;
   const hasChildSeat = driverPrefs?.hasChildSeat ? Math.random() > 0.8 : false;
   const doorToDoor = driverPrefs?.doorToDoor ? Math.random() > 0.5 : false;
 
-  // El pasajero paga los km que pasa de verdad en el coche (recogida →
-  // destino) más el desvío real que le causa al conductor, sea cual sea.
-  // Van SEPARADOS a calculatePrice (no fusionados en un solo distanceKm):
-  // el trayecto se reparte por el factor de ocupación (el conductor iba
-  // a hacerlo igualmente), pero el desvío son km que el conductor NO
-  // haría si no fuera por este pasajero, así que se cobra entero — antes,
-  // al fusionarlos, el desvío también se dividía por el factor de
-  // ocupación y el conductor cobraba casi la mitad de lo que debía por
-  // desviarse.
-  const pricing = calculatePrice({
-    distanceKm: tripDistanceKm,
-    detourKm,
-    passengerCount: 1,
-    traffic: 'normal',
-    costPerKm,
-    hasPet: acceptsPets,
-    hasChildSeat,
-  });
-
-
   return {
-    id: crypto.randomUUID(),
+    pickupLat,
+    pickupLng,
+    destLat: destPoint.lat,
+    destLng: destPoint.lng,
     name,
     gender,
-    rating: parseFloat((randomInRange(4.2, 5.0)).toFixed(1)),
-    origin: {
-      lat: pickupLat,
-      lng: pickupLng,
-      name: `Calle ${Math.floor(randomInRange(1, 50))}`,
-    },
-    destination: {
-      lat: destPoint.lat,
-      lng: destPoint.lng,
-      // Antes se etiquetaba con el pueblo de Aragón más cercano de una
-      // lista fija — con GPS real en cualquier otro sitio (p. ej. Ibiza)
-      // salía un nombre de una ciudad a cientos de km, sin relación con el
-      // mapa. Una calle genérica no miente sobre dónde está.
-      name: `Avenida ${Math.floor(randomInRange(1, 50))}`,
-    },
-    detourMinutes,
-    pickupDistance: distM < 1000 ? `${Math.round(distM)}m` : `${(distM / 1000).toFixed(1)}km`,
-    compensation: pricing.driverIncome,
+    rating: parseFloat(randomInRange(4.2, 5.0).toFixed(1)),
+    pickupDistanceLabel: distM < 1000 ? `${Math.round(distM)}m` : `${(distM / 1000).toFixed(1)}km`,
     tripDistanceKm,
-    detourKm,
     acceptsPets,
     hasChildSeat,
     doorToDoor,
   };
+}
+
+const MAPBOX_DIRECTIONS_BASE = 'https://api.mapbox.com/directions/v5/mapbox/driving-traffic';
+
+/** Llama a Mapbox Directions de verdad para una secuencia de puntos — sin
+ *  geometría ni pasos, solo la duración y distancia totales, que es lo
+ *  único que hace falta para medir el desvío real (no estimado). */
+async function fetchRealRoute(
+  points: { lat: number; lng: number }[],
+): Promise<{ durationS: number; distanceM: number } | null> {
+  if (points.length < 2) return null;
+  try {
+    const coords = points.map((p) => `${p.lng},${p.lat}`).join(';');
+    const url = `${MAPBOX_DIRECTIONS_BASE}/${coords}?overview=false&access_token=${MAPBOX_TOKEN}`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const data = await res.json();
+    const route = data?.routes?.[0];
+    if (!route) return null;
+    return { durationS: route.duration, distanceM: route.distance };
+  } catch {
+    return null;
+  }
+}
+
+/** Fase 2 — desvío 100% real: construye la ruta de verdad (paradas ya
+ *  aceptadas + esta candidata, en el orden óptimo que respeta recoger antes
+ *  de bajar) y la manda a Mapbox. Compara esa duración real contra la ruta
+ *  real actual (desvío que aporta SOLO esta candidata, para el precio) y
+ *  contra la ruta original sin nadie (desvío TOTAL acumulado, para el
+ *  límite de los ajustes). Si Mapbox no responde, no se ofrece el
+ *  candidato — mejor no proponerlo que proponerlo con un desvío inventado. */
+async function verifyRealDetour(
+  driverLat: number,
+  driverLng: number,
+  draft: CandidateDraft,
+  candidateId: string,
+  existingPassengers: ActiveTrackedPassenger[],
+  finalDestination: { lat: number; lng: number } | null,
+  existingRouteDurationS: number,
+  existingRouteDistanceM: number,
+  originalDurationS: number | null,
+  maxDetourMinutes?: number,
+): Promise<{ detourMinutes: number; detourKm: number } | null> {
+  const rawStops: Array<{ kind: 'pickup' | 'dropoff'; lat: number; lng: number; passengerId: string; passengerName: string }> = [];
+  for (const p of existingPassengers) {
+    if (p.status === 'waiting_pickup') {
+      rawStops.push({ kind: 'pickup', lat: p.origin.lat, lng: p.origin.lng, passengerId: p.id, passengerName: p.name });
+    }
+    rawStops.push({ kind: 'dropoff', lat: p.destination.lat, lng: p.destination.lng, passengerId: p.id, passengerName: p.name });
+  }
+  rawStops.push({ kind: 'pickup', lat: draft.pickupLat, lng: draft.pickupLng, passengerId: candidateId, passengerName: draft.name });
+  rawStops.push({ kind: 'dropoff', lat: draft.destLat, lng: draft.destLng, passengerId: candidateId, passengerName: draft.name });
+
+  const clustered = clusterPlannedStops(rawStops);
+  const alreadyPickedUp = new Set(existingPassengers.filter((p) => p.status === 'in_car').map((p) => p.id));
+  const ordered = findOptimalStopOrder({ lat: driverLat, lng: driverLng }, clustered, alreadyPickedUp);
+
+  const points = [{ lat: driverLat, lng: driverLng }, ...ordered.map((s) => ({ lat: s.lat, lng: s.lng }))];
+  if (finalDestination) points.push(finalDestination);
+
+  const real = await fetchRealRoute(points);
+  if (!real) return null;
+
+  // Límite ACUMULADO real: la ruta completa con esta candidata, comparada
+  // con la ruta original de cero pasajeros, nunca puede pasar del máximo
+  // de los ajustes + 1 min de cortesía — entre TODOS los pasajeros juntos,
+  // no por pasajero.
+  if (maxDetourMinutes != null && originalDurationS != null) {
+    const totalDetourMinutes = Math.ceil((real.durationS - originalDurationS) / 60);
+    if (totalDetourMinutes > maxDetourMinutes + 1) return null;
+  }
+
+  // Lo que aporta SOLO esta candidata (para su precio) — la ruta completa
+  // con ella puesta, menos la ruta real actual sin ella.
+  const detourMinutes = Math.max(0, Math.ceil((real.durationS - existingRouteDurationS) / 60));
+  const detourKm = Math.max(0, (real.distanceM - existingRouteDistanceM) / 1000);
+  return { detourMinutes, detourKm };
 }
 
 interface UsePassengerSimulationOptions {
@@ -283,8 +287,8 @@ interface UsePassengerSimulationOptions {
   driverDestination?: { lat: number; lng: number; name: string } | null;
   /** Cost per km of the driver's active vehicle */
   costPerKm?: number;
-  /** Desvío máximo (min) fijado en los ajustes del conductor — se rechaza
-   *  cualquier candidato que se pase de ese límite en más de 1 minuto. */
+  /** Desvío máximo (min) fijado en los ajustes del conductor — tope TOTAL
+   *  real entre todos los pasajeros, con 1 min de cortesía. */
   maxDetourMinutes?: number;
   /** Mascotas / silla infantil / puerta a puerta / preferencia de género que
    *  el conductor marcó en sus ajustes — filtran de verdad las solicitudes. */
@@ -293,10 +297,17 @@ interface UsePassengerSimulationOptions {
    *  pendientes de recoger — para no proponer una solicitud nueva con el
    *  mismo nombre y que parezca la misma persona duplicada. */
   activePassengerNames?: Set<string>;
-  /** Desvío REAL ya acumulado por los pasajeros actuales (diferencia de
-   *  duración entre la ruta real con sus paradas y la ruta directa sin
-   *  ninguna) — maxDetourMinutes es un tope TOTAL, no por pasajero. */
-  existingDetourMinutes?: number;
+  /** Pasajeros ya aceptados/a bordo — hace falta su posición real para
+   *  construir la ruta combinada que se manda a Mapbox. */
+  activeTrackedPassengers?: ActiveTrackedPassenger[];
+  /** Duración (s) y distancia (m) de la ruta real ACTUAL (con las paradas
+   *  ya aceptadas, si hay alguna) — línea base para medir cuánto añade
+   *  SOLO la candidata nueva. */
+  existingRouteDurationS?: number | null;
+  existingRouteDistanceM?: number | null;
+  /** Duración (s) de la ruta original, de cero pasajeros — línea base para
+   *  el límite TOTAL acumulado de los ajustes. */
+  originalDurationS?: number | null;
 }
 
 export function usePassengerSimulation({
@@ -311,11 +322,17 @@ export function usePassengerSimulation({
   maxDetourMinutes,
   driverPreferences,
   activePassengerNames,
-  existingDetourMinutes,
+  activeTrackedPassengers,
+  existingRouteDurationS,
+  existingRouteDistanceM,
+  originalDurationS,
 }: UsePassengerSimulationOptions) {
   const [currentPassenger, setCurrentPassenger] = useState<SimulatedPassenger | null>(null);
   const [pendingPassengers, setPendingPassengers] = useState<SimulatedPassenger[]>([]);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Evita solapar dos verificaciones a la vez si una tarda más que el
+  // intervalo entre intentos (la llamada a Mapbox es async).
+  const isGeneratingRef = useRef(false);
 
   // Keep latest route/destination available to the interval callback without
   // resetting the timer every time the route updates slightly.
@@ -325,16 +342,23 @@ export function usePassengerSimulation({
   const maxDetourRef = useRef<number | undefined>(maxDetourMinutes);
   const prefsRef = useRef<DriverMatchPreferences | undefined>(driverPreferences);
   const activeNamesRef = useRef<Set<string> | undefined>(activePassengerNames);
-  const existingDetourRef = useRef<number | undefined>(existingDetourMinutes);
+  const trackedRef = useRef<ActiveTrackedPassenger[]>(activeTrackedPassengers ?? []);
+  const existingDurationRef = useRef<number | null | undefined>(existingRouteDurationS);
+  const existingDistanceRef = useRef<number | null | undefined>(existingRouteDistanceM);
+  const originalDurationRef = useRef<number | null | undefined>(originalDurationS);
   useEffect(() => { routeRef.current = driverRoute ?? null; }, [driverRoute]);
   useEffect(() => { destRef.current = driverDestination ?? null; }, [driverDestination]);
   useEffect(() => { costRef.current = costPerKm; }, [costPerKm]);
   useEffect(() => { maxDetourRef.current = maxDetourMinutes; }, [maxDetourMinutes]);
   useEffect(() => { prefsRef.current = driverPreferences; }, [driverPreferences]);
   useEffect(() => { activeNamesRef.current = activePassengerNames; }, [activePassengerNames]);
-  useEffect(() => { existingDetourRef.current = existingDetourMinutes; }, [existingDetourMinutes]);
+  useEffect(() => { trackedRef.current = activeTrackedPassengers ?? []; }, [activeTrackedPassengers]);
+  useEffect(() => { existingDurationRef.current = existingRouteDurationS; }, [existingRouteDurationS]);
+  useEffect(() => { existingDistanceRef.current = existingRouteDistanceM; }, [existingRouteDistanceM]);
+  useEffect(() => { originalDurationRef.current = originalDurationS; }, [originalDurationS]);
 
-  const generateNew = useCallback(() => {
+  const generateNew = useCallback(async () => {
+    if (isGeneratingRef.current) return;
     if (!userLocation) return;
     const [lat, lng] = userLocation;
     if (
@@ -345,12 +369,65 @@ export function usePassengerSimulation({
     }
     const route = routeRef.current;
     if (!route || route.length < 2) return;
-    const passenger = generatePassenger(
-      lat, lng, route, destRef.current ?? null, costRef.current, maxDetourRef.current, prefsRef.current,
-      activeNamesRef.current, existingDetourRef.current,
-    );
 
-    if (!passenger) return;
+    const draft = buildCandidateDraft(lat, lng, route, prefsRef.current, activeNamesRef.current);
+    if (!draft) return;
+
+    // Sin una línea base real de duración no hay forma de verificar nada
+    // de verdad — mejor no ofrecer el candidato que inventarse un desvío.
+    const existingDuration = existingDurationRef.current ?? originalDurationRef.current;
+    const existingDistance = existingDistanceRef.current ?? 0;
+    if (existingDuration == null) return;
+
+    isGeneratingRef.current = true;
+    const candidateId = crypto.randomUUID();
+    const verified = await verifyRealDetour(
+      lat, lng, draft, candidateId,
+      trackedRef.current,
+      destRef.current ?? null,
+      existingDuration,
+      existingDistance,
+      originalDurationRef.current ?? null,
+      maxDetourRef.current,
+    );
+    isGeneratingRef.current = false;
+    if (!verified) return;
+
+    const pricing = calculatePrice({
+      distanceKm: draft.tripDistanceKm,
+      detourKm: verified.detourKm,
+      passengerCount: 1,
+      traffic: 'normal',
+      costPerKm: costRef.current,
+      hasPet: draft.acceptsPets,
+      hasChildSeat: draft.hasChildSeat,
+    });
+
+    const passenger: SimulatedPassenger = {
+      id: candidateId,
+      name: draft.name,
+      gender: draft.gender,
+      rating: draft.rating,
+      origin: {
+        lat: draft.pickupLat,
+        lng: draft.pickupLng,
+        name: `Calle ${Math.floor(randomInRange(1, 50))}`,
+      },
+      destination: {
+        lat: draft.destLat,
+        lng: draft.destLng,
+        name: `Avenida ${Math.floor(randomInRange(1, 50))}`,
+      },
+      detourMinutes: verified.detourMinutes,
+      pickupDistance: draft.pickupDistanceLabel,
+      compensation: pricing.driverIncome,
+      tripDistanceKm: draft.tripDistanceKm,
+      detourKm: verified.detourKm,
+      acceptsPets: draft.acceptsPets,
+      hasChildSeat: draft.hasChildSeat,
+      doorToDoor: draft.doorToDoor,
+    };
+
     setPendingPassengers(prev => [...prev.slice(-4), passenger]);
     setCurrentPassenger(passenger);
   }, [userLocation]);
