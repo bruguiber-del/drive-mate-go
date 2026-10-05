@@ -13,46 +13,34 @@ export const toLineGeoJSON = (coords: [number, number][]): GeoJSON.Feature<GeoJS
   },
 });
 
-/** Morado: desvío respecto a la ruta principal (recoger/dejar pasajeros o
- *  una parada añadida desde el buscador). */
-export const ROUTE_DETOUR_COLOR = 'hsl(280, 70%, 55%)';
+/** Morado: tramo que se recorre hasta la parada que añades desde el buscador. */
+export const ROUTE_BEFORE_STOP_COLOR = 'hsl(280, 70%, 55%)';
 
-/** Marca cada vértice de la ruta actual que queda a más de `thresholdM` de
- *  la ruta principal — ese tramo es un desvío. Null si no hay ruta principal
- *  con la que comparar. */
-export const markDetourVertices = (
-  coords: [number, number][],
-  mainCoords: [number, number][] | null,
-  thresholdM = 30,
-): boolean[] | null => {
-  if (!mainCoords || mainCoords.length === 0) return null;
-  const metersPerDeg = 111_320;
-  const thresholdSq = thresholdM * thresholdM;
-  return coords.map(([lat, lng]) => {
-    const cosLat = Math.cos((lat * Math.PI) / 180);
-    for (const [mLat, mLng] of mainCoords) {
-      const dy = (lat - mLat) * metersPerDeg;
-      const dx = (lng - mLng) * metersPerDeg * cosLat;
-      if (dx * dx + dy * dy <= thresholdSq) return false;
-    }
-    return true;
+/** Nearest route vertex to a point — used to split the route at a stop. */
+export const nearestCoordIndex = (coords: [number, number][], point: { lat: number; lng: number }): number => {
+  let best = 0;
+  let bestD = Infinity;
+  coords.forEach(([lat, lng], i) => {
+    const d = (lat - point.lat) ** 2 + (lng - point.lng) ** 2;
+    if (d < bestD) { bestD = d; best = i; }
   });
+  return best;
 };
 
-/** Per-segment features con el nivel de tráfico y si el tramo es un desvío. */
+/** Per-segment features con el nivel de tráfico y si el tramo va antes
+ *  (phase 'before') o después (phase 'after') del índice de corte. */
 export const toRouteGeoJSON = (
   coords: [number, number][],
   congestion?: string[],
-  detourVertices: boolean[] | null = null,
+  splitIndex: number | null = null,
 ): GeoJSON.FeatureCollection<GeoJSON.LineString> => {
   const features: GeoJSON.Feature<GeoJSON.LineString>[] = [];
   for (let i = 0; i < coords.length - 1; i++) {
-    const isDetour = !!detourVertices && (detourVertices[i] || detourVertices[i + 1]);
     features.push({
       type: 'Feature',
       properties: {
         congestion: congestion?.[i] ?? 'unknown',
-        phase: isDetour ? 'detour' : 'main',
+        phase: splitIndex != null && i < splitIndex ? 'before' : 'after',
       },
       geometry: {
         type: 'LineString',
@@ -69,7 +57,7 @@ export const toRouteGeoJSON = (
 export const ROUTE_PHASE_COLOR_EXPR: any = [
   'match',
   ['get', 'phase'],
-  'detour', ROUTE_DETOUR_COLOR,
+  'before', ROUTE_BEFORE_STOP_COLOR,
   ROUTE_COLOR,
 ];
 

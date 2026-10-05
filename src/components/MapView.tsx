@@ -18,7 +18,7 @@ import {
   ROUTE_COLOR,
   toLineGeoJSON,
   toRouteGeoJSON,
-  markDetourVertices,
+  nearestCoordIndex,
   ROUTE_PHASE_COLOR_EXPR,
   TRAFFIC_BORDER_COLOR_EXPR,
   TRAFFIC_BORDER_FILTER,
@@ -67,9 +67,8 @@ interface MapViewProps {
     name: string;
   }>;
   intermediateRouteWaypoints?: Array<{ lat: number; lng: number }>;
-  /** Geometría de la ruta principal sin paradas [lat, lng][] — lo que se
-   *  aparte de aquí se dibuja como desvío (morado). */
-  mainRouteCoordinates?: [number, number][] | null;
+  /** Parada añadida desde el buscador: el tramo hasta ella va en morado. */
+  purpleUntilStop?: { lat: number; lng: number } | null;
 }
 
 // ── Visual constants ─────────────────────────────────────────────────────────
@@ -80,7 +79,6 @@ const TRAIL_COLOR = 'hsl(199, 89%, 48%)';
 const SRC_ROUTE = 'vm-route';
 const LYR_ROUTE = 'vm-route-line';
 const LYR_ROUTE_TRAFFIC = 'vm-route-traffic';
-const LYR_ROUTE_DETOUR_OUTLINE = 'vm-route-detour-outline';
 const SRC_WALK = 'vm-walking';
 const LYR_WALK = 'vm-walking-line';
 const SRC_TRAIL = 'vm-trail';
@@ -107,7 +105,7 @@ const MapView = ({
   onUserLocationUpdate,
   previewWaypoints,
   intermediateRouteWaypoints,
-  mainRouteCoordinates,
+  purpleUntilStop,
 }: MapViewProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -538,7 +536,6 @@ const MapView = ({
     const removeRouteLayers = () => {
       if (m.getLayer(LYR_ROUTE)) m.removeLayer(LYR_ROUTE);
       if (m.getLayer(LYR_ROUTE_TRAFFIC)) m.removeLayer(LYR_ROUTE_TRAFFIC);
-      if (m.getLayer(LYR_ROUTE_DETOUR_OUTLINE)) m.removeLayer(LYR_ROUTE_DETOUR_OUTLINE);
       if (m.getSource(SRC_ROUTE)) m.removeSource(SRC_ROUTE);
     };
 
@@ -556,10 +553,9 @@ const MapView = ({
       return;
     }
 
-    // Azul = ruta principal. Morado = desvíos respecto a ella (recoger o
-    // dejar pasajeros, o paradas añadidas desde el buscador).
-    const detourVertices = markDetourVertices(route.coordinates, mainRouteCoordinates ?? null);
-    const data = toRouteGeoJSON(route.coordinates, route.congestion, detourVertices);
+    // Morado hasta la parada añadida desde el buscador, azul después.
+    const splitIndex = purpleUntilStop ? nearestCoordIndex(route.coordinates, purpleUntilStop) : null;
+    const data = toRouteGeoJSON(route.coordinates, route.congestion, splitIndex);
     try {
       const src = m.getSource(SRC_ROUTE) as mapboxgl.GeoJSONSource | undefined;
       if (src) {
@@ -575,20 +571,6 @@ const MapView = ({
           layout: { 'line-join': 'round', 'line-cap': 'round' },
           paint: {
             'line-color': TRAFFIC_BORDER_COLOR_EXPR,
-            'line-width': 10,
-            'line-opacity': 0.9,
-          },
-        });
-        // Contorno blanco solo bajo los desvíos: el tramo morado a seguir se
-        // distingue aunque se cruce o vaya pegado a la ruta azul.
-        m.addLayer({
-          id: LYR_ROUTE_DETOUR_OUTLINE,
-          type: 'line',
-          source: SRC_ROUTE,
-          filter: ['==', ['get', 'phase'], 'detour'],
-          layout: { 'line-join': 'round', 'line-cap': 'round' },
-          paint: {
-            'line-color': 'hsl(0, 0%, 100%)',
             'line-width': 10,
             'line-opacity': 0.9,
           },
@@ -612,7 +594,7 @@ const MapView = ({
       console.error('MapView: fallo al dibujar la ruta', err);
       removeRouteLayers();
     }
-  }, [route, showRoute, mapReady, styleRetryTick, mainRouteCoordinates]);
+  }, [route, showRoute, mapReady, styleRetryTick, purpleUntilStop]);
 
   // ── Walking route (passenger → meeting point) ─────────────────────────────
   useEffect(() => {
