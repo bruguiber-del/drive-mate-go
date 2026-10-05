@@ -18,7 +18,7 @@ import {
   ROUTE_COLOR,
   toLineGeoJSON,
   toRouteGeoJSON,
-  nearestCoordIndex,
+  markDetourVertices,
   ROUTE_PHASE_COLOR_EXPR,
   TRAFFIC_BORDER_COLOR_EXPR,
   TRAFFIC_BORDER_FILTER,
@@ -67,6 +67,9 @@ interface MapViewProps {
     name: string;
   }>;
   intermediateRouteWaypoints?: Array<{ lat: number; lng: number }>;
+  /** Geometría de la ruta principal sin paradas [lat, lng][] — lo que se
+   *  aparte de aquí se dibuja como desvío (morado). */
+  mainRouteCoordinates?: [number, number][] | null;
 }
 
 // ── Visual constants ─────────────────────────────────────────────────────────
@@ -103,6 +106,7 @@ const MapView = ({
   onUserLocationUpdate,
   previewWaypoints,
   intermediateRouteWaypoints,
+  mainRouteCoordinates,
 }: MapViewProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -550,11 +554,10 @@ const MapView = ({
       return;
     }
 
-    // Antes de la primera parada en morado, después en azul. Si no hay
-    // paradas intermedias, todo el trayecto es azul.
-    const firstStop = intermediateRouteWaypoints?.[0];
-    const splitIndex = firstStop ? nearestCoordIndex(route.coordinates, firstStop) : null;
-    const data = toRouteGeoJSON(route.coordinates, route.congestion, splitIndex);
+    // Azul = ruta principal. Morado = desvíos respecto a ella (recoger o
+    // dejar pasajeros, o paradas añadidas desde el buscador).
+    const detourVertices = markDetourVertices(route.coordinates, mainRouteCoordinates ?? null);
+    const data = toRouteGeoJSON(route.coordinates, route.congestion, detourVertices);
     try {
       const src = m.getSource(SRC_ROUTE) as mapboxgl.GeoJSONSource | undefined;
       if (src) {
@@ -593,7 +596,7 @@ const MapView = ({
       console.error('MapView: fallo al dibujar la ruta', err);
       removeRouteLayers();
     }
-  }, [route, showRoute, mapReady, styleRetryTick, intermediateRouteWaypoints]);
+  }, [route, showRoute, mapReady, styleRetryTick, mainRouteCoordinates]);
 
   // ── Walking route (passenger → meeting point) ─────────────────────────────
   useEffect(() => {

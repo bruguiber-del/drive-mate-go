@@ -1141,6 +1141,7 @@ const Index = () => {
         travelMode={trip.showActiveTrip && trip.activeTripRole === "driver" ? "driving" : nav.travelMode}
         waypointMarkers={mapWaypointMarkers}
         intermediateRouteWaypoints={intermediateRouteWaypoints}
+        mainRouteCoordinates={nav.originalRouteCoords}
         walkingRoute={trip.activeTripRole === "passenger" && passengerWalkingEnabled ? walkingRouteData : null}
         onRouteUpdate={nav.setCurrentRoute}
         onRouteError={handleRouteError}

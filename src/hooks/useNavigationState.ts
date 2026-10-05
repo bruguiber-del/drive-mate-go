@@ -42,6 +42,9 @@ interface UseNavigationStateReturn {
   /** Distance (m) of that same very first route — junto con originalDuration,
    *  es la base real para medir el desvío en km, no solo en minutos. */
   originalDistance: number | null;
+  /** Geometría de esa misma ruta original (sin paradas): lo que NO es un
+   *  desvío — todo lo que se aparte de aquí es un desvío a dibujar en morado. */
+  originalRouteCoords: [number, number][] | null;
 
   // Derived
   /** { minutes, distanceKm } computed from currentRoute; null when no route */
@@ -86,6 +89,7 @@ export function useNavigationState({
   const [isRouteLoading, setIsRouteLoading] = useState(false);
   const [originalDuration, setOriginalDuration] = useState<number | null>(null);
   const [originalDistance, setOriginalDistance] = useState<number | null>(null);
+  const [originalRouteCoords, setOriginalRouteCoords] = useState<[number, number][] | null>(null);
   const [travelMode, setTravelMode] = useState<TravelMode>('driving');
 
   // Simulation disabled for real-GPS MVP. The marker only moves when the
@@ -101,6 +105,9 @@ export function useNavigationState({
     }
     if (route?.distance) {
       setOriginalDistance(prev => (prev == null ? route.distance : prev));
+    }
+    if (route?.coordinates?.length) {
+      setOriginalRouteCoords(prev => prev ?? route.coordinates);
     }
   }, []);
 
@@ -118,6 +125,7 @@ export function useNavigationState({
       setHasStartedDriving(true);
       setOriginalDuration(null);
       setOriginalDistance(null);
+      setOriginalRouteCoords(null);
       setFinalDestination({ lat: coords.lat, lng: coords.lng, name: dest });
       toast({ title: `Ruta hacia ${dest}`, duration: 1500 });
     },
@@ -139,6 +147,7 @@ export function useNavigationState({
     setIsRouteLoading(false);
     setOriginalDuration(null);
     setOriginalDistance(null);
+    setOriginalRouteCoords(null);
     setTravelMode('driving');
     cancelTrip();
     onStop?.();
@@ -174,6 +183,7 @@ export function useNavigationState({
     travelMode,
     originalDuration,
     originalDistance,
+    originalRouteCoords,
     dynamicETA,
     detourMinutes,
     handleNavigate,
