@@ -54,13 +54,6 @@ export const toRouteGeoJSON = (
   return { type: 'FeatureCollection', features };
 };
 
-export const ROUTE_PHASE_COLOR_EXPR: any = [
-  'match',
-  ['get', 'phase'],
-  'before', ROUTE_BEFORE_STOP_COLOR,
-  ROUTE_COLOR,
-];
-
 /** Borde de tráfico: verde = mucho tráfico fluyendo, rojo = retención. */
 export const TRAFFIC_BORDER_COLOR_EXPR: any = [
   'match',

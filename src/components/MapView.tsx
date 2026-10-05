@@ -19,7 +19,7 @@ import {
   toLineGeoJSON,
   toRouteGeoJSON,
   nearestCoordIndex,
-  ROUTE_PHASE_COLOR_EXPR,
+  ROUTE_BEFORE_STOP_COLOR,
   TRAFFIC_BORDER_COLOR_EXPR,
   TRAFFIC_BORDER_FILTER,
 } from '@/lib/mapGeoJSON';
@@ -79,6 +79,7 @@ const TRAIL_COLOR = 'hsl(199, 89%, 48%)';
 const SRC_ROUTE = 'vm-route';
 const LYR_ROUTE = 'vm-route-line';
 const LYR_ROUTE_TRAFFIC = 'vm-route-traffic';
+const LYR_ROUTE_BEFORE_STOP = 'vm-route-before-stop';
 const SRC_WALK = 'vm-walking';
 const LYR_WALK = 'vm-walking-line';
 const SRC_TRAIL = 'vm-trail';
@@ -534,6 +535,7 @@ const MapView = ({
     }
 
     const removeRouteLayers = () => {
+      if (m.getLayer(LYR_ROUTE_BEFORE_STOP)) m.removeLayer(LYR_ROUTE_BEFORE_STOP);
       if (m.getLayer(LYR_ROUTE)) m.removeLayer(LYR_ROUTE);
       if (m.getLayer(LYR_ROUTE_TRAFFIC)) m.removeLayer(LYR_ROUTE_TRAFFIC);
       if (m.getSource(SRC_ROUTE)) m.removeSource(SRC_ROUTE);
@@ -575,13 +577,28 @@ const MapView = ({
             'line-opacity': 0.9,
           },
         });
+        // Azul (después de la parada) debajo y morado (hasta la parada) encima:
+        // donde la ruta vuelve por la misma calle, gana el morado.
         m.addLayer({
           id: LYR_ROUTE,
           type: 'line',
           source: SRC_ROUTE,
+          filter: ['==', ['get', 'phase'], 'after'],
           layout: { 'line-join': 'round', 'line-cap': 'round' },
           paint: {
-            'line-color': ROUTE_PHASE_COLOR_EXPR,
+            'line-color': ROUTE_COLOR,
+            'line-width': 6,
+            'line-opacity': 0.95,
+          },
+        });
+        m.addLayer({
+          id: LYR_ROUTE_BEFORE_STOP,
+          type: 'line',
+          source: SRC_ROUTE,
+          filter: ['==', ['get', 'phase'], 'before'],
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: {
+            'line-color': ROUTE_BEFORE_STOP_COLOR,
             'line-width': 6,
             'line-opacity': 0.95,
           },
