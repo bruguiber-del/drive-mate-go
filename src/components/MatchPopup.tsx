@@ -88,11 +88,11 @@ const MatchPopup = ({ isOpen, onAccept, onReject, isDriverView = true, matchData
             className="fixed right-3 z-40 pointer-events-none"
             style={{ bottom: 320 }}
           >
-            <div className="pointer-events-auto flex flex-col items-end gap-0.5">
-              {extrasText && (
-                <span className="text-[10px] text-white/60 whitespace-nowrap pr-1">{extrasText}</span>
-              )}
-              <div className="flex items-center gap-1.5">
+            <div className="pointer-events-auto flex items-center gap-1.5">
+              <div className="flex flex-col items-center gap-0.5 min-w-0">
+                {extrasText && (
+                  <span className="text-[10px] text-white/60 whitespace-nowrap">{extrasText}</span>
+                )}
                 <button
                   onClick={onAccept}
                   className="flex items-center gap-1.5 pl-3 pr-3 py-2 rounded-full bg-success/80 backdrop-blur-md border border-success/60 shadow-lg text-white max-w-[52vw]"
@@ -102,14 +102,14 @@ const MatchPopup = ({ isOpen, onAccept, onReject, isDriverView = true, matchData
                     +{data.detourMinutes} min · {data.userName} · +{data.compensation.toFixed(2)}€
                   </span>
                 </button>
-                <button
-                  onClick={onReject}
-                  className="w-8 h-8 rounded-full bg-foreground/30 backdrop-blur-md border border-foreground/30 shadow-lg text-white flex items-center justify-center shrink-0"
-                  aria-label="Rechazar solicitud"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
               </div>
+              <button
+                onClick={onReject}
+                className="w-8 h-8 rounded-full bg-foreground/30 backdrop-blur-md border border-foreground/30 shadow-lg text-white flex items-center justify-center shrink-0"
+                aria-label="Rechazar solicitud"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
           </motion.div>
         )}
