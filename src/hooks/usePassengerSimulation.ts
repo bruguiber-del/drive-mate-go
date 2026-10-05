@@ -191,14 +191,12 @@ function buildCandidateDraft(
   };
 }
 
-/** Fase 2 — desvío 100% real: construye la ruta de verdad (paradas ya
- *  aceptadas + esta candidata, en el orden óptimo que respeta recoger antes
- *  de bajar) y la manda a Mapbox. Compara esa duración real contra la ruta
- *  real actual para sacar lo que aporta SOLO esta candidata — el desvío es
- *  POR PASAJERO, no la suma acumulada del viaje entero, así que el límite
- *  de los ajustes se compara contra esa cifra individual. Si Mapbox no
- *  responde, no se ofrece el candidato — mejor no proponerlo que
- *  proponerlo con un desvío inventado. */
+/** Fase 2 — desvío real del pasajero, medido en el mismo momento y desde la
+ *  misma posición: dos rutas reales de Mapbox, la del conductor con sus
+ *  paradas actuales y la misma más esta candidata. Lo que se resta es lo que
+ *  añade SOLO esta candidata. Así el número no depende de una ruta calculada
+ *  antes, de otra posición ni de paradas ya movidas. Si Mapbox no responde,
+ *  no se ofrece el candidato. */
 async function verifyRealDetour(
   driverLat: number,
   driverLng: number,
@@ -206,35 +204,38 @@ async function verifyRealDetour(
   candidateId: string,
   existingPassengers: ActiveTrackedPassenger[],
   finalDestination: { lat: number; lng: number } | null,
-  existingRouteDurationS: number,
-  existingRouteDistanceM: number,
   maxDetourMinutes?: number,
 ): Promise<{ detourMinutes: number; detourKm: number } | null> {
-  const rawStops: Array<{ kind: 'pickup' | 'dropoff'; lat: number; lng: number; passengerId: string; passengerName: string }> = [];
+  const origin = { lat: driverLat, lng: driverLng };
+  const alreadyPickedUp = new Set(existingPassengers.filter((p) => p.status === 'in_car').map((p) => p.id));
+
+  const existingStops: Array<{ kind: 'pickup' | 'dropoff'; lat: number; lng: number; passengerId: string; passengerName: string }> = [];
   for (const p of existingPassengers) {
     if (p.status === 'waiting_pickup') {
-      rawStops.push({ kind: 'pickup', lat: p.origin.lat, lng: p.origin.lng, passengerId: p.id, passengerName: p.name });
+      existingStops.push({ kind: 'pickup', lat: p.origin.lat, lng: p.origin.lng, passengerId: p.id, passengerName: p.name });
     }
-    rawStops.push({ kind: 'dropoff', lat: p.destination.lat, lng: p.destination.lng, passengerId: p.id, passengerName: p.name });
+    existingStops.push({ kind: 'dropoff', lat: p.destination.lat, lng: p.destination.lng, passengerId: p.id, passengerName: p.name });
   }
-  rawStops.push({ kind: 'pickup', lat: draft.pickupLat, lng: draft.pickupLng, passengerId: candidateId, passengerName: draft.name });
-  rawStops.push({ kind: 'dropoff', lat: draft.destLat, lng: draft.destLng, passengerId: candidateId, passengerName: draft.name });
+  const candidateStops = [
+    { kind: 'pickup' as const, lat: draft.pickupLat, lng: draft.pickupLng, passengerId: candidateId, passengerName: draft.name },
+    { kind: 'dropoff' as const, lat: draft.destLat, lng: draft.destLng, passengerId: candidateId, passengerName: draft.name },
+  ];
 
-  const clustered = clusterPlannedStops(rawStops);
-  const alreadyPickedUp = new Set(existingPassengers.filter((p) => p.status === 'in_car').map((p) => p.id));
-  const ordered = findOptimalStopOrder({ lat: driverLat, lng: driverLng }, clustered, alreadyPickedUp);
+  const pointsFor = (stops: typeof existingStops) => {
+    const ordered = findOptimalStopOrder(origin, clusterPlannedStops(stops), alreadyPickedUp);
+    const points = [origin, ...ordered.map((st) => ({ lat: st.lat, lng: st.lng }))];
+    if (finalDestination) points.push(finalDestination);
+    return points;
+  };
 
-  const points = [{ lat: driverLat, lng: driverLng }, ...ordered.map((s) => ({ lat: s.lat, lng: s.lng }))];
-  if (finalDestination) points.push(finalDestination);
+  const [base, withCandidate] = await Promise.all([
+    fetchRealRoute(pointsFor(existingStops)),
+    fetchRealRoute(pointsFor([...existingStops, ...candidateStops])),
+  ]);
+  if (!base || !withCandidate) return null;
 
-  const real = await fetchRealRoute(points);
-  if (!real) return null;
-
-  // Lo que aporta SOLO esta candidata — la ruta completa con ella puesta,
-  // menos la ruta real actual sin ella. Es la cifra que se compara contra
-  // el máximo de los ajustes (por pasajero) Y la que se usa para su precio.
-  const detourMinutes = Math.max(0, Math.ceil((real.durationS - existingRouteDurationS) / 60));
-  const detourKm = Math.max(0, (real.distanceM - existingRouteDistanceM) / 1000);
+  const detourMinutes = Math.max(0, Math.round((withCandidate.durationS - base.durationS) / 60));
+  const detourKm = Math.max(0, (withCandidate.distanceM - base.distanceM) / 1000);
 
   if (maxDetourMinutes != null && detourMinutes > maxDetourMinutes) return null;
 
@@ -264,14 +265,6 @@ interface UsePassengerSimulationOptions {
   /** Pasajeros ya aceptados/a bordo — hace falta su posición real para
    *  construir la ruta combinada que se manda a Mapbox. */
   activeTrackedPassengers?: ActiveTrackedPassenger[];
-  /** Duración (s) y distancia (m) de la ruta real ACTUAL (con las paradas
-   *  ya aceptadas, si hay alguna) — línea base para medir cuánto añade
-   *  SOLO la candidata nueva. */
-  existingRouteDurationS?: number | null;
-  existingRouteDistanceM?: number | null;
-  /** Duración (s) de la ruta original, de cero pasajeros — línea base para
-   *  el límite TOTAL acumulado de los ajustes. */
-  originalDurationS?: number | null;
   /** Plazas del coche — el precio reparte el coste entre ellas, igual que
    *  el cálculo de los ajustes. */
   seats?: number;
@@ -290,9 +283,6 @@ export function usePassengerSimulation({
   driverPreferences,
   activePassengerNames,
   activeTrackedPassengers,
-  existingRouteDurationS,
-  existingRouteDistanceM,
-  originalDurationS,
   seats = 1,
 }: UsePassengerSimulationOptions) {
   const [currentPassenger, setCurrentPassenger] = useState<SimulatedPassenger | null>(null);
@@ -311,9 +301,6 @@ export function usePassengerSimulation({
   const prefsRef = useRef<DriverMatchPreferences | undefined>(driverPreferences);
   const activeNamesRef = useRef<Set<string> | undefined>(activePassengerNames);
   const trackedRef = useRef<ActiveTrackedPassenger[]>(activeTrackedPassengers ?? []);
-  const existingDurationRef = useRef<number | null | undefined>(existingRouteDurationS);
-  const existingDistanceRef = useRef<number | null | undefined>(existingRouteDistanceM);
-  const originalDurationRef = useRef<number | null | undefined>(originalDurationS);
   const seatsRef = useRef<number>(seats);
   useEffect(() => { routeRef.current = driverRoute ?? null; }, [driverRoute]);
   useEffect(() => { destRef.current = driverDestination ?? null; }, [driverDestination]);
@@ -322,9 +309,6 @@ export function usePassengerSimulation({
   useEffect(() => { prefsRef.current = driverPreferences; }, [driverPreferences]);
   useEffect(() => { activeNamesRef.current = activePassengerNames; }, [activePassengerNames]);
   useEffect(() => { trackedRef.current = activeTrackedPassengers ?? []; }, [activeTrackedPassengers]);
-  useEffect(() => { existingDurationRef.current = existingRouteDurationS; }, [existingRouteDurationS]);
-  useEffect(() => { existingDistanceRef.current = existingRouteDistanceM; }, [existingRouteDistanceM]);
-  useEffect(() => { originalDurationRef.current = originalDurationS; }, [originalDurationS]);
   useEffect(() => { seatsRef.current = seats; }, [seats]);
 
   const generateNew = useCallback(async () => {
@@ -343,20 +327,12 @@ export function usePassengerSimulation({
     const draft = buildCandidateDraft(lat, lng, route, prefsRef.current, activeNamesRef.current);
     if (!draft) return;
 
-    // Sin una línea base real de duración no hay forma de verificar nada
-    // de verdad — mejor no ofrecer el candidato que inventarse un desvío.
-    const existingDuration = existingDurationRef.current ?? originalDurationRef.current;
-    const existingDistance = existingDistanceRef.current ?? 0;
-    if (existingDuration == null) return;
-
     isGeneratingRef.current = true;
     const candidateId = crypto.randomUUID();
     const verified = await verifyRealDetour(
       lat, lng, draft, candidateId,
       trackedRef.current,
       destRef.current ?? null,
-      existingDuration,
-      existingDistance,
       maxDetourRef.current,
     );
     isGeneratingRef.current = false;

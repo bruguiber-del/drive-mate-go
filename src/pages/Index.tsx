@@ -260,9 +260,6 @@ const Index = () => {
     // Línea base 100% real (nada de estimaciones): la ruta real actual, ya
     // con las paradas aceptadas, y la ruta original de cero pasajeros —
     // ambas calculadas de verdad por Mapbox, no geometría aproximada.
-    existingRouteDurationS: nav.currentRoute?.duration ?? null,
-    existingRouteDistanceM: nav.currentRoute?.distance ?? null,
-    originalDurationS: nav.originalDuration,
     seats: driverSettings.seats,
   });
 
