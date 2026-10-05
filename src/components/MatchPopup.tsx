@@ -91,7 +91,7 @@ const MatchPopup = ({ isOpen, onAccept, onReject, isDriverView = true, matchData
               >
                 <Check className="w-3.5 h-3.5 shrink-0" />
                 <span className="text-[11px] font-semibold truncate">
-                  {data.userName} · +{data.compensation.toFixed(2)}€
+                  +{data.detourMinutes} min · {data.userName} · +{data.compensation.toFixed(2)}€
                 </span>
               </button>
               <button

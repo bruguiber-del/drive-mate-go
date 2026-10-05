@@ -55,10 +55,11 @@ const DriverSettingsSheet = ({ isOpen, onClose, onSave, initialSettings, costPer
   // con nada de lo que hubiera en este mismo panel.
   const compensationRange = useMemo(() => {
     const extras = { hasPet: acceptsPets, hasChildSeat };
-    const short = calculatePrice({ distanceKm: 5, passengerCount: 1, costPerKm, ...extras });
-    const long = calculatePrice({ distanceKm: 20, passengerCount: 1, costPerKm, ...extras });
+    const passengerCount = Math.min(4, Math.max(1, seats)) as 1 | 2 | 3 | 4;
+    const short = calculatePrice({ distanceKm: 5, passengerCount, costPerKm, ...extras });
+    const long = calculatePrice({ distanceKm: 20, passengerCount, costPerKm, ...extras });
     return { low: short.driverIncome, high: long.driverIncome };
-  }, [acceptsPets, hasChildSeat, costPerKm]);
+  }, [acceptsPets, hasChildSeat, costPerKm, seats]);
 
   return (
     <Drawer open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -78,7 +79,9 @@ const DriverSettingsSheet = ({ isOpen, onClose, onSave, initialSettings, costPer
               {compensationRange.low.toFixed(2)} - {compensationRange.high.toFixed(2)}€{' '}
               <span className="text-xs font-normal text-muted-foreground">por persona</span>
             </p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">Después de la comisión del 12% de la app</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              Lo que recibes por persona con {seats} {seats === 1 ? 'plaza' : 'plazas'} ocupada{seats === 1 ? '' : 's'}, sin contar desvíos. El pasajero paga además el 12% de comisión de la app.
+            </p>
             {fuelPriceInfo && (
               <p className="text-[10px] text-success mt-0.5">
                 Combustible a {fuelPriceInfo.pricePerLiter.toFixed(3)}€/L — media real de {fuelPriceInfo.stationCount}{' '}
