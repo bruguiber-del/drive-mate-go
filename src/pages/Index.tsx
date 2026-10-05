@@ -601,6 +601,12 @@ const Index = () => {
   // vaciando a medida que bajas gente) hacía que el total fuera ENCOGIENDO
   // con cada bajada, hasta terminar mostrando solo la del último pasajero
   // en vez de la suma de los tres.
+  // Desvío que muestra el aviso: suma de los desvíos ya verificados de cada
+  // pasajero a bordo o pendiente — los mismos números que ves en su chapa,
+  // en vez de recalcular la ruta entera (que cambia con el tráfico y con las
+  // paradas personales).
+  const passengerDetourTotal = multiTrip.passengers.reduce((sum, p) => sum + p.passenger.detourMinutes, 0);
+
   const totalTripCompensation = multiPassengerWaypoints
     ? tripPassengerHistory.reduce((sum, p) => sum + p.compensation, 0)
     : (displayPassenger?.compensation ?? 0);
@@ -1250,7 +1256,7 @@ const Index = () => {
           currentLeg={effectiveCurrentLeg}
           currentTargetName={effectiveCurrentTarget?.name ?? null}
           dynamicETA={liveETA}
-          detourMinutes={nav.detourMinutes}
+          detourMinutes={passengerDetourTotal > 0 ? passengerDetourTotal : null}
           driverSeats={driverSettings.seats}
           driverMaxDetour={driverSettings.maxDetour}
           activeVehiclePlate={vehicles.activeVehicle?.licensePlate}
