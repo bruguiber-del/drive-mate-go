@@ -766,8 +766,6 @@ const Index = () => {
           status,
           pickupEtaMin: pickupIdx >= 0 ? multiStopEtaMinutes[pickupIdx] : undefined,
           dropoffEtaMin: dropoffIdx >= 0 ? multiStopEtaMinutes[dropoffIdx] : undefined,
-          acceptsPets: passenger.acceptsPets,
-          hasChildSeat: passenger.hasChildSeat,
         };
       });
   }, [multiPassengerWaypoints, multiTrip.passengers, multiStops, multiStopEtaMinutes]);
@@ -1191,7 +1189,7 @@ const Index = () => {
             misma altura que las chapas de pasajero del lateral derecho.
             Antes era un "+" en la barra de arriba, lejos de donde está
             toda la demás acción del viaje. */}
-        {isDriverMode && nav.isNavigating && (
+        {nav.isNavigating && (
           <div className="fixed left-3 z-30 pointer-events-none" style={{ bottom: 130 }}>
             <Button
               variant="glass"
