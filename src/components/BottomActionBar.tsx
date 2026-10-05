@@ -3,6 +3,7 @@ import { Settings, Locate, Navigation } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import DriverToggle from "@/components/DriverToggle";
 import PassengerToggle from "@/components/PassengerToggle";
+import { OVERLAY_BOTTOM_PX } from "@/lib/overlayLayout";
 
 interface BottomActionBarProps {
   /** Show the "Iniciar conducción" CTA (route exists, user hasn't started moving yet). */
@@ -53,7 +54,7 @@ const BottomActionBar = ({
           como se pidió explícitamente ("fijos siempre ahí... hasta que me
           digas lo contrario"). La tarjeta de viaje/botón de cancelar se
           movieron al centro para dejar esta columna libre solo para esto. */}
-      <div className="fixed left-3 z-30 pointer-events-none" style={{ bottom: 20 }}>
+      <div className="fixed left-3 z-30 pointer-events-none" style={{ bottom: OVERLAY_BOTTOM_PX.cornerControls }}>
         <div className="flex flex-col items-start gap-2 pointer-events-auto">
           <div className="flex items-center gap-2">
             <DriverToggle isDriver={isDriverMode} onToggle={onDriverToggle} />
@@ -79,7 +80,7 @@ const BottomActionBar = ({
           (que empiezan en bottom:160) — antes desaparecían del todo con
           un viaje activo, igual que les pasaba antes a los toggles de
           modo. */}
-      <div className="fixed right-3 z-30 pointer-events-none" style={{ bottom: 20 }}>
+      <div className="fixed right-3 z-30 pointer-events-none" style={{ bottom: OVERLAY_BOTTOM_PX.cornerControls }}>
         <div className="flex flex-col gap-1 pointer-events-auto">
           <Button variant="glass" size="icon" className="w-8 h-8" onClick={() => (window as any).__mapZoomIn?.()}>
             <span className="text-sm font-bold text-foreground">+</span>

@@ -1,3 +1,6 @@
+import { haversineMeters } from "@/lib/geo";
+import { refineErrandPositions } from "@/lib/errandRouting";
+import { OVERLAY_BOTTOM_PX } from "@/lib/overlayLayout";
 import { useState, useCallback, useMemo, useEffect, useRef, lazy, Suspense } from "react";
 import { AnimatePresence } from "framer-motion";
 import { X, Search } from "lucide-react";
@@ -44,19 +47,6 @@ import { useFuelPricesAlongRoute } from "@/hooks/useFuelPricesAlongRoute";
 import { calculateCostPerKm } from "@/lib/vehiclePricing";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-/** Distancia entre dos puntos GPS en metros — para detectar cuándo el
- *  conductor llega de verdad a su destino final. */
-function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371000;
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(a));
-}
 
 /** Radio dentro del cual se considera que el conductor ha llegado a su
  *  destino final — mismo orden de magnitud que el umbral de "desviado de
@@ -273,6 +263,7 @@ const Index = () => {
     existingRouteDurationS: nav.currentRoute?.duration ?? null,
     existingRouteDistanceM: nav.currentRoute?.distance ?? null,
     originalDurationS: nav.originalDuration,
+    seats: driverSettings.seats,
   });
 
   // ── Trip lifecycle ──────────────────────────────────────────────────────────
@@ -461,7 +452,7 @@ const Index = () => {
   // destino. Con eso basta para que tanto el cálculo de ruta
   // (intermediateRouteWaypoints) como los marcadores del mapa
   // (mapWaypointMarkers) las incluyan automáticamente, sin tocar nada más.
-  const effectiveWaypoints = useMemo(() => {
+  const straightWaypoints = useMemo(() => {
     const base = multiPassengerWaypoints ?? routeWaypoints;
     if (extraStops.length === 0) return base;
     const errandWaypoints: Waypoint[] = extraStops.map((s) => ({
@@ -496,6 +487,23 @@ const Index = () => {
     }
     return [...ordered, ...finalPart];
   }, [multiPassengerWaypoints, routeWaypoints, extraStops]);
+
+  // Tras la colocación rápida en línea recta, se afina con el tiempo real de
+  // ruta. Si el resultado corresponde a la misma lista, se usa; si no, se
+  // queda la de línea recta hasta que llegue.
+  const straightKey = useMemo(() => straightWaypoints.map((w) => w.id).join("|"), [straightWaypoints]);
+  const [refinedWaypoints, setRefinedWaypoints] = useState<{ key: string; list: Waypoint[] } | null>(null);
+  useEffect(() => {
+    const origin = userLocRef.current;
+    if (!origin || !straightWaypoints.some((w) => w.type === "errand")) return;
+    let cancelled = false;
+    refineErrandPositions({ lat: origin[0], lng: origin[1] }, straightWaypoints).then((list) => {
+      if (!cancelled) setRefinedWaypoints({ key: straightKey, list });
+    });
+    return () => { cancelled = true; };
+  }, [straightWaypoints, straightKey]);
+  const effectiveWaypoints =
+    refinedWaypoints && refinedWaypoints.key === straightKey ? refinedWaypoints.list : straightWaypoints;
 
   const effectiveCurrentTarget = multiPassengerWaypoints ? multiPassengerWaypoints[0] ?? null : currentTarget;
 
@@ -1138,19 +1146,19 @@ const Index = () => {
     enabled: nav.isNavigating && nav.hasStartedDriving,
   });
 
+  // Parar desde el botón rojo cierra el viaje igual que el fin normal (con
+  // valoración de los pasajeros) si lo había; luego corta la navegación.
   const handleStopNavigation = useCallback(() => {
     voice.cancelSpeech();
+    if (trip.showActiveTrip || tripPassengerHistory.length > 0) {
+      handleTripEndWithSummary();
+    }
     nav.handleStopNavigation();
-    multiTrip.reset();
-    setPendingStopKeys(new Set());
-    setIsMultiPassengerTripActive(false);
-    setAcceptedPassenger(null);
     dismissSimPassenger();
+    setAcceptedPassenger(null);
     setExtraStops([]);
-    setHasArrivedAtFinalDestination(false);
-    setTripPassengerHistory([]);
     (window as any).__mapCenterOnUser?.();
-  }, [voice, nav, multiTrip, dismissSimPassenger]);
+  }, [voice, nav, trip.showActiveTrip, tripPassengerHistory.length, handleTripEndWithSummary, dismissSimPassenger]);
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
@@ -1220,7 +1228,7 @@ const Index = () => {
             Antes era un "+" en la barra de arriba, lejos de donde está
             toda la demás acción del viaje. */}
         {nav.isNavigating && (
-          <div className="fixed left-3 z-30 pointer-events-none" style={{ bottom: 130 }}>
+          <div className="fixed left-3 z-30 pointer-events-none" style={{ bottom: OVERLAY_BOTTOM_PX.addStopButton }}>
             <Button
               variant="glass"
               size="icon"
@@ -1307,7 +1315,7 @@ const Index = () => {
           el viaje en curso; ahora esa barra desaparece del todo y este
           total persistente la sustituye. */}
       {trip.showActiveTrip && trip.activeTripRole === "driver" && totalTripCompensation > 0 && (
-        <div className="fixed left-1/2 -translate-x-1/2 z-30 pointer-events-none" style={{ bottom: 70 }}>
+        <div className="fixed left-1/2 -translate-x-1/2 z-30 pointer-events-none" style={{ bottom: OVERLAY_BOTTOM_PX.compensatedBadge }}>
           <div className="glass-strong rounded-full px-3 py-1.5 flex items-center gap-1.5 border border-success/30">
             <span className="text-[9px] text-muted-foreground">Compensado</span>
             <span className="text-sm font-bold text-success">+{totalTripCompensation.toFixed(2)}€</span>

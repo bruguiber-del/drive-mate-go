@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, Loader2, MapPin } from 'lucide-react';
+import { OVERLAY_BOTTOM_PX } from '@/lib/overlayLayout';
 
 export interface PassengerStopPill {
   /** Id del pasajero — identifica la chapa de forma estable durante todo el
@@ -34,7 +35,7 @@ const BUTTON_SPACING_PX = 44;
 // 130 dejaba la chapa (y su leyenda, 16px más abajo) pegada a la columna de
 // zoom/centrar de BottomActionBar (bottom:20, ~104px de alto) — subida a
 // 160 para que quede un hueco claro entre ambas.
-const BASE_BOTTOM_PX = 160;
+const BASE_BOTTOM_PX = OVERLAY_BOTTOM_PX.stopPills;
 
 /**
  * Una chapa por pasajero del viaje (no solo la "siguiente parada"), apiladas

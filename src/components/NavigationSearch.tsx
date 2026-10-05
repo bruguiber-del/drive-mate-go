@@ -7,6 +7,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { MAPBOX_TOKEN } from '@/lib/mapboxConfig';
 import { findMatchingAirport } from '@/lib/majorAirports';
+import { haversineKm } from '@/lib/geo';
 import type { TravelMode } from '@/hooks/useRouting';
 
 interface NavigationSearchProps {
@@ -58,16 +59,6 @@ interface SearchResult {
   /** Minutos de conducción real (Mapbox Directions Matrix) desde tu
    *  posición hasta este sitio — solo en resultados de categoría. */
   detourMin?: number;
-}
-
-function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLng = ((lng2 - lng1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 interface RecentDestination {

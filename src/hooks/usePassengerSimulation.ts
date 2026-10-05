@@ -1,6 +1,7 @@
+import { haversineKm } from '@/lib/geo';
+import { fetchRealRoute } from '@/lib/mapboxDirections';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { calculatePrice } from '@/lib/priceCalculator';
-import { MAPBOX_TOKEN } from '@/lib/mapboxConfig';
 import { clusterPlannedStops, findOptimalStopOrder } from '@/lib/multiStopPlanning';
 
 export interface SimulatedPassenger {
@@ -49,17 +50,6 @@ const FALLBACK_LNG = -0.4087;
 
 function randomInRange(min: number, max: number) {
   return Math.random() * (max - min) + min;
-}
-
-function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371;
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(a));
 }
 
 /**
@@ -201,29 +191,6 @@ function buildCandidateDraft(
   };
 }
 
-const MAPBOX_DIRECTIONS_BASE = 'https://api.mapbox.com/directions/v5/mapbox/driving-traffic';
-
-/** Llama a Mapbox Directions de verdad para una secuencia de puntos — sin
- *  geometría ni pasos, solo la duración y distancia totales, que es lo
- *  único que hace falta para medir el desvío real (no estimado). */
-async function fetchRealRoute(
-  points: { lat: number; lng: number }[],
-): Promise<{ durationS: number; distanceM: number } | null> {
-  if (points.length < 2) return null;
-  try {
-    const coords = points.map((p) => `${p.lng},${p.lat}`).join(';');
-    const url = `${MAPBOX_DIRECTIONS_BASE}/${coords}?overview=false&access_token=${MAPBOX_TOKEN}`;
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const data = await res.json();
-    const route = data?.routes?.[0];
-    if (!route) return null;
-    return { durationS: route.duration, distanceM: route.distance };
-  } catch {
-    return null;
-  }
-}
-
 /** Fase 2 — desvío 100% real: construye la ruta de verdad (paradas ya
  *  aceptadas + esta candidata, en el orden óptimo que respeta recoger antes
  *  de bajar) y la manda a Mapbox. Compara esa duración real contra la ruta
@@ -305,6 +272,9 @@ interface UsePassengerSimulationOptions {
   /** Duración (s) de la ruta original, de cero pasajeros — línea base para
    *  el límite TOTAL acumulado de los ajustes. */
   originalDurationS?: number | null;
+  /** Plazas del coche — el precio reparte el coste entre ellas, igual que
+   *  el cálculo de los ajustes. */
+  seats?: number;
 }
 
 export function usePassengerSimulation({
@@ -323,6 +293,7 @@ export function usePassengerSimulation({
   existingRouteDurationS,
   existingRouteDistanceM,
   originalDurationS,
+  seats = 1,
 }: UsePassengerSimulationOptions) {
   const [currentPassenger, setCurrentPassenger] = useState<SimulatedPassenger | null>(null);
   const [pendingPassengers, setPendingPassengers] = useState<SimulatedPassenger[]>([]);
@@ -343,6 +314,7 @@ export function usePassengerSimulation({
   const existingDurationRef = useRef<number | null | undefined>(existingRouteDurationS);
   const existingDistanceRef = useRef<number | null | undefined>(existingRouteDistanceM);
   const originalDurationRef = useRef<number | null | undefined>(originalDurationS);
+  const seatsRef = useRef<number>(seats);
   useEffect(() => { routeRef.current = driverRoute ?? null; }, [driverRoute]);
   useEffect(() => { destRef.current = driverDestination ?? null; }, [driverDestination]);
   useEffect(() => { costRef.current = costPerKm; }, [costPerKm]);
@@ -353,6 +325,7 @@ export function usePassengerSimulation({
   useEffect(() => { existingDurationRef.current = existingRouteDurationS; }, [existingRouteDurationS]);
   useEffect(() => { existingDistanceRef.current = existingRouteDistanceM; }, [existingRouteDistanceM]);
   useEffect(() => { originalDurationRef.current = originalDurationS; }, [originalDurationS]);
+  useEffect(() => { seatsRef.current = seats; }, [seats]);
 
   const generateNew = useCallback(async () => {
     if (isGeneratingRef.current) return;
@@ -389,10 +362,20 @@ export function usePassengerSimulation({
     isGeneratingRef.current = false;
     if (!verified) return;
 
+    // Distancia real del trayecto del pasajero (recogida → bajada), no la
+    // línea recta: el precio tiene que salir de los mismos km que se cobran.
+    const tripReal = await fetchRealRoute([
+      { lat: draft.pickupLat, lng: draft.pickupLng },
+      { lat: draft.destLat, lng: draft.destLng },
+    ]);
+    if (!tripReal) return;
+    const tripDistanceKm = tripReal.distanceM / 1000;
+
+    const passengerCount = Math.min(4, Math.max(1, seatsRef.current)) as 1 | 2 | 3 | 4;
     const pricing = calculatePrice({
-      distanceKm: draft.tripDistanceKm,
+      distanceKm: tripDistanceKm,
       detourKm: verified.detourKm,
-      passengerCount: 1,
+      passengerCount,
       traffic: 'normal',
       costPerKm: costRef.current,
       hasPet: draft.acceptsPets,
@@ -417,7 +400,7 @@ export function usePassengerSimulation({
       detourMinutes: verified.detourMinutes,
       pickupDistance: draft.pickupDistanceLabel,
       compensation: pricing.driverIncome,
-      tripDistanceKm: draft.tripDistanceKm,
+      tripDistanceKm,
       detourKm: verified.detourKm,
       acceptsPets: draft.acceptsPets,
       hasChildSeat: draft.hasChildSeat,
