@@ -13,25 +13,35 @@ export const toLineGeoJSON = (coords: [number, number][]): GeoJSON.Feature<GeoJS
   },
 });
 
-export const CONGESTION_COLORS = {
-  low: 'hsl(142, 71%, 45%)',       // verde — fluido
-  moderate: 'hsl(38, 95%, 55%)',   // ámbar — moderado
-  heavy: 'hsl(0, 84%, 55%)',       // rojo — denso
-  severe: 'hsl(0, 72%, 40%)',      // rojo oscuro — atascado
-  unknown: ROUTE_COLOR,
+/** Morado: tramo que se recorre antes de la siguiente parada. */
+export const ROUTE_BEFORE_STOP_COLOR = 'hsl(280, 70%, 55%)';
+
+/** Nearest route vertex to a point — used to split the route at a stop. */
+export const nearestCoordIndex = (coords: [number, number][], point: { lat: number; lng: number }): number => {
+  let best = 0;
+  let bestD = Infinity;
+  coords.forEach(([lat, lng], i) => {
+    const d = (lat - point.lat) ** 2 + (lng - point.lng) ** 2;
+    if (d < bestD) { bestD = d; best = i; }
+  });
+  return best;
 };
 
-/** Split the route into per-segment features carrying their congestion level. */
-export const toCongestionGeoJSON = (
+/** Per-segment features with the traffic level and whether the segment comes
+ *  before (phase 'before') or after (phase 'after') the split index. */
+export const toRouteGeoJSON = (
   coords: [number, number][],
   congestion?: string[],
+  splitIndex: number | null = null,
 ): GeoJSON.FeatureCollection<GeoJSON.LineString> => {
   const features: GeoJSON.Feature<GeoJSON.LineString>[] = [];
   for (let i = 0; i < coords.length - 1; i++) {
-    const level = congestion?.[i] ?? 'unknown';
     features.push({
       type: 'Feature',
-      properties: { congestion: level },
+      properties: {
+        congestion: congestion?.[i] ?? 'unknown',
+        phase: splitIndex != null && i < splitIndex ? 'before' : 'after',
+      },
       geometry: {
         type: 'LineString',
         coordinates: [
@@ -44,12 +54,18 @@ export const toCongestionGeoJSON = (
   return { type: 'FeatureCollection', features };
 };
 
-export const CONGESTION_COLOR_EXPR: any = [
+export const ROUTE_PHASE_COLOR_EXPR: any = [
+  'match',
+  ['get', 'phase'],
+  'before', ROUTE_BEFORE_STOP_COLOR,
+  ROUTE_COLOR,
+];
+
+/** Borde de tráfico: verde = mucho tráfico fluyendo, rojo = retención. */
+export const TRAFFIC_BORDER_COLOR_EXPR: any = [
   'match',
   ['get', 'congestion'],
-  'low', CONGESTION_COLORS.low,
-  'moderate', CONGESTION_COLORS.moderate,
-  'heavy', CONGESTION_COLORS.heavy,
-  'severe', CONGESTION_COLORS.severe,
-  CONGESTION_COLORS.unknown,
+  'heavy', 'hsl(142, 71%, 45%)',
+  'hsl(0, 84%, 55%)',
 ];
+export const TRAFFIC_BORDER_FILTER: any = ['in', ['get', 'congestion'], ['literal', ['heavy', 'severe']]];

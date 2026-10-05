@@ -14,7 +14,15 @@ import {
   TIER_CAMERA,
   type SpeedTier,
 } from '@/lib/mapGeo';
-import { ROUTE_COLOR, toLineGeoJSON, toCongestionGeoJSON, CONGESTION_COLOR_EXPR } from '@/lib/mapGeoJSON';
+import {
+  ROUTE_COLOR,
+  toLineGeoJSON,
+  toRouteGeoJSON,
+  nearestCoordIndex,
+  ROUTE_PHASE_COLOR_EXPR,
+  TRAFFIC_BORDER_COLOR_EXPR,
+  TRAFFIC_BORDER_FILTER,
+} from '@/lib/mapGeoJSON';
 import {
   WAYPOINT_COLORS,
   WAYPOINT_LABELS,
@@ -68,6 +76,7 @@ const TRAIL_COLOR = 'hsl(199, 89%, 48%)';
 // ── Source/layer IDs ─────────────────────────────────────────────────────────
 const SRC_ROUTE = 'vm-route';
 const LYR_ROUTE = 'vm-route-line';
+const LYR_ROUTE_TRAFFIC = 'vm-route-traffic';
 const SRC_WALK = 'vm-walking';
 const LYR_WALK = 'vm-walking-line';
 const SRC_TRAIL = 'vm-trail';
@@ -521,9 +530,14 @@ const MapView = ({
       return;
     }
 
-    if (!showRoute) {
+    const removeRouteLayers = () => {
       if (m.getLayer(LYR_ROUTE)) m.removeLayer(LYR_ROUTE);
+      if (m.getLayer(LYR_ROUTE_TRAFFIC)) m.removeLayer(LYR_ROUTE_TRAFFIC);
       if (m.getSource(SRC_ROUTE)) m.removeSource(SRC_ROUTE);
+    };
+
+    if (!showRoute) {
+      removeRouteLayers();
       return;
     }
     // 2 puntos ya son una línea válida (un tramo recto, típico en rutas a
@@ -532,26 +546,41 @@ const MapView = ({
     if (!route || route.coordinates.length < 2) {
       // Si había una ruta dibujada de antes y la nueva falla, se quita en
       // vez de dejar la línea vieja (ya no válida) pegada en el mapa.
-      if (m.getLayer(LYR_ROUTE)) m.removeLayer(LYR_ROUTE);
-      if (m.getSource(SRC_ROUTE)) m.removeSource(SRC_ROUTE);
+      removeRouteLayers();
       return;
     }
 
-    // Colour the route by real-time congestion (verde / ámbar / rojo)
-    const data = toCongestionGeoJSON(route.coordinates, route.congestion);
+    // Antes de la primera parada en morado, después en azul. Si no hay
+    // paradas intermedias, todo el trayecto es azul.
+    const firstStop = intermediateRouteWaypoints?.[0];
+    const splitIndex = firstStop ? nearestCoordIndex(route.coordinates, firstStop) : null;
+    const data = toRouteGeoJSON(route.coordinates, route.congestion, splitIndex);
     try {
       const src = m.getSource(SRC_ROUTE) as mapboxgl.GeoJSONSource | undefined;
       if (src) {
         src.setData(data);
       } else {
         m.addSource(SRC_ROUTE, { type: 'geojson', data });
+        // Borde de tráfico debajo: verde = mucho tráfico fluyendo, rojo = retención.
+        m.addLayer({
+          id: LYR_ROUTE_TRAFFIC,
+          type: 'line',
+          source: SRC_ROUTE,
+          filter: TRAFFIC_BORDER_FILTER,
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: {
+            'line-color': TRAFFIC_BORDER_COLOR_EXPR,
+            'line-width': 10,
+            'line-opacity': 0.9,
+          },
+        });
         m.addLayer({
           id: LYR_ROUTE,
           type: 'line',
           source: SRC_ROUTE,
           layout: { 'line-join': 'round', 'line-cap': 'round' },
           paint: {
-            'line-color': CONGESTION_COLOR_EXPR,
+            'line-color': ROUTE_PHASE_COLOR_EXPR,
             'line-width': 6,
             'line-opacity': 0.95,
           },
@@ -562,10 +591,9 @@ const MapView = ({
       // (p. ej. un ID que quedó a medias de un ciclo anterior), se limpia
       // y se deja constancia en consola para poder diagnosticarlo.
       console.error('MapView: fallo al dibujar la ruta', err);
-      if (m.getLayer(LYR_ROUTE)) m.removeLayer(LYR_ROUTE);
-      if (m.getSource(SRC_ROUTE)) m.removeSource(SRC_ROUTE);
+      removeRouteLayers();
     }
-  }, [route, showRoute, mapReady, styleRetryTick]);
+  }, [route, showRoute, mapReady, styleRetryTick, intermediateRouteWaypoints]);
 
   // ── Walking route (passenger → meeting point) ─────────────────────────────
   useEffect(() => {
