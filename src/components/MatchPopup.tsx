@@ -91,7 +91,7 @@ const MatchPopup = ({ isOpen, onAccept, onReject, isDriverView = true, matchData
             <div className="pointer-events-auto flex items-center gap-1.5">
               <div className="flex flex-col items-center gap-0.5 min-w-0">
                 {extrasText && (
-                  <span className="text-[10px] text-white/60 whitespace-nowrap">{extrasText}</span>
+                  <span className="text-[10px] text-white whitespace-nowrap">{extrasText}</span>
                 )}
                 <button
                   onClick={onAccept}

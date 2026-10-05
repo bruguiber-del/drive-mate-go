@@ -80,6 +80,7 @@ const TRAIL_COLOR = 'hsl(199, 89%, 48%)';
 const SRC_ROUTE = 'vm-route';
 const LYR_ROUTE = 'vm-route-line';
 const LYR_ROUTE_TRAFFIC = 'vm-route-traffic';
+const LYR_ROUTE_DETOUR_OUTLINE = 'vm-route-detour-outline';
 const SRC_WALK = 'vm-walking';
 const LYR_WALK = 'vm-walking-line';
 const SRC_TRAIL = 'vm-trail';
@@ -537,6 +538,7 @@ const MapView = ({
     const removeRouteLayers = () => {
       if (m.getLayer(LYR_ROUTE)) m.removeLayer(LYR_ROUTE);
       if (m.getLayer(LYR_ROUTE_TRAFFIC)) m.removeLayer(LYR_ROUTE_TRAFFIC);
+      if (m.getLayer(LYR_ROUTE_DETOUR_OUTLINE)) m.removeLayer(LYR_ROUTE_DETOUR_OUTLINE);
       if (m.getSource(SRC_ROUTE)) m.removeSource(SRC_ROUTE);
     };
 
@@ -573,6 +575,20 @@ const MapView = ({
           layout: { 'line-join': 'round', 'line-cap': 'round' },
           paint: {
             'line-color': TRAFFIC_BORDER_COLOR_EXPR,
+            'line-width': 10,
+            'line-opacity': 0.9,
+          },
+        });
+        // Contorno blanco solo bajo los desvíos: el tramo morado a seguir se
+        // distingue aunque se cruce o vaya pegado a la ruta azul.
+        m.addLayer({
+          id: LYR_ROUTE_DETOUR_OUTLINE,
+          type: 'line',
+          source: SRC_ROUTE,
+          filter: ['==', ['get', 'phase'], 'detour'],
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: {
+            'line-color': 'hsl(0, 0%, 100%)',
             'line-width': 10,
             'line-opacity': 0.9,
           },
