@@ -766,6 +766,8 @@ const Index = () => {
           status,
           pickupEtaMin: pickupIdx >= 0 ? multiStopEtaMinutes[pickupIdx] : undefined,
           dropoffEtaMin: dropoffIdx >= 0 ? multiStopEtaMinutes[dropoffIdx] : undefined,
+          acceptsPets: passenger.acceptsPets,
+          hasChildSeat: passenger.hasChildSeat,
         };
       });
   }, [multiPassengerWaypoints, multiTrip.passengers, multiStops, multiStopEtaMinutes]);
