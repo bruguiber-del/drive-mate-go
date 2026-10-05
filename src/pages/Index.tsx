@@ -1141,10 +1141,16 @@ const Index = () => {
   const handleStopNavigation = useCallback(() => {
     voice.cancelSpeech();
     nav.handleStopNavigation();
+    multiTrip.reset();
+    setPendingStopKeys(new Set());
+    setIsMultiPassengerTripActive(false);
+    setAcceptedPassenger(null);
+    dismissSimPassenger();
     setExtraStops([]);
     setHasArrivedAtFinalDestination(false);
     setTripPassengerHistory([]);
-  }, [voice, nav]);
+    (window as any).__mapCenterOnUser?.();
+  }, [voice, nav, multiTrip, dismissSimPassenger]);
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
