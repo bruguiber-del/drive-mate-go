@@ -88,6 +88,10 @@ const Index = () => {
   const [isDoorToDoor, setIsDoorToDoor] = useState(false);
   const [isPassengerMode, setIsPassengerMode] = useState(false);
   const [realUserLocation, setRealUserLocation] = useState<[number, number] | null>(null);
+  // Solo para colocar paradas personales: se lee la posición actual sin que
+  // cada movimiento de GPS reordene la ruta entera.
+  const userLocRef = useRef<[number, number] | null>(null);
+  userLocRef.current = realUserLocation;
   /** true solo cuando el conductor, sin pasajeros ya a bordo/pendientes, ha
    *  llegado de verdad (por GPS) a su propio destino final — no se pone a
    *  true solo por haber bajado al último pasajero, que puede quedar a
@@ -469,9 +473,28 @@ const Index = () => {
       completed: false,
     }));
     const finalIdx = base.findIndex((w) => w.type === "final_destination");
-    return finalIdx === -1
-      ? [...base, ...errandWaypoints]
-      : [...base.slice(0, finalIdx), ...errandWaypoints, ...base.slice(finalIdx)];
+    const stopsBeforeFinal = finalIdx === -1 ? base : base.slice(0, finalIdx);
+    const finalPart = finalIdx === -1 ? [] : base.slice(finalIdx);
+    // Cada parada personal entra en el punto del recorrido donde menos
+    // desvío añade (pasando por la posición del conductor al añadirla), sin
+    // alterar el orden de recogidas y bajadas ya aceptadas.
+    const origin = userLocRef.current;
+    const ordered: Waypoint[] = [...stopsBeforeFinal];
+    for (const errand of errandWaypoints) {
+      let bestPos = ordered.length;
+      let bestCost = Infinity;
+      for (let pos = 0; pos <= ordered.length; pos++) {
+        const prev = pos === 0 ? (origin ? { lat: origin[0], lng: origin[1] } : null) : ordered[pos - 1];
+        const next = ordered[pos];
+        const cost =
+          (prev ? haversineMeters(prev.lat, prev.lng, errand.lat, errand.lng) : 0) +
+          (next ? haversineMeters(errand.lat, errand.lng, next.lat, next.lng) : 0) -
+          (prev && next ? haversineMeters(prev.lat, prev.lng, next.lat, next.lng) : 0);
+        if (cost < bestCost) { bestCost = cost; bestPos = pos; }
+      }
+      ordered.splice(bestPos, 0, errand);
+    }
+    return [...ordered, ...finalPart];
   }, [multiPassengerWaypoints, routeWaypoints, extraStops]);
 
   const effectiveCurrentTarget = multiPassengerWaypoints ? multiPassengerWaypoints[0] ?? null : currentTarget;
