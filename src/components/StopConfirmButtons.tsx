@@ -17,6 +17,13 @@ export interface PassengerStopPill {
   pickupEtaMin?: number;
   /** Minutos hasta dejarlo — se muestra siempre que se conozca. */
   dropoffEtaMin?: number;
+  acceptsPets?: boolean;
+  hasChildSeat?: boolean;
+}
+
+function extrasText(stop: PassengerStopPill): string | null {
+  const parts = [stop.acceptsPets && 'lleva mascota', stop.hasChildSeat && 'necesita silla para niños'].filter(Boolean);
+  return parts.length > 0 ? parts.join(' · ') : null;
 }
 
 interface StopConfirmButtonsProps {
@@ -69,6 +76,11 @@ const StopConfirmButtons = ({ stops, pendingKeys, onConfirm }: StopConfirmButton
                 waitingPickup ? 'bg-foreground/30 border-foreground/30' : 'bg-success/70 border-success/60'
               }`}
             >
+              {extrasText(stop) && (
+                <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-0.5 text-[10px] text-white whitespace-nowrap pointer-events-none">
+                  {extrasText(stop)}
+                </span>
+              )}
               {isPending ? (
                 <Loader2 className="w-3 h-3 shrink-0 animate-spin" />
               ) : waitingPickup ? (

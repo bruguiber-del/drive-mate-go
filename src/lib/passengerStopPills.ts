@@ -2,7 +2,7 @@ import type { PlannedStop } from "@/lib/multiStopPlanning";
 import type { PassengerStopPill } from "@/components/StopConfirmButtons";
 
 export interface TrackedPassengerEntry {
-  passenger: { id: string; name: string };
+  passenger: { id: string; name: string; acceptsPets?: boolean; hasChildSeat?: boolean };
   status: "waiting_pickup" | "in_car";
 }
 
@@ -23,6 +23,8 @@ export function buildPassengerStopPills(
       status,
       pickupEtaMin: pickupIdx >= 0 ? stopEtaMinutes[pickupIdx] : undefined,
       dropoffEtaMin: dropoffIdx >= 0 ? stopEtaMinutes[dropoffIdx] : undefined,
+      acceptsPets: passenger.acceptsPets,
+      hasChildSeat: passenger.hasChildSeat,
     };
   });
 }
