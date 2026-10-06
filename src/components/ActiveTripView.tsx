@@ -2,6 +2,7 @@ import { memo } from 'react';
 import { motion } from 'framer-motion';
 import { Phone, MessageCircle, MapPin, Clock, Star, Navigation, User, Car, Footprints, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { OVERLAY_BOTTOM_PX, overlayBottom } from '@/lib/overlayLayout';
 
 interface ActiveTripViewProps {
   isOpen: boolean;
@@ -84,6 +85,54 @@ const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onP
         >
           <X className="w-4 h-4" />
         </Button>
+      </motion.div>
+    );
+  }
+
+  // Pasajero: chapa pequeña encima de los controles de zoom, como las chapas
+  // de recogida del conductor. Solo pide lo que hace falta: quién viene, cuánto
+  // tarda, el coche que buscar y el botón de subida o bajada.
+  if ((userRole as string) === 'passenger') {
+    const onBoard = tripStatus === 'picked_up' || tripStatus === 'in_progress';
+    return (
+      <motion.div
+        initial={{ x: 20, opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        exit={{ x: 20, opacity: 0 }}
+        className="fixed right-3 z-40 pointer-events-none"
+        style={{ bottom: overlayBottom(OVERLAY_BOTTOM_PX.stopPills) }}
+      >
+        <div className="glass-strong rounded-2xl px-2.5 py-2 w-[210px] pointer-events-auto space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[11px] font-semibold text-foreground truncate">{data.otherUser}</p>
+            <span className="text-[10px] text-warning shrink-0">★ {data.otherUserRating}</span>
+          </div>
+          {!onBoard && driverVehicle && (
+            <p className="text-[10px] text-muted-foreground truncate">
+              {driverVehicle.brand} {driverVehicle.model} ·{' '}
+              <span className="font-mono font-bold text-foreground">{driverVehicle.licensePlate}</span>
+            </p>
+          )}
+          <p className="text-[10px] text-muted-foreground">
+            {onBoard
+              ? `${dropoffEta ?? data.eta} min hasta ${data.destination}`
+              : `Conductor llega en ${driverEta ?? data.eta} min${walkingMinutes != null ? ` · ${walkingMinutes} min a pie` : ''}`}
+          </p>
+          <div className="flex gap-1.5">
+            <Button variant="destructive" size="icon-sm" className="h-7 w-7 shrink-0" onClick={onClose} aria-label="Cancelar">
+              <X className="w-3.5 h-3.5" />
+            </Button>
+            {onBoard ? (
+              <Button variant="passenger" size="sm" className="flex-1 h-7 text-[10px] px-1" onClick={onClose}>
+                Bajar del coche
+              </Button>
+            ) : (
+              <Button variant="passenger" size="sm" className="flex-1 h-7 text-[10px] px-1" onClick={onDriverArrived ?? onPickup}>
+                Subir al coche
+              </Button>
+            )}
+          </div>
+        </div>
       </motion.div>
     );
   }

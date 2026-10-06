@@ -1170,6 +1170,7 @@ const Index = () => {
         waypointMarkers={mapWaypointMarkers}
         intermediateRouteWaypoints={intermediateRouteWaypoints}
         purpleUntilStop={extraStops[0] ?? null}
+        meetingPoint={trip.activeTripRole === "passenger" && trip.showActiveTrip ? trip.meetingPoint : null}
         walkingRoute={trip.activeTripRole === "passenger" && passengerWalkingEnabled ? walkingRouteData : null}
         onRouteUpdate={nav.setCurrentRoute}
         onRouteError={handleRouteError}

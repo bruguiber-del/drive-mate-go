@@ -70,6 +70,8 @@ interface MapViewProps {
   intermediateRouteWaypoints?: Array<{ lat: number; lng: number }>;
   /** Parada añadida desde el buscador: el tramo hasta ella va en morado. */
   purpleUntilStop?: { lat: number; lng: number } | null;
+  /** Punto de encuentro del pasajero: marcador propio y visible. */
+  meetingPoint?: { lat: number; lng: number; name: string } | null;
 }
 
 // ── Visual constants ─────────────────────────────────────────────────────────
@@ -111,6 +113,7 @@ const MapView = ({
   previewWaypoints,
   intermediateRouteWaypoints,
   purpleUntilStop,
+  meetingPoint,
 }: MapViewProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -118,6 +121,7 @@ const MapView = ({
 
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const destMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const meetingMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const driverMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const waypointMarkersRef = useRef<mapboxgl.Marker[]>([]);
   const previewMarkersRef = useRef<mapboxgl.Marker[]>([]);
@@ -526,6 +530,23 @@ const MapView = ({
       m.fitBounds(bounds, { padding: 80, maxZoom: 15, duration: 600 });
     }
   }, [destination, mapReady, showRoute]);
+
+  useEffect(() => {
+    if (!map.current || !mapReady) return;
+    const m = map.current;
+    meetingMarkerRef.current?.remove();
+    meetingMarkerRef.current = null;
+    if (!meetingPoint) return;
+
+    const el = document.createElement('div');
+    el.className = 'flex flex-col items-center pointer-events-none';
+    el.innerHTML = `
+      <div style="background:hsl(280,70%,55%);color:white;font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;box-shadow:0 2px 8px rgba(0,0,0,.4);white-space:nowrap;margin-bottom:4px">Punto de encuentro</div>
+      <div style="width:22px;height:22px;border-radius:50%;background:hsl(280,70%,55%);border:3px solid white;box-shadow:0 0 0 6px hsla(280,70%,55%,.35)"></div>`;
+    meetingMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
+      .setLngLat([meetingPoint.lng, meetingPoint.lat])
+      .addTo(m);
+  }, [meetingPoint, mapReady, styleRetryTick]);
 
   // ── Route line (real Mapbox geometry, cualquier perfil) ────────────────────
   useEffect(() => {
