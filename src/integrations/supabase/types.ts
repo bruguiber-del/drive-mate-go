@@ -91,8 +91,7 @@ export type Database = {
           origin_lat: number | null
           origin_lng: number | null
           origin_name: string | null
-          passenger_id: string | null
-          passenger_name: string
+          passenger_name: string | null
           picked_up_at: string | null
           price: number | null
           status: string
@@ -108,8 +107,7 @@ export type Database = {
           origin_lat?: number | null
           origin_lng?: number | null
           origin_name?: string | null
-          passenger_id?: string | null
-          passenger_name: string
+          passenger_name?: string | null
           picked_up_at?: string | null
           price?: number | null
           status?: string
@@ -125,14 +123,21 @@ export type Database = {
           origin_lat?: number | null
           origin_lng?: number | null
           origin_name?: string | null
-          passenger_id?: string | null
-          passenger_name?: string
+          passenger_name?: string | null
           picked_up_at?: string | null
           price?: number | null
           status?: string
           trip_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "trip_passengers_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       trips: {
         Row: {
@@ -188,42 +193,6 @@ export type Database = {
         }
         Relationships: []
       }
-      verification_requests: {
-        Row: {
-          created_at: string
-          id: string
-          kind: string
-          reason: string | null
-          reviewed_at: string | null
-          status: string
-          storage_path: string
-          user_id: string
-          vehicle_id: string | null
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          kind: string
-          reason?: string | null
-          reviewed_at?: string | null
-          status?: string
-          storage_path: string
-          user_id: string
-          vehicle_id?: string | null
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          kind?: string
-          reason?: string | null
-          reviewed_at?: string | null
-          status?: string
-          storage_path?: string
-          user_id?: string
-          vehicle_id?: string | null
-        }
-        Relationships: []
-      }
       vehicles: {
         Row: {
           brand: string
@@ -269,6 +238,42 @@ export type Database = {
           user_id?: string
           verification_status?: string
           year?: number
+        }
+        Relationships: []
+      }
+      verification_requests: {
+        Row: {
+          created_at: string
+          id: string
+          kind: string
+          reason: string | null
+          reviewed_at: string | null
+          status: string
+          storage_path: string
+          user_id: string
+          vehicle_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind: string
+          reason?: string | null
+          reviewed_at?: string | null
+          status?: string
+          storage_path: string
+          user_id: string
+          vehicle_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: string
+          reason?: string | null
+          reviewed_at?: string | null
+          status?: string
+          storage_path?: string
+          user_id?: string
+          vehicle_id?: string | null
         }
         Relationships: []
       }

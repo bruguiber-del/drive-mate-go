@@ -15,6 +15,13 @@
       "when": 1789733406954,
       "tag": "0001_profiles_and_trip_details",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791249972683,
+      "tag": "0002_grants_and_storage_policies_verification",
+      "breakpoints": true
     }
   ]
 }
