@@ -39,6 +39,9 @@ interface StopConfirmButtonsProps {
 // Separación mínima pero segura: suficiente para no dar a dos chapas a la
 // vez sin querer, sin desperdiciar el espacio del mapa como antes.
 const BUTTON_SPACING_PX = 44;
+/** Chapas apiladas como máximo: con más, la pila subiría hasta tapar la barra
+ *  superior. Las que sobran se resumen en un contador. */
+const MAX_VISIBLE_PILLS = 4;
 // 130 dejaba la chapa (y su leyenda, 16px más abajo) pegada a la columna de
 // zoom/centrar de BottomActionBar (bottom:20, ~104px de alto) — subida a
 // 160 para que quede un hueco claro entre ambas.
@@ -56,11 +59,13 @@ const BASE_BOTTOM_PX = OVERLAY_BOTTOM_PX.stopPills;
  */
 const StopConfirmButtons = ({ stops, pendingKeys, onConfirm }: StopConfirmButtonsProps) => {
   if (stops.length === 0) return null;
+  const visibleStops = stops.slice(0, MAX_VISIBLE_PILLS);
+  const hiddenCount = stops.length - visibleStops.length;
 
   return (
     <div className="fixed right-3 z-30 pointer-events-none" style={{ bottom: overlayBottom(BASE_BOTTOM_PX) }}>
       <AnimatePresence>
-        {stops.map((stop, index) => {
+        {visibleStops.map((stop, index) => {
           const isPending = pendingKeys.has(stop.key);
           const waitingPickup = stop.status === 'waiting_pickup';
           return (
@@ -101,6 +106,14 @@ const StopConfirmButtons = ({ stops, pendingKeys, onConfirm }: StopConfirmButton
          líneas y, al estar anclada por el borde inferior, crecía hacia
          arriba y acababa solapando la chapa de abajo. whitespace-nowrap
          evita que eso vuelva a pasar. */}
+      {hiddenCount > 0 && (
+        <span
+          className="absolute right-0 text-[10px] text-white whitespace-nowrap pointer-events-none"
+          style={{ bottom: BUTTON_SPACING_PX * visibleStops.length }}
+        >
+          +{hiddenCount} más
+        </span>
+      )}
       <p
         className="absolute right-0 text-[8px] text-white/60 whitespace-nowrap pointer-events-none"
         style={{ bottom: -16 }}

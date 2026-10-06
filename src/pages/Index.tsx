@@ -1,5 +1,5 @@
 import { haversineMeters } from "@/lib/geo";
-import { refineErrandPositions, insertErrandsStraight, errandDetourMinutes } from "@/lib/errandRouting";
+import { useErrandStops } from "@/hooks/useErrandStops";
 import { OVERLAY_BOTTOM_PX, overlayBottom } from "@/lib/overlayLayout";
 import { buildPassengerStopPills } from "@/lib/passengerStopPills";
 import { useState, useCallback, useMemo, useEffect, useRef, lazy, Suspense } from "react";
@@ -140,7 +140,6 @@ const Index = () => {
   // ruta activa justo antes del destino final (después de cualquier recogida/
   // bajada de pasajero pendiente, para no interponerse en un compromiso ya
   // aceptado) y desaparecen al confirmarlas o cancelarlas a mano.
-  const [extraStops, setExtraStops] = useState<Array<{ id: string; lat: number; lng: number; name: string }>>([]);
   /** Modo del buscador de NavigationSearch: 'destination' (por defecto,
    *  sustituye el destino) o 'stop' (añade una parada sin tocarlo). */
   const [searchMode, setSearchMode] = useState<"destination" | "stop">("destination");
@@ -154,18 +153,6 @@ const Index = () => {
     setSearchMode("destination");
     modals.openNavigationSearch();
   }, [modals]);
-
-  const handleAddStop = useCallback(
-    (name: string, coords: { lng: number; lat: number }) => {
-      setExtraStops((prev) => [...prev, { id: crypto.randomUUID(), lat: coords.lat, lng: coords.lng, name }]);
-      toast({ title: `Parada añadida: ${name}`, description: "Se suma a tu ruta actual", duration: 1800 });
-    },
-    [toast],
-  );
-
-  const handleRemoveExtraStop = useCallback((id: string) => {
-    setExtraStops((prev) => prev.filter((s) => s.id !== id));
-  }, []);
 
   // ── Cross-hook bridge: nav.onStop must call trip.handleTripEnd which is
   //    declared after nav. Use a ref to break the cycle without TDZ issues.
@@ -245,7 +232,7 @@ const Index = () => {
     enabled: passengerSimEnabled && !modals.showMatchPopup,
     userLocation: realUserLocation,
     // +10s sobre los 12s que había — llegaban demasiado seguidas.
-    intervalMs: 22000,
+    intervalMs: 40000,
     driverRoute: nav.currentRoute?.coordinates ?? null,
     driverDestination: nav.destinationCoords,
     costPerKm: liveCostPerKm,
@@ -450,59 +437,8 @@ const Index = () => {
   // destino. Con eso basta para que tanto el cálculo de ruta
   // (intermediateRouteWaypoints) como los marcadores del mapa
   // (mapWaypointMarkers) las incluyan automáticamente, sin tocar nada más.
-  const straightWaypoints = useMemo(() => {
-    const base = multiPassengerWaypoints ?? routeWaypoints;
-    if (extraStops.length === 0) return base;
-    const errandWaypoints: Waypoint[] = extraStops.map((s) => ({
-      id: `errand-${s.id}`,
-      type: "errand",
-      lat: s.lat,
-      lng: s.lng,
-      name: s.name,
-      completed: false,
-    }));
-    const finalIdx = base.findIndex((w) => w.type === "final_destination");
-    const stopsBeforeFinal = finalIdx === -1 ? base : base.slice(0, finalIdx);
-    const finalPart = finalIdx === -1 ? [] : base.slice(finalIdx);
-    const origin = userLocRef.current;
-    const ordered = insertErrandsStraight(
-      origin ? { lat: origin[0], lng: origin[1] } : null,
-      stopsBeforeFinal,
-      errandWaypoints,
-    );
-    return [...ordered, ...finalPart];
-  }, [multiPassengerWaypoints, routeWaypoints, extraStops]);
-
-  // Tras la colocación rápida en línea recta, se afina con el tiempo real de
-  // ruta. Si el resultado corresponde a la misma lista, se usa; si no, se
-  // queda la de línea recta hasta que llegue.
-  const straightKey = useMemo(() => straightWaypoints.map((w) => w.id).join("|"), [straightWaypoints]);
-  const [refinedWaypoints, setRefinedWaypoints] = useState<{ key: string; list: Waypoint[] } | null>(null);
-  useEffect(() => {
-    const origin = userLocRef.current;
-    if (!origin || !straightWaypoints.some((w) => w.type === "errand")) return;
-    let cancelled = false;
-    refineErrandPositions({ lat: origin[0], lng: origin[1] }, straightWaypoints).then((list) => {
-      if (!cancelled) setRefinedWaypoints({ key: straightKey, list });
-    });
-    return () => { cancelled = true; };
-  }, [straightWaypoints, straightKey]);
-  const effectiveWaypoints =
-    refinedWaypoints && refinedWaypoints.key === straightKey ? refinedWaypoints.list : straightWaypoints;
-  // Minutos reales que añade cada parada personal, para mostrarlos en su chip.
-  const [errandDetours, setErrandDetours] = useState<Record<string, number | null>>({});
-  useEffect(() => {
-    const origin = userLocRef.current;
-    if (!origin || !effectiveWaypoints.some((w) => w.type === "errand")) {
-      setErrandDetours({});
-      return;
-    }
-    let cancelled = false;
-    errandDetourMinutes({ lat: origin[0], lng: origin[1] }, effectiveWaypoints).then((detours) => {
-      if (!cancelled) setErrandDetours(detours);
-    });
-    return () => { cancelled = true; };
-  }, [effectiveWaypoints]);
+  const { extraStops, setExtraStops, addExtraStop: handleAddStop, removeExtraStop: handleRemoveExtraStop, effectiveWaypoints, errandDetours } =
+    useErrandStops(multiPassengerWaypoints ?? routeWaypoints, userLocRef);
 
   const effectiveCurrentTarget = multiPassengerWaypoints ? multiPassengerWaypoints[0] ?? null : currentTarget;
 
@@ -967,14 +903,17 @@ const Index = () => {
     trip.handleMatchAccept();
   }, [modals, trip, isDriverMode, simulatedPassenger, multiTrip]);
 
-  // Compara la ruta real de navegación con la que se verificó al aceptar. Con
-  // paradas personales no se compara: no entran en la verificación.
+  // Compara la ruta real de navegación con la que se verificó al aceptar, más
+  // lo que añade cada parada personal (medido aparte, con la misma ruta).
   useEffect(() => {
     const expected = expectedRouteTotalRef.current;
     const current = nav.currentRoute?.duration;
-    if (expected == null || current == null || extraStops.length > 0) return;
+    if (expected == null || current == null) return;
+    const detours = Object.values(errandDetours);
+    if (detours.length < extraStops.length || detours.some((d) => d == null)) return;
+    const errandSeconds = detours.reduce<number>((sum, d) => sum + (d ?? 0) * 60, 0);
     expectedRouteTotalRef.current = null;
-    const diffMin = Math.round((current - expected) / 60);
+    const diffMin = Math.round((current - (expected + errandSeconds)) / 60);
     if (Math.abs(diffMin) >= 2) {
       toast({
         title: "La ruta real ha cambiado",
@@ -982,7 +921,7 @@ const Index = () => {
         duration: 3000,
       });
     }
-  }, [nav.currentRoute, extraStops.length, toast]);
+  }, [nav.currentRoute, extraStops.length, errandDetours, toast]);
 
   const handleMatchReject = useCallback(() => {
     setShowPreview(false);

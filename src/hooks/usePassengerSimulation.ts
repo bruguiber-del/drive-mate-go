@@ -308,6 +308,7 @@ export function usePassengerSimulation({
   const activeNamesRef = useRef<Set<string> | undefined>(activePassengerNames);
   const trackedRef = useRef<ActiveTrackedPassenger[]>(activeTrackedPassengers ?? []);
   const seatsRef = useRef<number>(seats);
+  const currentRef = useRef<SimulatedPassenger | null>(null);
   useEffect(() => { routeRef.current = driverRoute ?? null; }, [driverRoute]);
   useEffect(() => { destRef.current = driverDestination ?? null; }, [driverDestination]);
   useEffect(() => { costRef.current = costPerKm; }, [costPerKm]);
@@ -316,9 +317,14 @@ export function usePassengerSimulation({
   useEffect(() => { activeNamesRef.current = activePassengerNames; }, [activePassengerNames]);
   useEffect(() => { trackedRef.current = activeTrackedPassengers ?? []; }, [activeTrackedPassengers]);
   useEffect(() => { seatsRef.current = seats; }, [seats]);
+  useEffect(() => { currentRef.current = currentPassenger; }, [currentPassenger]);
 
   const generateNew = useCallback(async () => {
     if (isGeneratingRef.current) return;
+    // Sin gastar llamadas a Mapbox si ya hay una solicitud abierta o no cabe
+    // nadie más en el coche.
+    if (currentRef.current) return;
+    if (trackedRef.current.length >= seatsRef.current) return;
     if (!userLocation) return;
     const [lat, lng] = userLocation;
     if (
