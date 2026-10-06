@@ -48,7 +48,7 @@ interface MapViewProps {
   waypointMarkers?: Array<{
     lat: number;
     lng: number;
-    type: 'meeting_point' | 'pickup' | 'dropoff' | 'final_destination';
+    type: 'meeting_point' | 'pickup' | 'dropoff' | 'final_destination' | 'errand';
     name: string;
   }>;
   walkingRoute?: RouteData | null;
