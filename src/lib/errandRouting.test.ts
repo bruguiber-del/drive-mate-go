@@ -33,7 +33,8 @@ describe("refineErrandPositions", () => {
   it("keeps the input order when Mapbox does not answer", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, json: async () => ({}) })));
     const ordered = [wp("pickup", "pickup", 1), wp("errand", "errand", 0.5), wp("final", "final_destination", 3)];
-    const result = await refineErrandPositions({ lat: 0, lng: 0 }, ordered);
+    // Otro origen: la caché de rutas no debe devolver la respuesta del test anterior.
+    const result = await refineErrandPositions({ lat: 1, lng: 1 }, ordered);
     expect(result.map((w) => w.id)).toEqual(["pickup", "errand", "final"]);
   });
 });
