@@ -1,3 +1,4 @@
+import { haversineMeters } from '@/lib/geo';
 import type { Waypoint } from '@/hooks/useWaypoints';
 import { fetchRealRoute } from '@/lib/mapboxDirections';
 
@@ -40,4 +41,52 @@ export async function refineErrandPositions(
     }
   }
   return best;
+}
+
+/** Inserta cada parada personal en la posición de línea recta que menos
+ *  recorrido añade. Las recogidas y bajadas no se reordenan. */
+export function insertErrandsStraight(
+  origin: { lat: number; lng: number } | null,
+  stopsBeforeFinal: Waypoint[],
+  errands: Waypoint[],
+): Waypoint[] {
+  const ordered = [...stopsBeforeFinal];
+  for (const errand of errands) {
+    let bestPos = ordered.length;
+    let bestCost = Infinity;
+    for (let pos = 0; pos <= ordered.length; pos++) {
+      const prev = pos === 0 ? origin : ordered[pos - 1];
+      const next = ordered[pos];
+      const cost =
+        (prev ? straightM(prev, errand) : 0) +
+        (next ? straightM(errand, next) : 0) -
+        (prev && next ? straightM(prev, next) : 0);
+      if (cost < bestCost) { bestCost = cost; bestPos = pos; }
+    }
+    ordered.splice(bestPos, 0, errand);
+  }
+  return ordered;
+}
+
+/** Minutos reales que añade cada parada personal: ruta completa con ella
+ *  menos la misma ruta sin ella. Null para una parada si Mapbox no responde. */
+export async function errandDetourMinutes(
+  origin: { lat: number; lng: number },
+  ordered: Waypoint[],
+): Promise<Record<string, number | null>> {
+  const result: Record<string, number | null> = {};
+  const withAll = await pathDurationS(origin, ordered);
+  for (const w of ordered.filter((x) => x.type === 'errand')) {
+    const without = ordered.filter((x) => x.id !== w.id);
+    const withoutDuration = await pathDurationS(origin, without);
+    result[w.id] =
+      Number.isFinite(withAll) && Number.isFinite(withoutDuration)
+        ? Math.max(0, Math.round((withAll - withoutDuration) / 60))
+        : null;
+  }
+  return result;
+}
+
+function straightM(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  return haversineMeters(a.lat, a.lng, b.lat, b.lng);
 }

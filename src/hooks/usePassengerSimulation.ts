@@ -18,6 +18,9 @@ export interface SimulatedPassenger {
   tripDistanceKm: number;
   /** Km de desvío real fuera de la ruta del conductor (ida y vuelta). */
   detourKm: number;
+  /** Duración (s) de la ruta real con este pasajero incluido, medida al
+   *  verificarlo — para comprobar después si la ruta de navegación coincide. */
+  routeTotalDurationS: number;
   acceptsPets: boolean;
   hasChildSeat: boolean;
   doorToDoor: boolean;
@@ -205,7 +208,7 @@ async function verifyRealDetour(
   existingPassengers: ActiveTrackedPassenger[],
   finalDestination: { lat: number; lng: number } | null,
   maxDetourMinutes?: number,
-): Promise<{ detourMinutes: number; detourKm: number } | null> {
+): Promise<{ detourMinutes: number; detourKm: number; routeTotalDurationS: number } | null> {
   const origin = { lat: driverLat, lng: driverLng };
   const alreadyPickedUp = new Set(existingPassengers.filter((p) => p.status === 'in_car').map((p) => p.id));
 
@@ -221,8 +224,11 @@ async function verifyRealDetour(
     { kind: 'dropoff' as const, lat: draft.destLat, lng: draft.destLng, passengerId: candidateId, passengerName: draft.name },
   ];
 
+  // Puerta a puerta: su recogida y su bajada no se agrupan con otras paradas
+  // cercanas, se visitan exactamente en su puerta.
+  const clusterThresholdM = draft.doorToDoor ? 0 : undefined;
   const pointsFor = (stops: typeof existingStops) => {
-    const ordered = findOptimalStopOrder(origin, clusterPlannedStops(stops), alreadyPickedUp);
+    const ordered = findOptimalStopOrder(origin, clusterPlannedStops(stops, clusterThresholdM), alreadyPickedUp);
     const points = [origin, ...ordered.map((st) => ({ lat: st.lat, lng: st.lng }))];
     if (finalDestination) points.push(finalDestination);
     return points;
@@ -239,7 +245,7 @@ async function verifyRealDetour(
 
   if (maxDetourMinutes != null && detourMinutes > maxDetourMinutes) return null;
 
-  return { detourMinutes, detourKm };
+  return { detourMinutes, detourKm, routeTotalDurationS: withCandidate.durationS };
 }
 
 interface UsePassengerSimulationOptions {
@@ -378,6 +384,7 @@ export function usePassengerSimulation({
       compensation: pricing.driverIncome,
       tripDistanceKm,
       detourKm: verified.detourKm,
+      routeTotalDurationS: verified.routeTotalDurationS,
       acceptsPets: draft.acceptsPets,
       hasChildSeat: draft.hasChildSeat,
       doorToDoor: draft.doorToDoor,

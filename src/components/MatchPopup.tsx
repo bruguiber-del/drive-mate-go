@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { User, X, Check, Star, PawPrint, Baby, MapPin, Car, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { COMMISSION, PET_SURCHARGE, CHILD_SEAT_SURCHARGE } from '@/lib/priceCalculator';
-import { OVERLAY_BOTTOM_PX } from '@/lib/overlayLayout';
+import { OVERLAY_BOTTOM_PX, overlayBottom } from '@/lib/overlayLayout';
 
 export interface MatchData {
     userName: string;
@@ -87,7 +87,7 @@ const MatchPopup = ({ isOpen, onAccept, onReject, isDriverView = true, matchData
             exit={{ opacity: 0, scale: 0.7 }}
             transition={{ type: 'spring', damping: 22, stiffness: 280 }}
             className="fixed right-3 z-40 pointer-events-none"
-            style={{ bottom: OVERLAY_BOTTOM_PX.acceptPill }}
+            style={{ bottom: overlayBottom(OVERLAY_BOTTOM_PX.acceptPill) }}
           >
             <div className="pointer-events-auto flex items-center gap-1.5">
               <div className="flex flex-col items-center gap-0.5 min-w-0">

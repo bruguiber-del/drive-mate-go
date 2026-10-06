@@ -13,3 +13,7 @@ export const OVERLAY_BOTTOM_PX = {
   /** Chapa de aceptar solicitud de pasajero (derecha). */
   acceptPill: 320,
 } as const;
+
+/** Altura respetando la zona segura del móvil (muesca, barra de inicio). */
+export const overlayBottom = (px: number): string =>
+  `calc(env(safe-area-inset-bottom, 0px) + ${px}px)`;

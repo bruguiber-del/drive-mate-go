@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, Loader2, MapPin } from 'lucide-react';
-import { OVERLAY_BOTTOM_PX } from '@/lib/overlayLayout';
+import { OVERLAY_BOTTOM_PX, overlayBottom } from '@/lib/overlayLayout';
 
 export interface PassengerStopPill {
   /** Id del pasajero — identifica la chapa de forma estable durante todo el
@@ -51,7 +51,7 @@ const StopConfirmButtons = ({ stops, pendingKeys, onConfirm }: StopConfirmButton
   if (stops.length === 0) return null;
 
   return (
-    <div className="fixed right-3 z-30 pointer-events-none" style={{ bottom: BASE_BOTTOM_PX }}>
+    <div className="fixed right-3 z-30 pointer-events-none" style={{ bottom: overlayBottom(BASE_BOTTOM_PX) }}>
       <AnimatePresence>
         {stops.map((stop, index) => {
           const isPending = pendingKeys.has(stop.key);

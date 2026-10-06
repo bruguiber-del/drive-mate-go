@@ -1,6 +1,7 @@
 import { haversineMeters } from "@/lib/geo";
-import { refineErrandPositions } from "@/lib/errandRouting";
-import { OVERLAY_BOTTOM_PX } from "@/lib/overlayLayout";
+import { refineErrandPositions, insertErrandsStraight, errandDetourMinutes } from "@/lib/errandRouting";
+import { OVERLAY_BOTTOM_PX, overlayBottom } from "@/lib/overlayLayout";
+import { buildPassengerStopPills } from "@/lib/passengerStopPills";
 import { useState, useCallback, useMemo, useEffect, useRef, lazy, Suspense } from "react";
 import { AnimatePresence } from "framer-motion";
 import { X, Search } from "lucide-react";
@@ -463,25 +464,12 @@ const Index = () => {
     const finalIdx = base.findIndex((w) => w.type === "final_destination");
     const stopsBeforeFinal = finalIdx === -1 ? base : base.slice(0, finalIdx);
     const finalPart = finalIdx === -1 ? [] : base.slice(finalIdx);
-    // Cada parada personal entra en el punto del recorrido donde menos
-    // desvío añade (pasando por la posición del conductor al añadirla), sin
-    // alterar el orden de recogidas y bajadas ya aceptadas.
     const origin = userLocRef.current;
-    const ordered: Waypoint[] = [...stopsBeforeFinal];
-    for (const errand of errandWaypoints) {
-      let bestPos = ordered.length;
-      let bestCost = Infinity;
-      for (let pos = 0; pos <= ordered.length; pos++) {
-        const prev = pos === 0 ? (origin ? { lat: origin[0], lng: origin[1] } : null) : ordered[pos - 1];
-        const next = ordered[pos];
-        const cost =
-          (prev ? haversineMeters(prev.lat, prev.lng, errand.lat, errand.lng) : 0) +
-          (next ? haversineMeters(errand.lat, errand.lng, next.lat, next.lng) : 0) -
-          (prev && next ? haversineMeters(prev.lat, prev.lng, next.lat, next.lng) : 0);
-        if (cost < bestCost) { bestCost = cost; bestPos = pos; }
-      }
-      ordered.splice(bestPos, 0, errand);
-    }
+    const ordered = insertErrandsStraight(
+      origin ? { lat: origin[0], lng: origin[1] } : null,
+      stopsBeforeFinal,
+      errandWaypoints,
+    );
     return [...ordered, ...finalPart];
   }, [multiPassengerWaypoints, routeWaypoints, extraStops]);
 
@@ -501,6 +489,20 @@ const Index = () => {
   }, [straightWaypoints, straightKey]);
   const effectiveWaypoints =
     refinedWaypoints && refinedWaypoints.key === straightKey ? refinedWaypoints.list : straightWaypoints;
+  // Minutos reales que añade cada parada personal, para mostrarlos en su chip.
+  const [errandDetours, setErrandDetours] = useState<Record<string, number | null>>({});
+  useEffect(() => {
+    const origin = userLocRef.current;
+    if (!origin || !effectiveWaypoints.some((w) => w.type === "errand")) {
+      setErrandDetours({});
+      return;
+    }
+    let cancelled = false;
+    errandDetourMinutes({ lat: origin[0], lng: origin[1] }, effectiveWaypoints).then((detours) => {
+      if (!cancelled) setErrandDetours(detours);
+    });
+    return () => { cancelled = true; };
+  }, [effectiveWaypoints]);
 
   const effectiveCurrentTarget = multiPassengerWaypoints ? multiPassengerWaypoints[0] ?? null : currentTarget;
 
@@ -790,18 +792,7 @@ const Index = () => {
     // pendingKeys) hasta que confirmDropoff los quita de verdad, en vez de
     // desaparecer de golpe antes de que la animación de "esperando
     // confirmación" llegue a verse.
-    return multiTrip.passengers.map(({ passenger, status }) => {
-        const pickupIdx = multiStops.findIndex((s) => s.kind === "pickup" && s.passengerIds.includes(passenger.id));
-        const dropoffIdx = multiStops.findIndex((s) => s.kind === "dropoff" && s.passengerIds.includes(passenger.id));
-        return {
-          key: passenger.id,
-          passengerId: passenger.id,
-          name: passenger.name,
-          status,
-          pickupEtaMin: pickupIdx >= 0 ? multiStopEtaMinutes[pickupIdx] : undefined,
-          dropoffEtaMin: dropoffIdx >= 0 ? multiStopEtaMinutes[dropoffIdx] : undefined,
-        };
-      });
+    return buildPassengerStopPills(multiTrip.passengers, multiStops, multiStopEtaMinutes);
   }, [multiPassengerWaypoints, multiTrip.passengers, multiStops, multiStopEtaMinutes]);
 
   // Explica el gesto de las chapas UNA sola vez, la primera vez que aparece
@@ -957,10 +948,13 @@ const Index = () => {
     [modals],
   );
 
+  const expectedRouteTotalRef = useRef<number | null>(null);
+
   const handleMatchAcceptAndClose = useCallback(() => {
     setShowPreview(false);
     modals.closeMatchPopup();
     if (isDriverMode && simulatedPassenger) {
+      expectedRouteTotalRef.current = simulatedPassenger.routeTotalDurationS;
       setAcceptedPassenger(simulatedPassenger);
       // Se añade a la cola real de pasajeros a bordo — puede haber ya otro
       // camino a su parada, o incluso ya recogido, sin que esto lo pise.
@@ -972,6 +966,23 @@ const Index = () => {
     }
     trip.handleMatchAccept();
   }, [modals, trip, isDriverMode, simulatedPassenger, multiTrip]);
+
+  // Compara la ruta real de navegación con la que se verificó al aceptar. Con
+  // paradas personales no se compara: no entran en la verificación.
+  useEffect(() => {
+    const expected = expectedRouteTotalRef.current;
+    const current = nav.currentRoute?.duration;
+    if (expected == null || current == null || extraStops.length > 0) return;
+    expectedRouteTotalRef.current = null;
+    const diffMin = Math.round((current - expected) / 60);
+    if (Math.abs(diffMin) >= 2) {
+      toast({
+        title: "La ruta real ha cambiado",
+        description: `${diffMin > 0 ? "+" : ""}${diffMin} min frente a lo verificado (tráfico o posición)`,
+        duration: 3000,
+      });
+    }
+  }, [nav.currentRoute, extraStops.length, toast]);
 
   const handleMatchReject = useCallback(() => {
     setShowPreview(false);
@@ -1220,6 +1231,9 @@ const Index = () => {
                 aria-label={`Quitar parada: ${stop.name}`}
               >
                 <span className="truncate max-w-[120px]">{stop.name}</span>
+                {errandDetours[`errand-${stop.id}`] != null && (
+                  <span className="text-[10px] opacity-80 shrink-0">+{errandDetours[`errand-${stop.id}`]} min</span>
+                )}
                 <X className="w-3 h-3 shrink-0" />
               </button>
             ))}
@@ -1231,7 +1245,7 @@ const Index = () => {
             Antes era un "+" en la barra de arriba, lejos de donde está
             toda la demás acción del viaje. */}
         {nav.isNavigating && (
-          <div className="fixed left-3 z-30 pointer-events-none" style={{ bottom: OVERLAY_BOTTOM_PX.addStopButton }}>
+          <div className="fixed left-3 z-30 pointer-events-none" style={{ bottom: overlayBottom(OVERLAY_BOTTOM_PX.addStopButton) }}>
             <Button
               variant="glass"
               size="icon"
@@ -1318,7 +1332,7 @@ const Index = () => {
           el viaje en curso; ahora esa barra desaparece del todo y este
           total persistente la sustituye. */}
       {trip.showActiveTrip && trip.activeTripRole === "driver" && totalTripCompensation > 0 && (
-        <div className="fixed left-1/2 -translate-x-1/2 z-30 pointer-events-none" style={{ bottom: OVERLAY_BOTTOM_PX.compensatedBadge }}>
+        <div className="fixed left-1/2 -translate-x-1/2 z-30 pointer-events-none" style={{ bottom: overlayBottom(OVERLAY_BOTTOM_PX.compensatedBadge) }}>
           <div className="glass-strong rounded-full px-3 py-1.5 flex items-center gap-1.5 border border-success/30">
             <span className="text-[9px] text-muted-foreground">Compensado</span>
             <span className="text-sm font-bold text-success">+{totalTripCompensation.toFixed(2)}€</span>
