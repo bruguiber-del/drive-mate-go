@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { useProfile } from '@/hooks/useProfile';
+import IdentityVerification from '@/components/IdentityVerification';
 
 interface ProfileSectionProps {
   isOpen: boolean;
@@ -236,6 +237,8 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
             {/* Verification Status — señales reales, no fechas inventadas */}
             <div className="space-y-3">
               <h4 className="font-semibold text-foreground">Estado de verificación</h4>
+
+              <IdentityVerification phoneConfirmed={phoneConfirmed} />
 
               <div className="glass rounded-xl p-4 flex items-center gap-3">
                 <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center", emailConfirmed ? "bg-success/20" : "bg-warning/20")}>

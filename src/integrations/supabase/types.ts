@@ -188,6 +188,42 @@ export type Database = {
         }
         Relationships: []
       }
+      verification_requests: {
+        Row: {
+          created_at: string
+          id: string
+          kind: string
+          reason: string | null
+          reviewed_at: string | null
+          status: string
+          storage_path: string
+          user_id: string
+          vehicle_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind: string
+          reason?: string | null
+          reviewed_at?: string | null
+          status?: string
+          storage_path: string
+          user_id: string
+          vehicle_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: string
+          reason?: string | null
+          reviewed_at?: string | null
+          status?: string
+          storage_path?: string
+          user_id?: string
+          vehicle_id?: string | null
+        }
+        Relationships: []
+      }
       vehicles: {
         Row: {
           brand: string

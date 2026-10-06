@@ -13,7 +13,7 @@ interface VehicleManagerProps {
   activeVehicleId: string | null;
   onAdd: (brand: string, model: string, year: number, plate: string) => void;
   onRemove: (id: string) => void;
-  onVerify: (id: string) => void;
+  onVerify: (id: string, photo: File) => void;
   onSelect: (id: string) => void;
   mode: 'manage' | 'select';
   onConfirmSelect?: () => void;
@@ -79,7 +79,8 @@ const VehicleManager = ({
 
   const handlePhotoChosen = (e: React.ChangeEvent<HTMLInputElement>) => {
     const id = pendingVerifyId.current;
-    if (id && e.target.files?.length) onVerify(id);
+    const photo = e.target.files?.[0];
+    if (id && photo) onVerify(id, photo);
     pendingVerifyId.current = null;
     e.target.value = '';
   };

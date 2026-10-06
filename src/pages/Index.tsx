@@ -3,6 +3,7 @@ import { useErrandStops } from "@/hooks/useErrandStops";
 import { useDriverSettings } from "@/hooks/useDriverSettings";
 import GpsStatusBanner from "@/components/GpsStatusBanner";
 import { useProfile } from "@/hooks/useProfile";
+import { submitDocumentForVerification } from "@/lib/documentVerification";
 import type { GpsStatus } from "@/components/MapView";
 import { OVERLAY_BOTTOM_PX, overlayBottom } from "@/lib/overlayLayout";
 import { buildPassengerStopPills } from "@/lib/passengerStopPills";
@@ -130,6 +131,21 @@ const Index = () => {
 
   // ── Vehicles ────────────────────────────────────────────────────────────────
   const vehicles = useVehicles();
+  const handleVehicleVerify = useCallback(async (id: string, photo: File) => {
+    vehicles.applyVerificationResult(id, "needs_review");
+    try {
+      const result = await submitDocumentForVerification({ kind: "vehicle", file: photo, vehicleId: id });
+      vehicles.applyVerificationResult(id, result.status);
+      toast({
+        title: result.status === "approved" ? "Vehículo verificado" : result.status === "rejected" ? "Verificación rechazada" : "En revisión manual",
+        description: result.reason,
+        duration: 4000,
+      });
+    } catch (err) {
+      vehicles.applyVerificationResult(id, "rejected");
+      toast({ title: "No se pudo verificar", description: err instanceof Error ? err.message : "Inténtalo de nuevo", duration: 4000 });
+    }
+  }, [vehicles, toast]);
   const driverSim = useDriverSimulation();
   const [showVehicleManager, setShowVehicleManager] = useState(false);
   const [vehicleSelectMode, setVehicleSelectMode] = useState<"manage" | "select">("manage");
@@ -1415,7 +1431,7 @@ const Index = () => {
         activeVehicleId={vehicles.activeVehicleId}
         onAdd={vehicles.addVehicle}
         onRemove={vehicles.removeVehicle}
-        onVerify={vehicles.startVerification}
+        onVerify={handleVehicleVerify}
         onSelect={vehicles.selectActiveVehicle}
         mode={vehicleSelectMode}
         onConfirmSelect={handleVehicleSelected}

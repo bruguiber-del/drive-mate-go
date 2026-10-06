@@ -133,40 +133,16 @@ export function useVehicles() {
     }
   }, [vehicles, save, activeVehicleId]);
 
-  const startVerification = useCallback((id: string) => {
-    const updated = vehicles.map(v =>
-      v.id === id ? { ...v, verificationStatus: 'pending' as const } : v
-    );
-    save(updated);
-    if (userIdRef.current) {
-      supabase.from('vehicles').update({ verification_status: 'pending' }).eq('id', id).then(() => {});
-    }
-
-    setTimeout(() => {
-      const target = updated.find(v => v.id === id);
-      const newCost = target
-        ? calculateCostPerKm(target.category, target.fuelType, true)
-        : undefined;
-
-      const verified = updated.map(v =>
-        v.id === id
-          ? {
-              ...v,
-              verificationStatus: 'verified' as const,
-              costPerKm: calculateCostPerKm(v.category, v.fuelType, true),
-            }
-          : v
-      );
-      save(verified);
-
-      if (userIdRef.current && newCost !== undefined) {
-        supabase
-          .from('vehicles')
-          .update({ verification_status: 'verified', cost_per_km: newCost })
-          .eq('id', id)
-          .then(() => {});
+  /** Aplica el resultado real de la revisión (lo guarda la función del servidor). */
+  const applyVerificationResult = useCallback((id: string, verdict: 'approved' | 'rejected' | 'needs_review') => {
+    const updated = vehicles.map((v) => {
+      if (v.id !== id) return v;
+      if (verdict === 'approved') {
+        return { ...v, verificationStatus: 'verified' as const, costPerKm: calculateCostPerKm(v.category, v.fuelType, true) };
       }
-    }, 5000);
+      return { ...v, verificationStatus: verdict === 'needs_review' ? ('pending' as const) : ('unverified' as const) };
+    });
+    save(updated);
   }, [vehicles, save]);
 
   const selectActiveVehicle = useCallback((id: string) => {
@@ -181,7 +157,7 @@ export function useVehicles() {
     activeVehicleId,
     addVehicle,
     removeVehicle,
-    startVerification,
+    applyVerificationResult,
     selectActiveVehicle,
   };
 }
