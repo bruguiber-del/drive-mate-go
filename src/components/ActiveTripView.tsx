@@ -255,12 +255,12 @@ const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onP
             )}
             {userRole === 'passenger' && tripStatus === 'waiting' && (
               <Button variant="passenger" size="sm" className="flex-1 h-7 text-[10px] px-1" onClick={onDriverArrived ?? onPickup}>
-                Conductor llegado
+                Subir al coche
               </Button>
             )}
             {tripStatus === 'picked_up' && !(userRole === 'driver' && hasMoreStops) && (
-              <Button variant="driver" size="sm" className="flex-1 h-7 text-[10px] px-1" onClick={onClose}>
-                Finalizar
+              <Button variant={userRole === 'passenger' ? 'passenger' : 'driver'} size="sm" className="flex-1 h-7 text-[10px] px-1" onClick={onClose}>
+                {userRole === 'passenger' ? 'Bajar del coche' : 'Finalizar'}
               </Button>
             )}
           </div>

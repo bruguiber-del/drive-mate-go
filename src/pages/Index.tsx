@@ -1,6 +1,7 @@
 import { haversineMeters } from "@/lib/geo";
 import { useErrandStops } from "@/hooks/useErrandStops";
 import { useDriverSettings } from "@/hooks/useDriverSettings";
+import { usePassengerMatch } from "@/hooks/usePassengerMatch";
 import GpsStatusBanner from "@/components/GpsStatusBanner";
 import { useProfile } from "@/hooks/useProfile";
 import { submitDocumentForVerification } from "@/lib/documentVerification";
@@ -700,8 +701,9 @@ const Index = () => {
     setIsMultiPassengerTripActive(false);
     setHasArrivedAtFinalDestination(false);
     setTripPassengerHistory([]);
+    driverSim.clearDriver();
     trip.handleTripEnd();
-  }, [activeTripData, trip, multiTrip, tripPassengerHistory, totalTripCompensation, driverSim.currentDriver]);
+  }, [activeTripData, trip, multiTrip, tripPassengerHistory, totalTripCompensation, driverSim]);
 
   // Cierra el viaje solo al llegar de verdad (GPS) a tu destino — ya no
   // hace falta pulsar "Finalizar" a mano. handleTripEndWithSummary pone
@@ -1061,21 +1063,17 @@ const Index = () => {
     return () => clearInterval(id);
   }, [passengerTripSetup.scheduledAt]);
 
-  // ── Driver search while in passenger mode (mirrors passenger simulation) ────
-  const driverSearchEnabled = isPassengerMode && nav.isNavigating && !trip.showActiveTrip && !isScheduledPending;
-  useEffect(() => {
-    if (!driverSearchEnabled || modals.showMatchPopup || driverSim.currentDriver) return;
-    const timer = setTimeout(() => {
-      const driver = driverSim.searchDriver(undefined, { ...passengerPreferences, doorToDoor: isDoorToDoor });
-      toast({
-        title: "Conductor encontrado",
-        description: `${driver.name} · ${driver.vehicle.brand} ${driver.vehicle.model} · ${driver.vehicle.licensePlate}`,
-        duration: 1800,
-      });
-      modals.openMatchPopup();
-    }, 6000);
-    return () => clearTimeout(timer);
-  }, [driverSearchEnabled, modals, driverSim, toast, passengerPreferences, isDoorToDoor]);
+  // ── Búsqueda de conductor en modo pasajero: el primero que acepta gana ─────
+  const driverSearchEnabled =
+    isPassengerMode && nav.isNavigating && !trip.showActiveTrip && !isScheduledPending && !driverSim.currentDriver;
+  usePassengerMatch({
+    enabled: driverSearchEnabled,
+    onMatched: () => {
+      driverSim.searchDriver(undefined, { ...passengerPreferences, doorToDoor: isDoorToDoor });
+      trip.handleMatchAccept();
+      toast({ title: "Conductor encontrado", description: "Acércate al punto de encuentro", duration: 2000 });
+    },
+  });
 
   const showDriverOnMap = trip.showActiveTrip && trip.activeTripRole === "passenger";
 
@@ -1147,10 +1145,11 @@ const Index = () => {
     }
     nav.handleStopNavigation();
     dismissSimPassenger();
+    driverSim.clearDriver();
     setAcceptedPassenger(null);
     setExtraStops([]);
     (window as any).__mapCenterOnUser?.();
-  }, [voice, nav, trip.showActiveTrip, tripPassengerHistory.length, handleTripEndWithSummary, dismissSimPassenger]);
+  }, [voice, nav, trip.showActiveTrip, tripPassengerHistory.length, handleTripEndWithSummary, dismissSimPassenger, driverSim]);
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
@@ -1283,7 +1282,7 @@ const Index = () => {
           tripStatus={effectiveTripStatus}
           onPickup={handleActiveTripPickupAction}
           pickupEta={pickupEta}
-          dropoffEta={dropoffEta}
+          dropoffEta={trip.activeTripRole === "passenger" ? nav.dynamicETA?.minutes : dropoffEta}
           driverVehicle={trip.activeTripRole === "passenger" ? driverSim.currentDriver?.vehicle : undefined}
           driverEta={trip.activeTripRole === "passenger" ? driverSim.currentDriver?.etaMinutes : undefined}
           walkingMinutes={
