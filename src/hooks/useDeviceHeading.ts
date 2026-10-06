@@ -37,11 +37,9 @@ export function useDeviceHeading() {
   const attachListener = useCallback(() => {
     if (listenerAttachedRef.current || typeof window === 'undefined') return;
     listenerAttachedRef.current = true;
-    if ('ondeviceorientationabsolute' in window) {
-      window.addEventListener('deviceorientationabsolute', handleOrientation, true);
-    } else {
-      window.addEventListener('deviceorientation', handleOrientation, true);
-    }
+    const hasAbsoluteOrientation = 'ondeviceorientationabsolute' in window;
+    const eventName = hasAbsoluteOrientation ? 'deviceorientationabsolute' : 'deviceorientation';
+    window.addEventListener(eventName, handleOrientation, true);
   }, [handleOrientation]);
 
   const detachListener = useCallback(() => {

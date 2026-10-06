@@ -60,6 +60,7 @@ interface MapViewProps {
   simulatedPosition?: [number, number] | null;
   simulatedHeading?: number | null;
   onUserLocationUpdate?: (loc: [number, number]) => void;
+  onGpsStatusChange?: (status: GpsStatus) => void;
   previewWaypoints?: Array<{
     lat: number;
     lng: number;
@@ -72,6 +73,8 @@ interface MapViewProps {
 }
 
 // ── Visual constants ─────────────────────────────────────────────────────────
+export type GpsStatus = 'searching' | 'ok' | 'denied' | 'lost' | 'unavailable';
+
 const WALKING_COLOR = 'hsl(280, 70%, 55%)';
 const TRAIL_COLOR = 'hsl(199, 89%, 48%)';
 
@@ -104,6 +107,7 @@ const MapView = ({
   simulatedPosition,
   simulatedHeading,
   onUserLocationUpdate,
+  onGpsStatusChange,
   previewWaypoints,
   intermediateRouteWaypoints,
   purpleUntilStop,
@@ -354,7 +358,7 @@ const MapView = ({
     }
 
     if (!('geolocation' in navigator)) {
-      setRawUserLocation([42.1401, -0.4087]);
+      onGpsStatusChange?.('unavailable');
       return;
     }
 
@@ -378,6 +382,7 @@ const MapView = ({
           setSpeedTier(prevTier => nextSpeedTier(kmh, prevTier));
         }
 
+        onGpsStatusChange?.('ok');
         setRawUserLocation(coords);
         if (position.coords.heading !== null && !isNaN(position.coords.heading)) {
           setUserHeading(position.coords.heading);
@@ -388,8 +393,10 @@ const MapView = ({
         console.error('Geolocation error:', error);
         if (error.code === error.PERMISSION_DENIED) {
           window.dispatchEvent(new CustomEvent('vimatch:gps-denied'));
+          onGpsStatusChange?.('denied');
+        } else {
+          onGpsStatusChange?.('lost');
         }
-        setRawUserLocation(prev => prev ?? [42.1401, -0.4087]);
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 2000 }
     );

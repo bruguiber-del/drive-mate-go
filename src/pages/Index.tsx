@@ -1,5 +1,8 @@
 import { haversineMeters } from "@/lib/geo";
 import { useErrandStops } from "@/hooks/useErrandStops";
+import { useDriverSettings } from "@/hooks/useDriverSettings";
+import GpsStatusBanner from "@/components/GpsStatusBanner";
+import type { GpsStatus } from "@/components/MapView";
 import { OVERLAY_BOTTOM_PX, overlayBottom } from "@/lib/overlayLayout";
 import { buildPassengerStopPills } from "@/lib/passengerStopPills";
 import { useState, useCallback, useMemo, useEffect, useRef, lazy, Suspense } from "react";
@@ -61,14 +64,7 @@ const Index = () => {
 
   // ── Driver mode & settings ──────────────────────────────────────────────────
   const [isDriverMode, setIsDriverMode] = useState(false);
-  const [driverSettings, setDriverSettings] = useState({
-    seats: 3,
-    maxDetour: 5,
-    acceptsPets: false,
-    hasChildSeat: false,
-    doorToDoor: true,
-    genderPreference: "none" as "none" | "women" | "men",
-  });
+  const [driverSettings, setDriverSettings] = useDriverSettings();
   /** Lo que el pasajero pidió al buscar conductor — antes se guardaba y no
    *  filtraba nada. */
   const [passengerPreferences, setPassengerPreferences] = useState({
@@ -79,6 +75,7 @@ const Index = () => {
   const [isDoorToDoor, setIsDoorToDoor] = useState(false);
   const [isPassengerMode, setIsPassengerMode] = useState(false);
   const [realUserLocation, setRealUserLocation] = useState<[number, number] | null>(null);
+  const [gpsStatus, setGpsStatus] = useState<GpsStatus>("searching");
   // Solo para colocar paradas personales: se lee la posición actual sin que
   // cada movimiento de GPS reordene la ruta entera.
   const userLocRef = useRef<[number, number] | null>(null);
@@ -228,6 +225,20 @@ const Index = () => {
     [multiTrip.passengers],
   );
 
+  // Avisa como mucho una vez por minuto si Mapbox no responde; sin esto el
+  // conductor no sabe por qué no le llegan solicitudes.
+  const lastRoutingNoticeRef = useRef(0);
+  const notifyRoutingError = useCallback(() => {
+    const now = Date.now();
+    if (now - lastRoutingNoticeRef.current < 60_000) return;
+    lastRoutingNoticeRef.current = now;
+    toast({
+      title: "Sin conexión con el mapa",
+      description: "No se pueden calcular rutas ahora mismo; reintentando.",
+      duration: 3000,
+    });
+  }, [toast]);
+
   const { currentPassenger: simulatedPassenger, dismissCurrent: dismissSimPassenger } = usePassengerSimulation({
     enabled: passengerSimEnabled && !modals.showMatchPopup,
     userLocation: realUserLocation,
@@ -249,6 +260,7 @@ const Index = () => {
     // con las paradas aceptadas, y la ruta original de cero pasajeros —
     // ambas calculadas de verdad por Mapbox, no geometría aproximada.
     seats: driverSettings.seats,
+    onRoutingError: notifyRoutingError,
   });
 
   // ── Trip lifecycle ──────────────────────────────────────────────────────────
@@ -544,6 +556,8 @@ const Index = () => {
   // en vez de recalcular la ruta entera (que cambia con el tráfico y con las
   // paradas personales).
   const passengerDetourTotal = multiTrip.passengers.reduce((sum, p) => sum + p.passenger.detourMinutes, 0);
+  const errandDetourTotal = Object.values(errandDetours).reduce<number>((sum, d) => sum + (d ?? 0), 0);
+  const bannerDetourMinutes = passengerDetourTotal + errandDetourTotal;
 
   const totalTripCompensation = multiPassengerWaypoints
     ? tripPassengerHistory.reduce((sum, p) => sum + p.compensation, 0)
@@ -1139,9 +1153,11 @@ const Index = () => {
         simulatedPosition={null}
         simulatedHeading={null}
         onUserLocationUpdate={setRealUserLocation}
+        onGpsStatusChange={setGpsStatus}
         previewWaypoints={previewWaypoints}
       >
         {/* Top Bar */}
+        <GpsStatusBanner status={gpsStatus} />
         <NavTopBar
           onOpenMenu={modals.openSettingsMenu}
           onOpenSearch={handleOpenDestinationSearch}
@@ -1209,7 +1225,7 @@ const Index = () => {
           currentLeg={effectiveCurrentLeg}
           currentTargetName={effectiveCurrentTarget?.name ?? null}
           dynamicETA={liveETA}
-          detourMinutes={passengerDetourTotal > 0 ? passengerDetourTotal : null}
+          detourMinutes={bannerDetourMinutes > 0 ? bannerDetourMinutes : null}
           driverSeats={driverSettings.seats}
           driverMaxDetour={driverSettings.maxDetour}
           activeVehiclePlate={vehicles.activeVehicle?.licensePlate}

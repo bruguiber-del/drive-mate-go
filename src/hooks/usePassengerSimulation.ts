@@ -194,6 +194,11 @@ function buildCandidateDraft(
   };
 }
 
+type VerifyResult =
+  | { kind: 'ok'; detourMinutes: number; detourKm: number; routeTotalDurationS: number }
+  | { kind: 'rejected' }
+  | { kind: 'network' };
+
 /** Fase 2 — desvío real del pasajero, medido en el mismo momento y desde la
  *  misma posición: dos rutas reales de Mapbox, la del conductor con sus
  *  paradas actuales y la misma más esta candidata. Lo que se resta es lo que
@@ -208,7 +213,7 @@ async function verifyRealDetour(
   existingPassengers: ActiveTrackedPassenger[],
   finalDestination: { lat: number; lng: number } | null,
   maxDetourMinutes?: number,
-): Promise<{ detourMinutes: number; detourKm: number; routeTotalDurationS: number } | null> {
+): Promise<VerifyResult> {
   const origin = { lat: driverLat, lng: driverLng };
   const alreadyPickedUp = new Set(existingPassengers.filter((p) => p.status === 'in_car').map((p) => p.id));
 
@@ -238,14 +243,14 @@ async function verifyRealDetour(
     fetchRealRoute(pointsFor(existingStops)),
     fetchRealRoute(pointsFor([...existingStops, ...candidateStops])),
   ]);
-  if (!base || !withCandidate) return null;
+  if (!base || !withCandidate) return { kind: 'network' };
 
   const detourMinutes = Math.max(0, Math.round((withCandidate.durationS - base.durationS) / 60));
   const detourKm = Math.max(0, (withCandidate.distanceM - base.distanceM) / 1000);
 
-  if (maxDetourMinutes != null && detourMinutes > maxDetourMinutes) return null;
+  if (maxDetourMinutes != null && detourMinutes > maxDetourMinutes) return { kind: 'rejected' };
 
-  return { detourMinutes, detourKm, routeTotalDurationS: withCandidate.durationS };
+  return { kind: 'ok', detourMinutes, detourKm, routeTotalDurationS: withCandidate.durationS };
 }
 
 interface UsePassengerSimulationOptions {
@@ -274,6 +279,9 @@ interface UsePassengerSimulationOptions {
   /** Plazas del coche — el precio reparte el coste entre ellas, igual que
    *  el cálculo de los ajustes. */
   seats?: number;
+  /** Se llama cuando Mapbox no responde (no cuando una solicitud simplemente
+   *  no cabe), para que la app pueda avisar al conductor. */
+  onRoutingError?: () => void;
 }
 
 export function usePassengerSimulation({
@@ -290,6 +298,7 @@ export function usePassengerSimulation({
   activePassengerNames,
   activeTrackedPassengers,
   seats = 1,
+  onRoutingError,
 }: UsePassengerSimulationOptions) {
   const [currentPassenger, setCurrentPassenger] = useState<SimulatedPassenger | null>(null);
   const [pendingPassengers, setPendingPassengers] = useState<SimulatedPassenger[]>([]);
@@ -309,6 +318,8 @@ export function usePassengerSimulation({
   const trackedRef = useRef<ActiveTrackedPassenger[]>(activeTrackedPassengers ?? []);
   const seatsRef = useRef<number>(seats);
   const currentRef = useRef<SimulatedPassenger | null>(null);
+  const onRoutingErrorRef = useRef<(() => void) | undefined>(onRoutingError);
+  useEffect(() => { onRoutingErrorRef.current = onRoutingError; }, [onRoutingError]);
   useEffect(() => { routeRef.current = driverRoute ?? null; }, [driverRoute]);
   useEffect(() => { destRef.current = driverDestination ?? null; }, [driverDestination]);
   useEffect(() => { costRef.current = costPerKm; }, [costPerKm]);
@@ -348,7 +359,11 @@ export function usePassengerSimulation({
       maxDetourRef.current,
     );
     isGeneratingRef.current = false;
-    if (!verified) return;
+    if (verified.kind === 'network') {
+      onRoutingErrorRef.current?.();
+      return;
+    }
+    if (verified.kind !== 'ok') return;
 
     // Distancia real del trayecto del pasajero (recogida → bajada), no la
     // línea recta: el precio tiene que salir de los mismos km que se cobran.
@@ -356,7 +371,10 @@ export function usePassengerSimulation({
       { lat: draft.pickupLat, lng: draft.pickupLng },
       { lat: draft.destLat, lng: draft.destLng },
     ]);
-    if (!tripReal) return;
+    if (!tripReal) {
+      onRoutingErrorRef.current?.();
+      return;
+    }
     const tripDistanceKm = tripReal.distanceM / 1000;
 
     const passengerCount = Math.min(4, Math.max(1, seatsRef.current)) as 1 | 2 | 3 | 4;
