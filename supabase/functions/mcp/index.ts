@@ -139,10 +139,12 @@ import { defineTool as defineTool3 } from "npm:@lovable.dev/mcp-js@0.26.1";
 import { z as z3 } from "npm:zod@^3.25.76";
 
 // src/lib/priceCalculator.ts
-var FUEL_COST_PER_KM = 0.17;
+var FUEL_COST_PER_KM = 0.126;
 var MAINTENANCE_PER_KM = 0.1;
 var TOTAL_COST_PER_KM = FUEL_COST_PER_KM + MAINTENANCE_PER_KM;
 var COMMISSION = 0.12;
+var PET_SURCHARGE = 2;
+var CHILD_SEAT_SURCHARGE = 1;
 var OCCUPANCY_FACTORS = {
   1: 1.8,
   2: 2.5,
@@ -159,14 +161,17 @@ function calculatePrice({
   passengerCount,
   detourKm = 0,
   traffic = "normal",
-  costPerKm
+  costPerKm,
+  hasPet = false,
+  hasChildSeat = false
 }) {
   const factor = OCCUPANCY_FACTORS[passengerCount] ?? OCCUPANCY_FACTORS[1];
   const trafficMultiplier = TRAFFIC_MULTIPLIER[traffic];
   const costPerKmToUse = costPerKm ?? TOTAL_COST_PER_KM;
   const totalCost = distanceKm * costPerKmToUse;
   const detourSurcharge = detourKm * costPerKmToUse;
-  const basePrice = (totalCost / factor + detourSurcharge) * trafficMultiplier;
+  const extrasSurcharge = (hasPet ? PET_SURCHARGE : 0) + (hasChildSeat ? CHILD_SEAT_SURCHARGE : 0);
+  const basePrice = (totalCost / factor + detourSurcharge) * trafficMultiplier + extrasSurcharge;
   const passengerPrice = basePrice * (1 + COMMISSION);
   const commissionAmount = passengerPrice - basePrice;
   const driverIncome = basePrice;
@@ -179,6 +184,7 @@ function calculatePrice({
     driverTotalIncome: round2(driverTotalIncome),
     commissionAmount: round2(commissionAmount),
     detourSurcharge: round2(detourSurcharge),
+    extrasSurcharge: round2(extrasSurcharge),
     trafficMultiplier
   };
 }

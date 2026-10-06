@@ -54,7 +54,6 @@ export type Database = {
         Row: {
           avatar_url: string | null
           average_rating: number
-          city: string | null
           created_at: string
           full_name: string | null
           id: string
@@ -63,7 +62,6 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           average_rating?: number
-          city?: string | null
           created_at?: string
           full_name?: string | null
           id: string
@@ -72,65 +70,10 @@ export type Database = {
         Update: {
           avatar_url?: string | null
           average_rating?: number
-          city?: string | null
           created_at?: string
           full_name?: string | null
           id?: string
           phone?: string | null
-        }
-        Relationships: []
-      }
-      trip_passengers: {
-        Row: {
-          created_at: string
-          destination_lat: number | null
-          destination_lng: number | null
-          destination_name: string | null
-          dropped_off_at: string | null
-          id: string
-          origin_lat: number | null
-          origin_lng: number | null
-          origin_name: string | null
-          passenger_id: string | null
-          passenger_name: string
-          picked_up_at: string | null
-          price: number | null
-          status: string
-          trip_id: string
-        }
-        Insert: {
-          created_at?: string
-          destination_lat?: number | null
-          destination_lng?: number | null
-          destination_name?: string | null
-          dropped_off_at?: string | null
-          id?: string
-          origin_lat?: number | null
-          origin_lng?: number | null
-          origin_name?: string | null
-          passenger_id?: string | null
-          passenger_name: string
-          picked_up_at?: string | null
-          price?: number | null
-          status?: string
-          trip_id: string
-        }
-        Update: {
-          created_at?: string
-          destination_lat?: number | null
-          destination_lng?: number | null
-          destination_name?: string | null
-          dropped_off_at?: string | null
-          id?: string
-          origin_lat?: number | null
-          origin_lng?: number | null
-          origin_name?: string | null
-          passenger_id?: string | null
-          passenger_name?: string
-          picked_up_at?: string | null
-          price?: number | null
-          status?: string
-          trip_id?: string
         }
         Relationships: []
       }
@@ -185,42 +128,6 @@ export type Database = {
           rating?: number | null
           scheduled_at?: string | null
           status?: string
-        }
-        Relationships: []
-      }
-      verification_requests: {
-        Row: {
-          created_at: string
-          id: string
-          kind: string
-          reason: string | null
-          reviewed_at: string | null
-          status: string
-          storage_path: string
-          user_id: string
-          vehicle_id: string | null
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          kind: string
-          reason?: string | null
-          reviewed_at?: string | null
-          status?: string
-          storage_path: string
-          user_id: string
-          vehicle_id?: string | null
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          kind?: string
-          reason?: string | null
-          reviewed_at?: string | null
-          status?: string
-          storage_path?: string
-          user_id?: string
-          vehicle_id?: string | null
         }
         Relationships: []
       }
