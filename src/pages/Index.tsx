@@ -2,6 +2,7 @@ import { haversineMeters } from "@/lib/geo";
 import { useErrandStops } from "@/hooks/useErrandStops";
 import { useDriverSettings } from "@/hooks/useDriverSettings";
 import GpsStatusBanner from "@/components/GpsStatusBanner";
+import { useProfile } from "@/hooks/useProfile";
 import type { GpsStatus } from "@/components/MapView";
 import { OVERLAY_BOTTOM_PX, overlayBottom } from "@/lib/overlayLayout";
 import { buildPassengerStopPills } from "@/lib/passengerStopPills";
@@ -61,6 +62,14 @@ const FINAL_ARRIVAL_RADIUS_M = 60;
 
 const Index = () => {
   const { toast } = useToast();
+  const { profile, authEmail, isAuthenticated, emailConfirmed, phoneConfirmed, driverTripCount, passengerTripCount } = useProfile();
+  // Carnet y matrícula todavía no se verifican de verdad: hasta que exista esa
+  // comprobación, el perfil no puede marcarse como verificado.
+  const DOCUMENTS_VERIFIED = false;
+  const isUserVerified = emailConfirmed && phoneConfirmed && DOCUMENTS_VERIFIED;
+  const handleLogout = useCallback(() => {
+    void supabase.auth.signOut();
+  }, []);
 
   // ── Driver mode & settings ──────────────────────────────────────────────────
   const [isDriverMode, setIsDriverMode] = useState(false);
@@ -1365,6 +1374,12 @@ const Index = () => {
         isOpen={modals.showSettingsMenu}
         onClose={modals.closeSettingsMenu}
         onNavigate={handleMenuNavigate}
+        userName={profile?.fullName || authEmail || "Sin cuenta"}
+        userSubtitle={!isAuthenticated ? "Inicia sesión" : isUserVerified ? "Verificado" : "Sin verificar"}
+        userVerified={isUserVerified}
+        isAuthenticated={isAuthenticated}
+        tripCount={driverTripCount + passengerTripCount}
+        onLogout={handleLogout}
       />
 
       <ProfileSection isOpen={modals.showProfile} onClose={modals.closeProfile} />

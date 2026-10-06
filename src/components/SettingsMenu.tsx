@@ -7,19 +7,28 @@ interface SettingsMenuProps {
   isOpen: boolean;
   onClose: () => void;
   onNavigate: (section: string) => void;
+  /** Nombre real de la cuenta (o correo si aún no tiene nombre). */
+  userName: string;
+  /** Estado real de verificación, o "Inicia sesión" si no hay cuenta. */
+  userSubtitle: string;
+  userVerified: boolean;
+  isAuthenticated: boolean;
+  /** Viajes completados (conductor + pasajero), 0 si no hay ninguno. */
+  tripCount: number;
+  onLogout: () => void;
 }
 
 const menuItems = [
   { id: 'profile', icon: User, label: 'Mi perfil', description: 'Datos personales y verificación', badge: null },
   { id: 'vehicles', icon: Car, label: 'Mis vehículos', description: 'Gestiona tus coches y su coste/km', badge: null },
-  { id: 'history', icon: History, label: 'Historial', description: 'Viajes anteriores', badge: '79' },
-  { id: 'wallet', icon: Wallet, label: 'Pagos', description: 'Cartera y métodos de pago', badge: '€67' },
-  { id: 'security', icon: Shield, label: 'Seguridad', description: 'Verificación DNI', badge: 'verified' },
+  { id: 'history', icon: History, label: 'Historial', description: 'Viajes anteriores', badge: 'trips' },
+  { id: 'wallet', icon: Wallet, label: 'Pagos', description: 'Cartera y métodos de pago', badge: null },
+  { id: 'security', icon: Shield, label: 'Seguridad', description: 'Verificación DNI', badge: null },
   { id: 'help', icon: HelpCircle, label: 'Ayuda', description: 'Soporte y FAQ', badge: null },
 ];
 
 
-const SettingsMenu = ({ isOpen, onClose, onNavigate }: SettingsMenuProps) => {
+const SettingsMenu = ({ isOpen, onClose, onNavigate, userName, userSubtitle, userVerified, isAuthenticated, tripCount, onLogout }: SettingsMenuProps) => {
   return (
     <AnimatePresence>
       {isOpen && (
@@ -65,10 +74,10 @@ const SettingsMenu = ({ isOpen, onClose, onNavigate }: SettingsMenuProps) => {
                   <User className="w-7 h-7 text-primary-foreground" />
                 </div>
                 <div className="flex-1 text-left">
-                  <p className="font-bold text-foreground">Carlos García</p>
+                  <p className="font-bold text-foreground">{userName}</p>
                   <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                    <CheckCircle className="w-4 h-4 text-success" />
-                    <span>Verificado</span>
+                    {userVerified && <CheckCircle className="w-4 h-4 text-success" />}
+                    <span>{userSubtitle}</span>
                   </div>
                 </div>
                 <ChevronRight className="w-5 h-5 text-muted-foreground" />
@@ -92,11 +101,9 @@ const SettingsMenu = ({ isOpen, onClose, onNavigate }: SettingsMenuProps) => {
                       <p className="font-medium text-foreground">{item.label}</p>
                       <p className="text-sm text-muted-foreground">{item.description}</p>
                     </div>
-                    {item.badge === 'verified' ? (
-                      <CheckCircle className="w-5 h-5 text-success" />
-                    ) : item.badge ? (
+                    {item.id === 'history' && tripCount > 0 ? (
                       <span className="px-2 py-1 rounded-full bg-primary/20 text-primary text-xs font-bold">
-                        {item.badge}
+                        {tripCount}
                       </span>
                     ) : (
                       <ChevronRight className="w-5 h-5 text-muted-foreground" />
@@ -105,16 +112,15 @@ const SettingsMenu = ({ isOpen, onClose, onNavigate }: SettingsMenuProps) => {
                 ))}
               </nav>
 
-              {/* Discount Banner */}
-              <div className="glass rounded-xl p-4 mb-4 border border-success/30">
-                <p className="text-sm text-foreground">
-                  <span className="text-success font-bold">10% descuento</span> disponible en tu próximo viaje
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">Por valorar tu último viaje</p>
-              </div>
-
               {/* Logout */}
-              <button className="flex items-center gap-4 p-4 rounded-xl hover:bg-destructive/10 transition-colors text-left group">
+              <button
+                className="flex items-center gap-4 p-4 rounded-xl hover:bg-destructive/10 transition-colors text-left group"
+                disabled={!isAuthenticated}
+                onClick={() => {
+                  onLogout();
+                  onClose();
+                }}
+              >
                 <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center group-hover:bg-destructive/20 transition-colors">
                   <LogOut className="w-5 h-5 text-muted-foreground group-hover:text-destructive transition-colors" />
                 </div>
