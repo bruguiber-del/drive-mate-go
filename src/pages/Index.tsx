@@ -8,6 +8,7 @@ import { submitDocumentForVerification } from "@/lib/documentVerification";
 import type { GpsStatus } from "@/components/MapView";
 import { OVERLAY_BOTTOM_PX, overlayBottom } from "@/lib/overlayLayout";
 import { buildPassengerStopPills } from "@/lib/passengerStopPills";
+import type { PassengerStopPill } from "@/components/StopConfirmButtons";
 import { useState, useCallback, useMemo, useEffect, useRef, lazy, Suspense } from "react";
 import { AnimatePresence } from "framer-motion";
 import { X, Search } from "lucide-react";
@@ -54,6 +55,8 @@ import { useFuelPricesAlongRoute } from "@/hooks/useFuelPricesAlongRoute";
 import { calculateCostPerKm } from "@/lib/vehiclePricing";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const NO_PENDING_KEYS: Set<string> = new Set();
 
 /** Radio dentro del cual se considera que el conductor ha llegado a su
  *  destino final — mismo orden de magnitud que el umbral de "desviado de
@@ -703,7 +706,9 @@ const Index = () => {
     setTripPassengerHistory([]);
     driverSim.clearDriver();
     trip.handleTripEnd();
-  }, [activeTripData, trip, multiTrip, tripPassengerHistory, totalTripCompensation, driverSim]);
+    nav.handleStopNavigation();
+    setExtraStops([]);
+  }, [activeTripData, trip, multiTrip, tripPassengerHistory, totalTripCompensation, driverSim, nav]);
 
   // Cierra el viaje solo al llegar de verdad (GPS) a tu destino — ya no
   // hace falta pulsar "Finalizar" a mano. handleTripEndWithSummary pone
@@ -1123,6 +1128,26 @@ const Index = () => {
     };
   }, [nav.currentRoute, currentStepIndex, nav.dynamicETA]);
 
+  const passengerChipStop = useMemo<PassengerStopPill | null>(() => {
+    const d = driverSim.currentDriver;
+    if (trip.activeTripRole !== "passenger" || !trip.showActiveTrip || !d) return null;
+    return {
+      key: "driver",
+      passengerId: d.id,
+      name: d.name,
+      status: trip.tripStatus === "waiting" ? "waiting_pickup" : "in_car",
+      pickupEtaMin: d.etaMinutes,
+      dropoffEtaMin: liveETA?.minutes ?? nav.dynamicETA?.minutes,
+      topLabel: `${d.vehicle.brand} ${d.vehicle.model} · ${d.vehicle.color} · ${d.vehicle.licensePlate}`,
+    };
+  }, [driverSim.currentDriver, trip.activeTripRole, trip.showActiveTrip, trip.tripStatus, liveETA, nav.dynamicETA]);
+
+  const handlePassengerChipConfirm = useCallback(() => {
+    if (trip.tripStatus === "waiting") trip.handlePickup();
+    else handleTripEndWithSummary();
+  }, [trip, handleTripEndWithSummary]);
+
+
   // Icono de flecha según la maniobra actual (tipo Waze)
   const ManeuverIcon = useMemo(
     () => getManeuverIcon(currentStep?.maneuver?.type, currentStep?.maneuver?.modifier),
@@ -1296,6 +1321,14 @@ const Index = () => {
           hasMoreStops={multiStops.length > 0}
         />
       </AnimatePresence>
+
+      {passengerChipStop && (
+        <StopConfirmButtons
+          stops={[passengerChipStop]}
+          pendingKeys={NO_PENDING_KEYS}
+          onConfirm={handlePassengerChipConfirm}
+        />
+      )}
 
       {trip.showActiveTrip && trip.activeTripRole === "driver" && (
         <StopConfirmButtons

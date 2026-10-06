@@ -19,6 +19,8 @@ export interface PassengerStopPill {
   dropoffEtaMin?: number;
   acceptsPets?: boolean;
   hasChildSeat?: boolean;
+  /** Texto pequeño encima de la chapa (p. ej. el coche del conductor). */
+  topLabel?: string;
 }
 
 function extrasText(stop: PassengerStopPill): string | null {
@@ -84,6 +86,11 @@ const StopConfirmButtons = ({ stops, pendingKeys, onConfirm }: StopConfirmButton
               {extrasText(stop) && (
                 <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-0.5 text-[10px] text-white whitespace-nowrap pointer-events-none">
                   {extrasText(stop)}
+                </span>
+              )}
+              {stop.topLabel && (
+                <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-0.5 text-[10px] text-white whitespace-nowrap pointer-events-none">
+                  {stop.topLabel}
                 </span>
               )}
               {isPending ? (
