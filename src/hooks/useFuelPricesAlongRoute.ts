@@ -62,7 +62,7 @@ export function useFuelPricesAlongRoute({
     try {
       const box = computeBoundingBox(coords);
       const { data, error } = await supabase.functions.invoke('fuel-prices-along-route', { body: box });
-      if (!error && data && !data.error) {
+      if (!error && data && !data.error && !data.unavailable) {
         setPrices({
           gasoline95: data.gasoline95 ?? null,
           dieselA: data.dieselA ?? null,
