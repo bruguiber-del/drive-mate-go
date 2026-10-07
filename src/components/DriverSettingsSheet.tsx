@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
-import { Users, Timer, PawPrint, Baby, MapPin, User, Euro, Save, Info } from 'lucide-react';
+import { Users, Timer, PawPrint, Baby, MapPin, User, Euro, Save, Info, CalendarClock, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { calculatePrice, PET_SURCHARGE, CHILD_SEAT_SURCHARGE } from '@/lib/priceCalculator';
@@ -33,9 +33,12 @@ interface DriverSettingsSheetProps {
   /** Precio real detectado en las gasolineras de tu ruta ahora mismo, si hay
    *  una activa — para que se note que el número de arriba no es fijo. */
   fuelPriceInfo?: { pricePerLiter: number; stationCount: number } | null;
+  /** Abre la pantalla de viajes habituales — es lo primero que se ve en
+   *  estos ajustes, antes incluso que la compensación. */
+  onOpenRecurringTrips: () => void;
 }
 
-const DriverSettingsSheet = ({ isOpen, onClose, onSave, initialSettings, costPerKm, fuelPriceInfo }: DriverSettingsSheetProps) => {
+const DriverSettingsSheet = ({ isOpen, onClose, onSave, initialSettings, costPerKm, fuelPriceInfo, onOpenRecurringTrips }: DriverSettingsSheetProps) => {
   const [seats, setSeats] = useState(initialSettings?.seats ?? 3);
   const [maxDetour, setMaxDetour] = useState(initialSettings?.maxDetour ?? 5);
   const [doorToDoor, setDoorToDoor] = useState(initialSettings?.doorToDoor ?? true);
@@ -68,6 +71,24 @@ const DriverSettingsSheet = ({ isOpen, onClose, onSave, initialSettings, costPer
           <DrawerHeader className="px-0 pt-2 pb-3">
             <DrawerTitle className="text-lg font-bold text-foreground">Ajustes de conductor</DrawerTitle>
           </DrawerHeader>
+
+          {/* Programar viaje — lo primero que se ve, por delante incluso de
+              la compensación. Lleva a "Viajes habituales": trayectos que se
+              repiten (p. ej. "todos los días voy de aquí a aquí"). */}
+          <button
+            type="button"
+            onClick={onOpenRecurringTrips}
+            className="w-full flex items-center gap-3 p-3 rounded-xl bg-primary/10 border border-primary/30 mb-4 hover:bg-primary/15 transition-colors"
+          >
+            <div className="w-9 h-9 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
+              <CalendarClock className="w-4.5 h-4.5 text-primary" />
+            </div>
+            <div className="flex-1 text-left">
+              <p className="text-sm font-semibold text-foreground">Programar viaje</p>
+              <p className="text-[11px] text-muted-foreground">Viajes habituales, como ir cada día al mismo sitio</p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+          </button>
 
           {/* Section 1: Compensation - TOP PRIORITY */}
           <div className="bg-gradient-to-r from-success/20 to-primary/20 rounded-xl p-3 mb-4">
