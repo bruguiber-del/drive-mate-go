@@ -2,6 +2,7 @@ import { haversineMeters } from "@/lib/geo";
 import { useErrandStops } from "@/hooks/useErrandStops";
 import { useDriverSettings } from "@/hooks/useDriverSettings";
 import { useRecurringTripReminder } from "@/hooks/useRecurringTripReminder";
+import { useScheduledTripReminder } from "@/hooks/useScheduledTripReminder";
 import RecurringTripsSheet from "@/components/RecurringTripsSheet";
 import { usePassengerMatch, SEARCH_RADIUS_KM } from "@/hooks/usePassengerMatch";
 import GpsStatusBanner from "@/components/GpsStatusBanner";
@@ -316,10 +317,26 @@ const Index = () => {
     },
   });
 
-  // Ofrece un viaje habitual con un toque cuando toca — nunca arranca solo.
-  const { upcoming: upcomingRecurringTrip, dismiss: dismissRecurringTrip } = useRecurringTripReminder(
-    isDriverMode && !nav.isNavigating && !trip.showActiveTrip,
-  );
+  // Ofrece un viaje habitual o puntual con un toque cuando toca — nunca
+  // arranca solo. Si coinciden los dos a la vez (raro), gana el habitual.
+  const reminderEnabled = isDriverMode && !nav.isNavigating && !trip.showActiveTrip;
+  const { upcoming: upcomingRecurringTrip, dismiss: dismissRecurringTrip } = useRecurringTripReminder(reminderEnabled);
+  const { upcoming: upcomingScheduledTrip, dismiss: dismissScheduledTrip } = useScheduledTripReminder(reminderEnabled);
+  const upcomingTripOffer = upcomingRecurringTrip
+    ? {
+        name: upcomingRecurringTrip.destinationName,
+        lat: upcomingRecurringTrip.destinationLat,
+        lng: upcomingRecurringTrip.destinationLng,
+        dismiss: () => dismissRecurringTrip(upcomingRecurringTrip.id),
+      }
+    : upcomingScheduledTrip
+      ? {
+          name: upcomingScheduledTrip.destinationName,
+          lat: upcomingScheduledTrip.destinationLat,
+          lng: upcomingScheduledTrip.destinationLng,
+          dismiss: () => dismissScheduledTrip(upcomingScheduledTrip.id),
+        }
+      : null;
 
   // Keep the bridge ref pointing at the latest handleTripEnd
   useEffect(() => {
@@ -1235,21 +1252,21 @@ const Index = () => {
         {/* Top Bar */}
         <GpsStatusBanner status={gpsStatus} />
 
-        {/* Viaje habitual a su hora — un toque para empezarlo, nunca arranca
-            solo. Solo antes de navegar, para no interferir con un viaje ya
-            en marcha. */}
-        {upcomingRecurringTrip && (
+        {/* Viaje habitual o puntual a su hora — un toque para empezarlo,
+            nunca arranca solo. Solo antes de navegar, para no interferir
+            con un viaje ya en marcha. */}
+        {upcomingTripOffer && (
           <div className="absolute top-28 left-3 right-3 z-20 flex justify-center pointer-events-none">
             <div className="glass-strong rounded-xl px-3 py-2.5 flex items-center gap-2 pointer-events-auto max-w-sm">
               <CalendarClock className="w-4 h-4 text-primary shrink-0" />
               <p className="text-xs text-foreground flex-1">
-                ¿Vas a <span className="font-semibold">{upcomingRecurringTrip.destinationName}</span> ahora?
+                ¿Vas a <span className="font-semibold">{upcomingTripOffer.name}</span> ahora?
               </p>
               <Button
                 variant="ghost"
                 size="sm"
                 className="h-6 text-[11px] px-2 shrink-0"
-                onClick={() => dismissRecurringTrip(upcomingRecurringTrip.id)}
+                onClick={upcomingTripOffer.dismiss}
               >
                 Ahora no
               </Button>
@@ -1258,11 +1275,8 @@ const Index = () => {
                 size="sm"
                 className="h-6 text-[11px] px-2 shrink-0"
                 onClick={() => {
-                  nav.handleNavigate(upcomingRecurringTrip.destinationName, {
-                    lat: upcomingRecurringTrip.destinationLat,
-                    lng: upcomingRecurringTrip.destinationLng,
-                  });
-                  dismissRecurringTrip(upcomingRecurringTrip.id);
+                  nav.handleNavigate(upcomingTripOffer.name, { lat: upcomingTripOffer.lat, lng: upcomingTripOffer.lng });
+                  upcomingTripOffer.dismiss();
                 }}
               >
                 Iniciar viaje

@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Plus, Trash2, Clock, MapPin, Navigation, LocateFixed, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Clock, MapPin, Navigation, LocateFixed, Loader2, Repeat, CalendarDays } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/use-toast';
 import { MAPBOX_TOKEN } from '@/lib/mapboxConfig';
 import { useRecurringTrips, type NewRecurringTrip } from '@/hooks/useRecurringTrips';
+import { useScheduledTrips, type NewScheduledTrip } from '@/hooks/useScheduledTrips';
 import PlacePicker, { type PickedPlace } from '@/components/PlacePicker';
 import {
   Drawer,
@@ -35,19 +36,51 @@ function formatDays(days: number[]): string {
   return sorted.map((d) => DAY_LABELS[d]).join(', ');
 }
 
+function formatScheduledDate(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const startOfDay = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diffDays = Math.round((startOfDay(d) - startOfDay(now)) / 86_400_000);
+  const time = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+  if (diffDays === 0) return `Hoy · ${time}`;
+  if (diffDays === 1) return `Mañana · ${time}`;
+  return `${d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} · ${time}`;
+}
+
+/** 'YYYY-MM-DDTHH:mm' en hora local, para el input datetime-local — mañana
+ *  a las 9:00 por defecto. */
+function defaultOnceValue(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  d.setHours(9, 0, 0, 0);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function nowLocalValue(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 const RecurringTripsSheet = ({ isOpen, onClose, currentDestination, currentLocation }: RecurringTripsSheetProps) => {
   const { toast } = useToast();
-  const { trips, isAuthenticated, loading, addTrip, toggleActive, removeTrip } = useRecurringTrips();
+  const recurring = useRecurringTrips();
+  const scheduled = useScheduledTrips();
   const [showForm, setShowForm] = useState(false);
+  const [repeatMode, setRepeatMode] = useState<'weekly' | 'once'>('weekly');
 
   const [days, setDays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [time, setTime] = useState('08:00');
+  const [onceAt, setOnceAt] = useState(defaultOnceValue());
   const [destination, setDestination] = useState<PickedPlace | null>(
     currentDestination ? { name: currentDestination.name, lat: currentDestination.lat, lng: currentDestination.lng } : null,
   );
   const [origin, setOrigin] = useState<PickedPlace | null>(null);
   const [locatingOrigin, setLocatingOrigin] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const isAuthenticated = recurring.isAuthenticated;
 
   // Captura la ubicación real AHORA (no un modo abstracto "en directo" sin
   // nada que mostrar) — se resuelve a una dirección legible con la misma
@@ -77,8 +110,10 @@ const RecurringTripsSheet = ({ isOpen, onClose, currentDestination, currentLocat
   };
 
   const resetForm = () => {
+    setRepeatMode('weekly');
     setDays([1, 2, 3, 4, 5]);
     setTime('08:00');
+    setOnceAt(defaultOnceValue());
     setDestination(
       currentDestination ? { name: currentDestination.name, lat: currentDestination.lat, lng: currentDestination.lng } : null,
     );
@@ -87,19 +122,33 @@ const RecurringTripsSheet = ({ isOpen, onClose, currentDestination, currentLocat
   };
 
   const handleSave = async () => {
-    if (!destination || days.length === 0) return;
+    if (!destination) return;
+    if (repeatMode === 'weekly' && days.length === 0) return;
+    if (repeatMode === 'once' && !onceAt) return;
     setSaving(true);
     try {
-      const payload: NewRecurringTrip = {
-        destinationName: destination.name,
-        destinationLat: destination.lat,
-        destinationLng: destination.lng,
-        departureTime: time,
-        daysOfWeek: days,
-        ...(origin ? { originName: origin.name, originLat: origin.lat, originLng: origin.lng } : {}),
-      };
-      await addTrip(payload);
-      toast({ title: 'Viaje habitual guardado', duration: 1800 });
+      if (repeatMode === 'weekly') {
+        const payload: NewRecurringTrip = {
+          destinationName: destination.name,
+          destinationLat: destination.lat,
+          destinationLng: destination.lng,
+          departureTime: time,
+          daysOfWeek: days,
+          ...(origin ? { originName: origin.name, originLat: origin.lat, originLng: origin.lng } : {}),
+        };
+        await recurring.addTrip(payload);
+        toast({ title: 'Viaje habitual guardado', duration: 1800 });
+      } else {
+        const payload: NewScheduledTrip = {
+          destinationName: destination.name,
+          destinationLat: destination.lat,
+          destinationLng: destination.lng,
+          scheduledAt: new Date(onceAt).toISOString(),
+          ...(origin ? { originName: origin.name, originLat: origin.lat, originLng: origin.lng } : {}),
+        };
+        await scheduled.addTrip(payload);
+        toast({ title: 'Viaje programado', duration: 1800 });
+      }
       resetForm();
     } catch (err) {
       // Antes este error se descartaba en silencio: el botón "Guardar"
@@ -119,104 +168,179 @@ const RecurringTripsSheet = ({ isOpen, onClose, currentDestination, currentLocat
       <DrawerContent className="max-h-[85vh] bg-background border-border">
         <div className="overflow-y-auto px-4 pb-6">
           <DrawerHeader className="px-0 pt-2 pb-3">
-            <DrawerTitle className="text-lg font-bold text-foreground">Viajes habituales</DrawerTitle>
+            <DrawerTitle className="text-lg font-bold text-foreground">Programar viaje</DrawerTitle>
             <p className="text-xs text-muted-foreground mt-1">
-              Para trayectos que repites, como ir todos los días al mismo sitio.
+              Trayectos que repites cada semana, o uno puntual para un día concreto.
             </p>
           </DrawerHeader>
 
           {!isAuthenticated ? (
             <div className="glass rounded-xl p-6 text-center">
-              <p className="text-sm text-muted-foreground">Inicia sesión para guardar tus viajes habituales.</p>
+              <p className="text-sm text-muted-foreground">Inicia sesión para programar tus viajes.</p>
             </div>
           ) : (
             <>
-              {!loading && trips.length > 0 && (
-                <div className="space-y-2 mb-4">
-                  {trips.map((t) => (
-                    <div key={t.id} className="glass rounded-xl p-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-semibold text-foreground truncate">{t.destinationName}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {formatDays(t.daysOfWeek)} · {t.departureTime}
-                          </p>
-                          <p className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
-                            <Navigation className="w-3 h-3 shrink-0" />
-                            {t.originName ?? 'Desde tu ubicación en ese momento'}
-                          </p>
-                        </div>
-                        <div className="flex flex-col items-end gap-2 shrink-0">
-                          <button
-                            type="button"
-                            role="switch"
-                            aria-checked={t.active}
-                            onClick={() => toggleActive(t.id, !t.active)}
-                            className={cn(
-                              'w-9 h-5 rounded-full transition-colors relative shrink-0',
-                              t.active ? 'bg-primary' : 'bg-muted-foreground/30',
-                            )}
-                          >
-                            <span
+              {!recurring.loading && recurring.trips.length > 0 && (
+                <div className="mb-4">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                    Viajes habituales
+                  </p>
+                  <div className="space-y-2">
+                    {recurring.trips.map((t) => (
+                      <div key={t.id} className="glass rounded-xl p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold text-foreground truncate">{t.destinationName}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {formatDays(t.daysOfWeek)} · {t.departureTime}
+                            </p>
+                            <p className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
+                              <Navigation className="w-3 h-3 shrink-0" />
+                              {t.originName ?? 'Desde tu ubicación en ese momento'}
+                            </p>
+                          </div>
+                          <div className="flex flex-col items-end gap-2 shrink-0">
+                            <button
+                              type="button"
+                              role="switch"
+                              aria-checked={t.active}
+                              onClick={() => recurring.toggleActive(t.id, !t.active)}
                               className={cn(
-                                'absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform',
-                                t.active ? 'translate-x-[18px]' : 'translate-x-0.5',
+                                'w-9 h-5 rounded-full transition-colors relative shrink-0',
+                                t.active ? 'bg-primary' : 'bg-muted-foreground/30',
                               )}
-                            />
-                          </button>
-                          <Button variant="ghost" size="icon-sm" className="h-6 w-6" onClick={() => removeTrip(t.id)}>
+                            >
+                              <span
+                                className={cn(
+                                  'absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform',
+                                  t.active ? 'translate-x-[18px]' : 'translate-x-0.5',
+                                )}
+                              />
+                            </button>
+                            <Button variant="ghost" size="icon-sm" className="h-6 w-6" onClick={() => recurring.removeTrip(t.id)}>
+                              <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {!scheduled.loading && scheduled.trips.length > 0 && (
+                <div className="mb-4">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                    Viajes puntuales
+                  </p>
+                  <div className="space-y-2">
+                    {scheduled.trips.map((t) => (
+                      <div key={t.id} className="glass rounded-xl p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold text-foreground truncate">{t.destinationName}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">{formatScheduledDate(t.scheduledAt)}</p>
+                            <p className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
+                              <Navigation className="w-3 h-3 shrink-0" />
+                              {t.originName ?? 'Desde tu ubicación en ese momento'}
+                            </p>
+                          </div>
+                          <Button variant="ghost" size="icon-sm" className="h-6 w-6 shrink-0" onClick={() => scheduled.cancelTrip(t.id)}>
                             <Trash2 className="w-3.5 h-3.5 text-destructive" />
                           </Button>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               )}
 
               {!showForm ? (
                 <Button variant="outline" className="w-full" onClick={() => setShowForm(true)}>
                   <Plus className="w-4 h-4 mr-1.5" />
-                  Añadir viaje habitual
+                  Añadir viaje
                 </Button>
               ) : (
                 <div className="glass rounded-xl p-4 space-y-4">
-                  <div>
-                    <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-2">
-                      Días de la semana
-                    </label>
-                    <div className="flex gap-1.5">
-                      {DAY_LABELS.map((label, d) => (
-                        <button
-                          key={d}
-                          type="button"
-                          aria-label={DAY_FULL[d]}
-                          onClick={() => toggleDay(d)}
-                          className={cn(
-                            'w-9 h-9 rounded-full text-xs font-bold transition-colors',
-                            days.includes(d)
-                              ? 'bg-primary text-primary-foreground'
-                              : 'bg-muted text-muted-foreground',
-                          )}
-                        >
-                          {label}
-                        </button>
-                      ))}
-                    </div>
+                  <div className="flex gap-1.5 bg-muted/50 rounded-lg p-1">
+                    <button
+                      type="button"
+                      onClick={() => setRepeatMode('weekly')}
+                      className={cn(
+                        'flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium transition-colors',
+                        repeatMode === 'weekly' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground',
+                      )}
+                    >
+                      <Repeat className="w-3.5 h-3.5" />
+                      Se repite cada semana
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRepeatMode('once')}
+                      className={cn(
+                        'flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium transition-colors',
+                        repeatMode === 'once' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground',
+                      )}
+                    >
+                      <CalendarDays className="w-3.5 h-3.5" />
+                      Solo una vez
+                    </button>
                   </div>
 
-                  <div>
-                    <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-2">
-                      <Clock className="w-3.5 h-3.5" />
-                      Hora de salida
-                    </label>
-                    <input
-                      type="time"
-                      value={time}
-                      onChange={(e) => setTime(e.target.value)}
-                      className="w-full px-3 py-2.5 bg-muted rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
-                  </div>
+                  {repeatMode === 'weekly' ? (
+                    <>
+                      <div>
+                        <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-2">
+                          Días de la semana
+                        </label>
+                        <div className="flex gap-1.5">
+                          {DAY_LABELS.map((label, d) => (
+                            <button
+                              key={d}
+                              type="button"
+                              aria-label={DAY_FULL[d]}
+                              onClick={() => toggleDay(d)}
+                              className={cn(
+                                'w-9 h-9 rounded-full text-xs font-bold transition-colors',
+                                days.includes(d)
+                                  ? 'bg-primary text-primary-foreground'
+                                  : 'bg-muted text-muted-foreground',
+                              )}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-2">
+                          <Clock className="w-3.5 h-3.5" />
+                          Hora de salida
+                        </label>
+                        <input
+                          type="time"
+                          value={time}
+                          onChange={(e) => setTime(e.target.value)}
+                          className="w-full px-3 py-2.5 bg-muted rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-2">
+                        <CalendarDays className="w-3.5 h-3.5" />
+                        Fecha y hora
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={onceAt}
+                        min={nowLocalValue()}
+                        onChange={(e) => setOnceAt(e.target.value)}
+                        className="w-full px-3 py-2.5 bg-muted rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                    </div>
+                  )}
 
                   <div>
                     <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-2">
@@ -277,7 +401,7 @@ const RecurringTripsSheet = ({ isOpen, onClose, currentDestination, currentLocat
                       variant="driver"
                       className="flex-1"
                       onClick={handleSave}
-                      disabled={saving || !destination || days.length === 0}
+                      disabled={saving || !destination || (repeatMode === 'weekly' ? days.length === 0 : !onceAt)}
                     >
                       Guardar
                     </Button>
