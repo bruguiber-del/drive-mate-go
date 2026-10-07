@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { Plus, Trash2, Clock, MapPin, Navigation } from 'lucide-react';
+import { Plus, Trash2, Clock, MapPin, Navigation, LocateFixed, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/components/ui/use-toast';
+import { MAPBOX_TOKEN } from '@/lib/mapboxConfig';
 import { useRecurringTrips, type NewRecurringTrip } from '@/hooks/useRecurringTrips';
 import PlacePicker, { type PickedPlace } from '@/components/PlacePicker';
 import {
@@ -17,6 +19,8 @@ interface RecurringTripsSheetProps {
   /** Destino puesto ahora mismo en el navegador — se usa para rellenar el
    *  formulario por defecto, como se pidió explícitamente. */
   currentDestination?: { name: string; lat: number; lng: number } | null;
+  /** Ubicación GPS real, para "Usar mi ubicación actual" como punto de salida. */
+  currentLocation?: [number, number] | null;
 }
 
 const DAY_LABELS = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
@@ -31,7 +35,8 @@ function formatDays(days: number[]): string {
   return sorted.map((d) => DAY_LABELS[d]).join(', ');
 }
 
-const RecurringTripsSheet = ({ isOpen, onClose, currentDestination }: RecurringTripsSheetProps) => {
+const RecurringTripsSheet = ({ isOpen, onClose, currentDestination, currentLocation }: RecurringTripsSheetProps) => {
+  const { toast } = useToast();
   const { trips, isAuthenticated, loading, addTrip, toggleActive, removeTrip } = useRecurringTrips();
   const [showForm, setShowForm] = useState(false);
 
@@ -40,9 +45,32 @@ const RecurringTripsSheet = ({ isOpen, onClose, currentDestination }: RecurringT
   const [destination, setDestination] = useState<PickedPlace | null>(
     currentDestination ? { name: currentDestination.name, lat: currentDestination.lat, lng: currentDestination.lng } : null,
   );
-  const [originMode, setOriginMode] = useState<'live' | 'fixed'>('live');
   const [origin, setOrigin] = useState<PickedPlace | null>(null);
+  const [locatingOrigin, setLocatingOrigin] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Captura la ubicación real AHORA (no un modo abstracto "en directo" sin
+  // nada que mostrar) — se resuelve a una dirección legible con la misma
+  // geocodificación que ya usa la app.
+  const handleUseCurrentLocation = async () => {
+    if (!currentLocation) {
+      toast({ title: 'Esperando tu ubicación GPS', description: 'Inténtalo de nuevo en unos segundos', duration: 2500 });
+      return;
+    }
+    setLocatingOrigin(true);
+    const [lat, lng] = currentLocation;
+    try {
+      const params = new URLSearchParams({ access_token: MAPBOX_TOKEN, language: 'es', limit: '1' });
+      const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?${params.toString()}`);
+      const data = await res.json();
+      const name = data?.features?.[0]?.place_name ?? 'Tu ubicación actual';
+      setOrigin({ name, lat, lng });
+    } catch {
+      setOrigin({ name: 'Tu ubicación actual', lat, lng });
+    } finally {
+      setLocatingOrigin(false);
+    }
+  };
 
   const toggleDay = (d: number) => {
     setDays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort()));
@@ -54,7 +82,6 @@ const RecurringTripsSheet = ({ isOpen, onClose, currentDestination }: RecurringT
     setDestination(
       currentDestination ? { name: currentDestination.name, lat: currentDestination.lat, lng: currentDestination.lng } : null,
     );
-    setOriginMode('live');
     setOrigin(null);
     setShowForm(false);
   };
@@ -69,14 +96,19 @@ const RecurringTripsSheet = ({ isOpen, onClose, currentDestination }: RecurringT
         destinationLng: destination.lng,
         departureTime: time,
         daysOfWeek: days,
-        ...(originMode === 'fixed' && origin
-          ? { originName: origin.name, originLat: origin.lat, originLng: origin.lng }
-          : {}),
+        ...(origin ? { originName: origin.name, originLat: origin.lat, originLng: origin.lng } : {}),
       };
       await addTrip(payload);
+      toast({ title: 'Viaje habitual guardado', duration: 1800 });
       resetForm();
-    } catch {
-      /* el hook ya deja el estado como estaba si falla */
+    } catch (err) {
+      // Antes este error se descartaba en silencio: el botón "Guardar"
+      // parecía no hacer nada y el viaje no quedaba guardado en ningún sitio.
+      toast({
+        title: 'No se pudo guardar',
+        description: err instanceof Error ? err.message : 'Inténtalo de nuevo',
+        duration: 4000,
+      });
     } finally {
       setSaving(false);
     }
@@ -207,30 +239,33 @@ const RecurringTripsSheet = ({ isOpen, onClose, currentDestination }: RecurringT
                     <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-2">
                       Punto de salida
                     </label>
-                    <div className="flex gap-1.5 bg-muted/50 rounded-lg p-1 mb-2">
-                      <button
-                        type="button"
-                        onClick={() => setOriginMode('live')}
-                        className={cn(
-                          'flex-1 py-1.5 rounded-md text-xs font-medium transition-colors',
-                          originMode === 'live' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground',
-                        )}
-                      >
-                        Mi ubicación en ese momento
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setOriginMode('fixed')}
-                        className={cn(
-                          'flex-1 py-1.5 rounded-md text-xs font-medium transition-colors',
-                          originMode === 'fixed' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground',
-                        )}
-                      >
-                        Un punto fijo
-                      </button>
-                    </div>
-                    {originMode === 'fixed' && (
-                      <PlacePicker placeholder="Dirección de salida..." onSelect={setOrigin} />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full justify-start mb-2"
+                      disabled={locatingOrigin}
+                      onClick={handleUseCurrentLocation}
+                    >
+                      {locatingOrigin ? (
+                        <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                      ) : (
+                        <LocateFixed className="w-4 h-4 mr-1.5" />
+                      )}
+                      Usar mi ubicación actual
+                    </Button>
+                    <PlacePicker
+                      placeholder="O busca una dirección fija..."
+                      initialValue={origin?.name ?? ''}
+                      onSelect={setOrigin}
+                    />
+                    {origin && (
+                      <p className="text-[11px] text-muted-foreground mt-1 truncate">Saldrás desde: {origin.name}</p>
+                    )}
+                    {!origin && (
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        Si no eliges nada, se recoge desde donde estés en ese momento.
+                      </p>
                     )}
                   </div>
 

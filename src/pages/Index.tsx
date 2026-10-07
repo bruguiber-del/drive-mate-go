@@ -936,6 +936,11 @@ const Index = () => {
         setShowVehicleManager(true);
         return;
       }
+      if (section === "schedule") {
+        modals.closeSettingsMenu();
+        setShowRecurringTrips(true);
+        return;
+      }
       modals.handleMenuNavigate(section);
     },
     [modals],
@@ -1508,6 +1513,7 @@ const Index = () => {
         isOpen={showRecurringTrips}
         onClose={() => setShowRecurringTrips(false)}
         currentDestination={nav.isNavigating && nav.destinationCoords ? nav.destinationCoords : null}
+        currentLocation={realUserLocation}
       />
 
       <MatchPopup
