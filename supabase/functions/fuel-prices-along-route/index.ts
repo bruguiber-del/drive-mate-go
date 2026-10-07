@@ -41,20 +41,41 @@ function parseSpanishNumber(raw: string | undefined | null): number | null {
   return Number.isFinite(value) ? value : null;
 }
 
-async function getAllStations(): Promise<MitecoStation[]> {
-  const now = Date.now();
-  if (cachedStations && now - cachedAt < CACHE_TTL_MS) {
-    return cachedStations as MitecoStation[];
-  }
-  const response = await fetch(MITECO_URL);
+async function fetchOnce(): Promise<MitecoStation[]> {
+  const response = await fetch(MITECO_URL, {
+    headers: {
+      Accept: "application/json",
+      "User-Agent": "Mozilla/5.0 (compatible; Vimatch/1.0)",
+    },
+    signal: AbortSignal.timeout(20000),
+  });
   if (!response.ok) {
     throw new Error(`MITECO respondió ${response.status}`);
   }
   const data = await response.json();
-  const stations: MitecoStation[] = Array.isArray(data?.ListaEESSPrecio) ? data.ListaEESSPrecio : [];
-  cachedStations = stations;
-  cachedAt = now;
-  return stations;
+  return Array.isArray(data?.ListaEESSPrecio) ? data.ListaEESSPrecio : [];
+}
+
+// El servidor del Ministerio corta conexiones de vez en cuando
+// ("Connection reset by peer") — se reintenta y, si sigue fallando, se usa
+// la última copia en caché aunque esté caducada.
+async function getAllStations(): Promise<MitecoStation[] | null> {
+  const now = Date.now();
+  if (cachedStations && now - cachedAt < CACHE_TTL_MS) {
+    return cachedStations as MitecoStation[];
+  }
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const stations = await fetchOnce();
+      cachedStations = stations;
+      cachedAt = Date.now();
+      return stations;
+    } catch (e) {
+      console.warn(`MITECO intento ${attempt + 1} falló:`, e instanceof Error ? e.message : e);
+      await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+    }
+  }
+  return (cachedStations as MitecoStation[] | null) ?? null;
 }
 
 Deno.serve(async (req) => {
@@ -79,6 +100,14 @@ Deno.serve(async (req) => {
     }
 
     const stations = await getAllStations();
+    if (!stations) {
+      // Fuente no disponible: respuesta válida sin precios, la app usa el
+      // coste genérico en vez de romperse.
+      return new Response(
+        JSON.stringify({ gasoline95: null, dieselA: null, stationCount: 0, updatedAt: null, unavailable: true }),
+        { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } },
+      );
+    }
 
     let gasoline95Sum = 0;
     let gasoline95Count = 0;
