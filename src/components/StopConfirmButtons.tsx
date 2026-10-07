@@ -89,7 +89,7 @@ const StopConfirmButtons = ({ stops, pendingKeys, onConfirm }: StopConfirmButton
                 </span>
               )}
               {stop.topLabel && (
-                <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-0.5 text-[10px] text-white whitespace-nowrap pointer-events-none">
+                <span className="absolute right-0 bottom-full mb-0.5 text-[10px] text-white whitespace-nowrap pointer-events-none">
                   {stop.topLabel}
                 </span>
               )}

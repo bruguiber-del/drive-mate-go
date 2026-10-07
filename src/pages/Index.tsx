@@ -86,7 +86,10 @@ const Index = () => {
     needsChildSeat: false,
     genderPreference: "none" as "none" | "women" | "men",
   });
-  const [isDoorToDoor, setIsDoorToDoor] = useState(false);
+  // Por defecto se recoge en tu ubicación real, sin un punto de encuentro
+  // inventado a 150m — ese desplazamiento no corresponde a ningún sitio real.
+  // Quien prefiera caminar a un punto puede desactivarlo en sus ajustes.
+  const [isDoorToDoor, setIsDoorToDoor] = useState(true);
   const [isPassengerMode, setIsPassengerMode] = useState(false);
   const [realUserLocation, setRealUserLocation] = useState<[number, number] | null>(null);
   const [gpsStatus, setGpsStatus] = useState<GpsStatus>("searching");
