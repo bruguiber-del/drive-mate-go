@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Star, User, Gift } from 'lucide-react';
+import { Star, User, ShieldCheck, Gift } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export interface RatingTarget {
@@ -154,19 +154,21 @@ const RatingModal = ({ isOpen, onClose, onSubmit, targets, tripInfo, totalSaved 
               ))}
             </div>
 
-            {/* Aviso de descuento — solo se cumple valorando a TODOS */}
+            {/* Antes prometía un 10% de descuento por valorar — no hay ningún
+                sistema de descuentos detrás, así que era una promesa falsa.
+                Lo que de verdad ocurre al valorar: ayuda a mantener la
+                confianza de la comunidad. */}
             <div className="glass rounded-xl p-3 flex items-center gap-3 mb-4 mt-2 shrink-0">
               <div
                 className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
                   allRated ? 'bg-success/20' : 'bg-muted'
                 }`}
               >
-                <Gift className={`w-5 h-5 ${allRated ? 'text-success' : 'text-muted-foreground'}`} />
+                <ShieldCheck className={`w-5 h-5 ${allRated ? 'text-success' : 'text-muted-foreground'}`} />
               </div>
               <p className="text-sm text-muted-foreground">
-                Valora a las {targets.length} personas de este viaje y obtén un{' '}
-                <span className={allRated ? 'text-success font-bold' : 'font-bold'}>10% de descuento</span> en el
-                próximo.
+                Valora a las {targets.length} personas de este viaje: ayuda a que el resto sepa con quién va a compartir
+                trayecto.
               </p>
             </div>
 

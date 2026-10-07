@@ -7,6 +7,9 @@ import { OVERLAY_BOTTOM_PX, overlayBottom } from '@/lib/overlayLayout';
 interface ActiveTripViewProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Cancelar antes de subir — distinto de onClose (bajar/terminar). Si no
+   *  se pasa, cae en onClose. */
+  onCancel?: () => void;
   userRole: 'driver' | 'passenger';
   tripStatus?: 'waiting' | 'picked_up' | 'in_progress';
   onPickup?: () => void;
@@ -42,7 +45,7 @@ interface ActiveTripViewProps {
   };
 }
 
-const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onPickup, isTrackingActive = true, pickupEta, dropoffEta, driverVehicle, driverEta, walkingMinutes, onDriverArrived, hasMoreStops = false, tripData }: ActiveTripViewProps) => {
+const ActiveTripView = ({ isOpen, onClose, onCancel, userRole, tripStatus = 'waiting', onPickup, isTrackingActive = true, pickupEta, dropoffEta, driverVehicle, driverEta, walkingMinutes, onDriverArrived, hasMoreStops = false, tripData }: ActiveTripViewProps) => {
   const defaultData = {
     otherUser: userRole === 'driver' ? 'Ana M.' : 'Carlos G.',
     otherUserRating: 4.8,
@@ -93,6 +96,9 @@ const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onP
   // de recogida del conductor. Solo pide lo que hace falta: quién viene, cuánto
   // tarda, el coche que buscar y el botón de subida o bajada.
   if ((userRole as string) === 'passenger') {
+    // Cancelar solo tiene sentido antes de subir — una vez a bordo, la única
+    // acción es bajar (desde la chapa), no "cancelar" un viaje que ya empezó.
+    if (tripStatus !== 'waiting') return null;
     return (
       <motion.div
         initial={{ scale: 0.7, opacity: 0 }}
@@ -101,7 +107,7 @@ const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onP
         className="fixed right-3 z-40"
         style={{ bottom: overlayBottom(OVERLAY_BOTTOM_PX.addStopButton) }}
       >
-        <Button variant="destructive" size="icon-sm" className="h-7 w-7 rounded-full shadow-lg" onClick={onClose} aria-label="Cancelar viaje">
+        <Button variant="destructive" size="icon-sm" className="h-7 w-7 rounded-full shadow-lg" onClick={onCancel ?? onClose} aria-label="Cancelar viaje">
           <X className="w-3.5 h-3.5" />
         </Button>
       </motion.div>

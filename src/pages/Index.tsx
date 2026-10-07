@@ -1,7 +1,7 @@
 import { haversineMeters } from "@/lib/geo";
 import { useErrandStops } from "@/hooks/useErrandStops";
 import { useDriverSettings } from "@/hooks/useDriverSettings";
-import { usePassengerMatch } from "@/hooks/usePassengerMatch";
+import { usePassengerMatch, SEARCH_RADIUS_KM } from "@/hooks/usePassengerMatch";
 import GpsStatusBanner from "@/components/GpsStatusBanner";
 import { useProfile } from "@/hooks/useProfile";
 import { submitDocumentForVerification } from "@/lib/documentVerification";
@@ -11,7 +11,7 @@ import { buildPassengerStopPills } from "@/lib/passengerStopPills";
 import type { PassengerStopPill } from "@/components/StopConfirmButtons";
 import { useState, useCallback, useMemo, useEffect, useRef, lazy, Suspense } from "react";
 import { AnimatePresence } from "framer-motion";
-import { X, Search } from "lucide-react";
+import { X, Search, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getManeuverIcon } from "@/lib/maneuverIcons";
 import { useVoiceGuidance } from "@/hooks/useVoiceGuidance";
@@ -1074,12 +1074,12 @@ const Index = () => {
   // ── Búsqueda de conductor en modo pasajero: el primero que acepta gana ─────
   const driverSearchEnabled =
     isPassengerMode && nav.isNavigating && !trip.showActiveTrip && !isScheduledPending && !driverSim.currentDriver;
-  usePassengerMatch({
+  const { phase: searchPhase, radiusKm: searchRadiusKm, retry: retrySearch } = usePassengerMatch({
     enabled: driverSearchEnabled,
     onMatched: () => {
       driverSim.searchDriver(undefined, { ...passengerPreferences, doorToDoor: isDoorToDoor });
       trip.handleMatchAccept();
-      toast({ title: "Conductor encontrado", description: "Acércate al punto de encuentro", duration: 2000 });
+      toast({ title: "Conductor encontrado", description: "Tu conductor va hacia ti", duration: 2000 });
     },
   });
 
@@ -1149,6 +1149,16 @@ const Index = () => {
     if (trip.tripStatus === "waiting") trip.handlePickup();
     else handleTripEndWithSummary();
   }, [trip, handleTripEndWithSummary]);
+
+  // Cancelar un emparejamiento concreto (antes de subir) no es lo mismo que
+  // parar de buscar: se marca 'cancelled' en la base de datos y se suelta al
+  // conductor simulado, pero como el destino sigue puesto, la búsqueda
+  // vuelve a arrancar sola — justo lo que se espera de "cancelar y seguir
+  // buscando otro conductor".
+  const handlePassengerCancel = useCallback(() => {
+    trip.handleTripCancel();
+    driverSim.clearDriver();
+  }, [trip, driverSim]);
 
 
   // Icono de flecha según la maniobra actual (tipo Waze)
@@ -1223,6 +1233,37 @@ const Index = () => {
           onToggleMuted={voice.toggleMuted}
           onStopNavigation={handleStopNavigation}
         />
+
+        {/* Buscando conductor (modo pasajero) — antes no había ningún aviso
+            mientras se esperaba, ni manera de saber si se había ampliado el
+            radio o si ya no había nadie cerca. */}
+        {driverSearchEnabled && (searchPhase === "searching" || searchPhase === "not_found") && (
+          <div className="absolute top-28 left-3 right-3 z-20 flex justify-center pointer-events-none">
+            <div className="glass-strong rounded-xl px-3 py-2 flex items-center gap-2 pointer-events-auto max-w-sm">
+              {searchPhase === "searching" ? (
+                <>
+                  <Loader2 className="w-4 h-4 text-primary animate-spin shrink-0" />
+                  <p className="text-xs text-foreground flex-1">
+                    Buscando conductor cerca{searchRadiusKm > SEARCH_RADIUS_KM.initial ? " (radio ampliado)" : ""}…
+                  </p>
+                  <Button variant="ghost" size="sm" className="h-6 text-[11px] px-2 shrink-0" onClick={handleStopNavigation}>
+                    Cancelar
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <p className="text-xs text-foreground flex-1">No hemos encontrado conductores cerca.</p>
+                  <Button variant="outline" size="sm" className="h-6 text-[11px] px-2 shrink-0" onClick={retrySearch}>
+                    Reintentar
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-6 text-[11px] px-2 shrink-0" onClick={handleStopNavigation}>
+                    Cancelar
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Paradas personales activas — chip por cada una con su cruz para
             quitarla; no hace falta abrir ningún menú para gestionarlas. */}
@@ -1307,6 +1348,7 @@ const Index = () => {
         <ActiveTripView
           isOpen={trip.showActiveTrip}
           onClose={handleTripEndWithSummary}
+          onCancel={handlePassengerCancel}
           userRole={trip.activeTripRole}
           tripStatus={effectiveTripStatus}
           onPickup={handleActiveTripPickupAction}

@@ -19,16 +19,13 @@ interface DisplayTrip {
   amount: number;
 }
 
-const sampleTrips: DisplayTrip[] = [
-  { id: 1, type: 'driver', origin: 'Huesca', destination: 'Zaragoza', date: '15 Dic 2024', time: '08:30', rating: 5, amount: 12.5 },
-  { id: 2, type: 'passenger', origin: 'Zaragoza', destination: 'Huesca', date: '14 Dic 2024', time: '18:00', rating: 5, amount: 6.0 },
-  { id: 3, type: 'driver', origin: 'Huesca', destination: 'Jaca', date: '12 Dic 2024', time: '09:00', rating: 4, amount: 8.0 },
-  { id: 4, type: 'passenger', origin: 'Jaca', destination: 'Huesca', date: '12 Dic 2024', time: '17:30', rating: 5, amount: 7.5 },
-];
-
 const TripHistory = ({ isOpen, onClose }: TripHistoryProps) => {
   const { trips: realTrips, isAuthenticated } = useUserTrips(isOpen);
 
+  // Antes, sin sesión iniciada, se mostraban 4 viajes de muestra y las
+  // cifras fijas "79 viajes" / "234,50€" como si fueran tuyas — una
+  // inquietud real si alguien las toma por su propio historial. Sin cuenta
+  // no hay datos que mostrar, así que se pide iniciar sesión directamente.
   const trips: DisplayTrip[] = isAuthenticated
     ? realTrips.map((t) => ({
         id: t.id,
@@ -40,7 +37,7 @@ const TripHistory = ({ isOpen, onClose }: TripHistoryProps) => {
         rating: t.rating ?? 0,
         amount: t.price ?? 0,
       }))
-    : sampleTrips;
+    : [];
 
   const totalTrips = trips.length;
   const driverEarnings = trips
@@ -75,25 +72,32 @@ const TripHistory = ({ isOpen, onClose }: TripHistoryProps) => {
           </div>
 
           <div className="p-4 space-y-3">
-            {/* Stats Summary */}
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              <div className="glass rounded-xl p-4 text-center">
-                <p className="text-2xl font-bold text-primary">{isAuthenticated ? totalTrips : 79}</p>
-                <p className="text-sm text-muted-foreground">Viajes totales</p>
-              </div>
-              <div className="glass rounded-xl p-4 text-center">
-                <p className="text-2xl font-bold text-success">
-                  €{(isAuthenticated ? driverEarnings : 234.5).toFixed(2)}
-                </p>
-                <p className="text-sm text-muted-foreground">Compensación como conductor</p>
-              </div>
-            </div>
-
-            {isAuthenticated && trips.length === 0 && (
+            {!isAuthenticated ? (
               <div className="glass rounded-xl p-6 text-center">
-                <MapPin className="w-6 h-6 text-muted-foreground mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">Todavía no tienes viajes registrados.</p>
+                <User className="w-6 h-6 text-muted-foreground mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">Inicia sesión para ver tu historial de viajes.</p>
               </div>
+            ) : (
+              <>
+                {/* Stats Summary */}
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <div className="glass rounded-xl p-4 text-center">
+                    <p className="text-2xl font-bold text-primary">{totalTrips}</p>
+                    <p className="text-sm text-muted-foreground">Viajes totales</p>
+                  </div>
+                  <div className="glass rounded-xl p-4 text-center">
+                    <p className="text-2xl font-bold text-success">€{driverEarnings.toFixed(2)}</p>
+                    <p className="text-sm text-muted-foreground">Compensación como conductor</p>
+                  </div>
+                </div>
+
+                {trips.length === 0 && (
+                  <div className="glass rounded-xl p-6 text-center">
+                    <MapPin className="w-6 h-6 text-muted-foreground mx-auto mb-2" />
+                    <p className="text-sm text-muted-foreground">Todavía no tienes viajes registrados.</p>
+                  </div>
+                )}
+              </>
             )}
 
             {/* Trip List */}

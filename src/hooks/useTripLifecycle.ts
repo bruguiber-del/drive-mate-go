@@ -52,6 +52,7 @@ interface UseTripLifecycleReturn {
   handleMatchAccept: () => void;
   handlePickup: () => void;
   handleTripEnd: () => void;
+  handleTripCancel: () => void;
   closeRating: () => void;
 }
 
@@ -265,6 +266,26 @@ export function useTripLifecycle({
     setShowRating(true);
   }, [completeTrip, activeTripId]);
 
+  // ── handleTripCancel ────────────────────────────────────────────────────────
+  // Distinto de handleTripEnd: esto es "nunca llegó a pasar", no "terminó
+  // bien" — el viaje se marca 'cancelled' (no 'completed') y no se pide
+  // valoración, porque no hay nada que valorar.
+  const handleTripCancel = useCallback(() => {
+    if (activeTripId) {
+      supabase
+        .from('trips')
+        .update({ status: 'cancelled' })
+        .eq('id', activeTripId)
+        .then(() => {}, () => {});
+    }
+    setShowActiveTrip(false);
+    setTripStatus('waiting');
+    setActiveTripId(null);
+    setMeetingPoint(null);
+    cancelTrip();
+    toast({ title: 'Viaje cancelado', duration: 1500 });
+  }, [activeTripId, cancelTrip, toast]);
+
   // ── closeRating ─────────────────────────────────────────────────────────────
   const closeRating = useCallback(() => setShowRating(false), []);
 
@@ -278,6 +299,7 @@ export function useTripLifecycle({
     handleMatchAccept,
     handlePickup,
     handleTripEnd,
+    handleTripCancel,
     closeRating,
   };
 }
