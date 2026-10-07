@@ -50,6 +50,36 @@ export type Database = {
         }
         Relationships: []
       }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          average_rating: number
+          city: string | null
+          created_at: string
+          full_name: string | null
+          id: string
+          phone: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          average_rating?: number
+          city?: string | null
+          created_at?: string
+          full_name?: string | null
+          id: string
+          phone?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          average_rating?: number
+          city?: string | null
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          phone?: string | null
+        }
+        Relationships: []
+      }
       recurring_trips: {
         Row: {
           active: boolean
@@ -92,36 +122,6 @@ export type Database = {
           origin_lng?: number | null
           origin_name?: string | null
           user_id?: string
-        }
-        Relationships: []
-      }
-      profiles: {
-        Row: {
-          avatar_url: string | null
-          average_rating: number
-          city: string | null
-          created_at: string
-          full_name: string | null
-          id: string
-          phone: string | null
-        }
-        Insert: {
-          avatar_url?: string | null
-          average_rating?: number
-          city?: string | null
-          created_at?: string
-          full_name?: string | null
-          id: string
-          phone?: string | null
-        }
-        Update: {
-          avatar_url?: string | null
-          average_rating?: number
-          city?: string | null
-          created_at?: string
-          full_name?: string | null
-          id?: string
-          phone?: string | null
         }
         Relationships: []
       }
