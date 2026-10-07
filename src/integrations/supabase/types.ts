@@ -50,51 +50,6 @@ export type Database = {
         }
         Relationships: []
       }
-      recurring_trips: {
-        Row: {
-          active: boolean
-          created_at: string
-          days_of_week: number[]
-          departure_time: string
-          destination_lat: number
-          destination_lng: number
-          destination_name: string
-          id: string
-          origin_lat: number | null
-          origin_lng: number | null
-          origin_name: string | null
-          user_id: string
-        }
-        Insert: {
-          active?: boolean
-          created_at?: string
-          days_of_week: number[]
-          departure_time: string
-          destination_lat: number
-          destination_lng: number
-          destination_name: string
-          id?: string
-          origin_lat?: number | null
-          origin_lng?: number | null
-          origin_name?: string | null
-          user_id: string
-        }
-        Update: {
-          active?: boolean
-          created_at?: string
-          days_of_week?: number[]
-          departure_time?: string
-          destination_lat?: number
-          destination_lng?: number
-          destination_name?: string
-          id?: string
-          origin_lat?: number | null
-          origin_lng?: number | null
-          origin_name?: string | null
-          user_id?: string
-        }
-        Relationships: []
-      }
       profiles: {
         Row: {
           avatar_url: string | null
