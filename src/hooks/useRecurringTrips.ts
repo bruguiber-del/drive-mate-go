@@ -86,7 +86,11 @@ export function useRecurringTrips() {
       departure_time: trip.departureTime,
       days_of_week: trip.daysOfWeek,
     });
-    if (error) throw error;
+    // El error de Supabase no es un Error normal (es un objeto plano con
+    // .message) — lanzarlo tal cual hacía que el "instanceof Error" de quien
+    // lo capturaba fallara y se perdiera el motivo real, mostrando siempre
+    // el mismo aviso genérico.
+    if (error) throw new Error(error.message || 'No se pudo guardar el viaje habitual');
     await reload();
   }, [reload]);
 
