@@ -19,9 +19,6 @@ const baseProps = {
   driverSeats: 3,
   driverMaxDetour: 5,
   activeVehiclePlate: undefined,
-  isDoorToDoor: false,
-  hasMeetingPoint: false,
-  walkingRouteData: null,
 };
 
 const currentStep = {
@@ -134,35 +131,5 @@ describe('NavigationOverlays', () => {
   it('hides the driver status chip once a trip is active', () => {
     const { container } = render(<NavigationOverlays {...baseProps} isDriverMode showActiveTrip />);
     expect(container.textContent ?? '').not.toContain('Conductor activo');
-  });
-
-  it('shows the walking chip only for a passenger with a meeting point and no door-to-door', () => {
-    const { container } = render(
-      <NavigationOverlays
-        {...baseProps}
-        showActiveTrip
-        activeTripRole="passenger"
-        hasMeetingPoint
-        isDoorToDoor={false}
-        walkingRouteData={{ duration: 300, distance: 400 }}
-      />,
-    );
-    const text = container.textContent ?? '';
-    expect(text).toContain('Camina al punto de encuentro');
-    expect(text).toContain('5 min');
-  });
-
-  it('hides the walking chip when the trip is door-to-door', () => {
-    const { container } = render(
-      <NavigationOverlays
-        {...baseProps}
-        showActiveTrip
-        activeTripRole="passenger"
-        hasMeetingPoint
-        isDoorToDoor
-        walkingRouteData={{ duration: 300, distance: 400 }}
-      />,
-    );
-    expect(container.textContent ?? '').not.toContain('Camina al punto de encuentro');
   });
 });

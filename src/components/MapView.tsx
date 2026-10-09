@@ -51,7 +51,6 @@ interface MapViewProps {
     type: 'meeting_point' | 'pickup' | 'dropoff' | 'final_destination' | 'errand';
     name: string;
   }>;
-  walkingRoute?: RouteData | null;
   onRouteUpdate?: (route: RouteData | null) => void;
   /** Called when the Directions request fails, with the error message (or null once it recovers). */
   onRouteError?: (error: string | null) => void;
@@ -81,7 +80,6 @@ interface MapViewProps {
 // ── Visual constants ─────────────────────────────────────────────────────────
 export type GpsStatus = 'searching' | 'ok' | 'denied' | 'lost' | 'unavailable';
 
-const WALKING_COLOR = 'hsl(280, 70%, 55%)';
 const TRAIL_COLOR = 'hsl(199, 89%, 48%)';
 
 // ── Source/layer IDs ─────────────────────────────────────────────────────────
@@ -89,8 +87,6 @@ const SRC_ROUTE = 'vm-route';
 const LYR_ROUTE = 'vm-route-line';
 const LYR_ROUTE_TRAFFIC = 'vm-route-traffic';
 const LYR_ROUTE_BEFORE_STOP = 'vm-route-before-stop';
-const SRC_WALK = 'vm-walking';
-const LYR_WALK = 'vm-walking-line';
 const SRC_TRAIL = 'vm-trail';
 const LYR_TRAIL = 'vm-trail-line';
 const SRC_PREVIEW = 'vm-preview';
@@ -113,7 +109,6 @@ const MapView = ({
   isNavigating = false,
   travelMode = 'driving',
   waypointMarkers,
-  walkingRoute,
   onRouteUpdate,
   onRouteError,
   onRouteLoadingChange,
@@ -652,38 +647,6 @@ const MapView = ({
       removeRouteLayers();
     }
   }, [route, showRoute, mapReady, styleRetryTick, purpleUntilStop]);
-
-  // ── Walking route (passenger → meeting point) ─────────────────────────────
-  useEffect(() => {
-    if (!map.current || !mapReady) return;
-    const m = map.current;
-    if (!m.isStyleLoaded()) return;
-
-    if (!walkingRoute || walkingRoute.coordinates.length === 0) {
-      if (m.getLayer(LYR_WALK)) m.removeLayer(LYR_WALK);
-      if (m.getSource(SRC_WALK)) m.removeSource(SRC_WALK);
-      return;
-    }
-
-    const data = toLineGeoJSON(walkingRoute.coordinates);
-    const src = m.getSource(SRC_WALK) as mapboxgl.GeoJSONSource | undefined;
-    if (src) {
-      src.setData(data);
-    } else {
-      m.addSource(SRC_WALK, { type: 'geojson', data });
-      m.addLayer({
-        id: LYR_WALK,
-        type: 'line',
-        source: SRC_WALK,
-        paint: {
-          'line-color': WALKING_COLOR,
-          'line-width': 4,
-          'line-opacity': 0.9,
-          'line-dasharray': [1, 2],
-        },
-      });
-    }
-  }, [walkingRoute, mapReady]);
 
   useEffect(() => {
     if (!map.current || !mapReady) return;

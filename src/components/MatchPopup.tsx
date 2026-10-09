@@ -1,288 +1,76 @@
 import { memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, X, Check, Star, PawPrint, Baby, MapPin, Car, Clock } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { COMMISSION, PET_SURCHARGE, CHILD_SEAT_SURCHARGE } from '@/lib/priceCalculator';
+import { X, Check } from 'lucide-react';
 import { OVERLAY_BOTTOM_PX, overlayBottom } from '@/lib/overlayLayout';
 
 export interface MatchData {
-    userName: string;
-    rating: number;
-    detourMinutes: number;
-    compensation: number; // For driver: earnings, for passenger: trip price
-    pickupDistance: string;
-    acceptsPets?: boolean;
-    hasChildSeat?: boolean;
-    /** Puerta a puerta no lleva coste propio — su desvío ya está dentro de
-     *  compensation/basePrice, cobrado por km real, no como aportación fija. */
-    doorToDoor?: boolean;
-    tripPrice?: number; // Auto-calculated price
-    origin?: string;
-    destination?: string;
-    /** Passenger view only — driver's vehicle info */
-    vehicle?: { brand: string; model: string; color?: string; licensePlate: string };
-    /** Passenger view only — minutes until the driver arrives */
-    etaMinutes?: number;
-    /** Passenger view only — price breakdown */
-    basePrice?: number;
-    commissionAmount?: number;
-    totalPrice?: number;
-    /** Driver view only — km del trayecto en sí, sin contar el desvío. */
-    tripDistanceKm?: number;
-    /** Driver view only — km de desvío real fuera de la ruta (ida y vuelta). */
-    detourKm?: number;
+  userName: string;
+  detourMinutes: number;
+  /** Lo que recibe el conductor por este pasajero. */
+  compensation: number;
+  acceptsPets?: boolean;
+  hasChildSeat?: boolean;
 }
 
 interface MatchPopupProps {
   isOpen: boolean;
   onAccept: () => void;
   onReject: () => void;
-  isDriverView?: boolean; // true = driver viewing passenger, false = passenger viewing driver
   matchData?: MatchData;
 }
 
-const MatchPopup = ({ isOpen, onAccept, onReject, isDriverView = true, matchData }: MatchPopupProps) => {
-  const defaultData: MatchData = {
-    userName: isDriverView ? 'María G.' : 'Carlos G.',
-    rating: 4.8,
-    detourMinutes: 3,
-    compensation: isDriverView ? 4.50 : 6.50,
-    pickupDistance: '200m',
-    acceptsPets: true,
-    hasChildSeat: false,
-    doorToDoor: true,
-    tripPrice: 6.50,
-    origin: 'Huesca',
-    destination: 'Zaragoza',
-  };
+const defaultData: MatchData = {
+  userName: 'María G.',
+  detourMinutes: 3,
+  compensation: 4.50,
+  acceptsPets: true,
+  hasChildSeat: false,
+};
 
+/** Chapa de solicitud nueva — nombre, desvío y lo que recibes, con aceptar
+ *  y rechazar, igual que las chapas de recogida/bajada. */
+const MatchPopup = ({ isOpen, onAccept, onReject, matchData }: MatchPopupProps) => {
   const data = matchData || defaultData;
-
-  // Suma real de los extras marcados — se usa para desglosar la
-  // compensación/el coste base, no solo para las insignias de arriba.
-  // Puerta a puerta no suma nada aquí: su único coste (el desvío que
-  // cause) ya está dentro de compensation/basePrice, cobrado por km real.
-  const extrasTotal =
-    (data.acceptsPets ? PET_SURCHARGE : 0) +
-    (data.hasChildSeat ? CHILD_SEAT_SURCHARGE : 0);
-  const compensationWithoutExtras = data.compensation - extrasTotal;
-  const baseWithoutExtras = (data.basePrice ?? data.compensation) - extrasTotal;
-
-  // Vista conductor: una chapa simple (nombre + precio + aceptar/rechazar),
-  // igual que las de recogida/bajada — antes era una tarjeta grande con
-  // insignias, estadísticas y desglose de precio, que no encajaba con el
-  // resto de la app (chapas pequeñas y automáticas). La vista pasajero
-  // sigue con la tarjeta completa: ahí sí hace falta identificar el coche.
-  if (isDriverView) {
-    const extrasText = [
-      data.acceptsPets && 'lleva mascota',
-      data.hasChildSeat && 'necesita silla para niños',
-    ].filter(Boolean).join(' · ');
-    return (
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.7, x: 20 }}
-            animate={{ opacity: 1, scale: 1, x: 0 }}
-            exit={{ opacity: 0, scale: 0.7 }}
-            transition={{ type: 'spring', damping: 22, stiffness: 280 }}
-            className="fixed right-3 z-40 pointer-events-none"
-            style={{ bottom: overlayBottom(OVERLAY_BOTTOM_PX.acceptPill) }}
-          >
-            <div className="pointer-events-auto flex items-center gap-1.5">
-              <div className="flex flex-col items-center gap-0.5 min-w-0">
-                {extrasText && (
-                  <span className="text-[10px] text-white whitespace-nowrap">{extrasText}</span>
-                )}
-                <button
-                  onClick={onAccept}
-                  className="flex items-center gap-1.5 pl-3 pr-3 py-2 rounded-full bg-success/80 backdrop-blur-md border border-success/60 shadow-lg text-white max-w-[52vw]"
-                >
-                  <Check className="w-3.5 h-3.5 shrink-0" />
-                  <span className="text-[11px] font-semibold truncate">
-                    +{data.detourMinutes} min · {data.userName} · +{data.compensation.toFixed(2)}€
-                  </span>
-                </button>
-              </div>
-              <button
-                onClick={onReject}
-                className="w-8 h-8 rounded-full bg-foreground/30 backdrop-blur-md border border-foreground/30 shadow-lg text-white flex items-center justify-center shrink-0"
-                aria-label="Rechazar solicitud"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    );
-  }
+  const extrasText = [
+    data.acceptsPets && 'lleva mascota',
+    data.hasChildSeat && 'necesita silla para niños',
+  ].filter(Boolean).join(' · ');
 
   return (
     <AnimatePresence>
       {isOpen && (
-        <>
-          {/* Popup floats over the map without dimming it — map stays fully visible & interactive */}
-          <motion.div
-            initial={{ y: 100, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 100, opacity: 0 }}
-            transition={{ type: 'spring', damping: 28, stiffness: 320 }}
-            className="fixed left-0 right-0 bottom-0 z-50 max-h-[38vh] overflow-y-auto"
-          >
-            <div className="glass-strong rounded-t-2xl px-2.5 py-2 shadow-float border-t border-x border-primary/30 max-w-md mx-auto">
-              {/* Drag handle */}
-              <div className="flex justify-center pb-1.5">
-                <div className="w-10 h-1 bg-muted-foreground/30 rounded-full" />
-              </div>
-
-              {/* Header — single compact line */}
-              <div className="flex items-center gap-2 mb-1.5">
-                <div className={`w-7 h-7 rounded-full bg-gradient-to-br ${isDriverView ? 'from-primary to-secondary' : 'from-secondary to-primary'} flex items-center justify-center shrink-0`}>
-                  <User className="w-3.5 h-3.5 text-primary-foreground" />
-                </div>
-                <div className="flex-1 min-w-0 flex items-center gap-2">
-                  <h3 className="font-bold text-xs text-foreground truncate">{data.userName}</h3>
-                  <div className="flex items-center gap-0.5 text-warning shrink-0">
-                    <Star className="w-3 h-3 fill-current" />
-                    <span className="text-xs font-medium">{data.rating}</span>
-                  </div>
-                  <div className="w-1.5 h-1.5 bg-success rounded-full animate-pulse shrink-0" />
-                </div>
-                <Button variant="ghost" size="icon-sm" onClick={onReject}>
-                  <X className="w-4 h-4" />
-                </Button>
-              </div>
-
-              {/* Badges row */}
-              {(data.acceptsPets || data.hasChildSeat || data.doorToDoor) && (
-                <div className="flex flex-wrap gap-1 mb-1.5">
-                  {data.acceptsPets && (
-                    <div className="flex items-center gap-1 px-1.5 py-0.5 bg-primary/20 rounded-full">
-                      <PawPrint className="w-3 h-3 text-primary" />
-                      <span className="text-[10px] text-primary">+{PET_SURCHARGE.toFixed(0)}€</span>
-                    </div>
-                  )}
-                  {data.hasChildSeat && (
-                    <div className="flex items-center gap-1 px-1.5 py-0.5 bg-secondary/20 rounded-full">
-                      <Baby className="w-3 h-3 text-secondary" />
-                      <span className="text-[10px] text-secondary">+{CHILD_SEAT_SURCHARGE.toFixed(0)}€</span>
-                    </div>
-                  )}
-                  {data.doorToDoor && (
-                    <div className="flex items-center gap-1 px-1.5 py-0.5 bg-success/20 rounded-full">
-                      <MapPin className="w-3 h-3 text-success" />
-                      <span className="text-[10px] text-success">Puerta a puerta</span>
-                    </div>
-                  )}
-                </div>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.7, x: 20 }}
+          animate={{ opacity: 1, scale: 1, x: 0 }}
+          exit={{ opacity: 0, scale: 0.7 }}
+          transition={{ type: 'spring', damping: 22, stiffness: 280 }}
+          className="fixed right-3 z-40 pointer-events-none"
+          style={{ bottom: overlayBottom(OVERLAY_BOTTOM_PX.acceptPill) }}
+        >
+          <div className="pointer-events-auto flex items-center gap-1.5">
+            <div className="flex flex-col items-center gap-0.5 min-w-0">
+              {extrasText && (
+                <span className="text-[10px] text-white whitespace-nowrap">{extrasText}</span>
               )}
-
-              {/* Vehicle info — SOLO vista pasajero (identificación del coche) */}
-              {!isDriverView && data.vehicle && (
-                <div className="mb-1.5 flex items-center gap-2 rounded-lg border border-secondary/30 bg-secondary/10 px-2 py-1">
-                  <Car className="w-3.5 h-3.5 text-secondary shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[11px] font-semibold text-foreground truncate">
-                      {data.vehicle.brand} {data.vehicle.model}
-                      {data.vehicle.color ? ` · ${data.vehicle.color}` : ''}
-                    </p>
-                    <p className="text-[9px] text-muted-foreground">Identifica el vehículo por su matrícula</p>
-                  </div>
-                  <span className="shrink-0 rounded-md border border-foreground/30 bg-background px-1.5 py-0.5 font-mono text-xs font-bold tracking-wider text-foreground">
-                    {data.vehicle.licensePlate}
-                  </span>
-                </div>
-              )}
-
-              {/* Stats — compact */}
-              <div className="flex gap-1 mb-1.5">
-                <div className="flex-1 bg-muted rounded-md py-1 text-center">
-                  {isDriverView ? (
-                    <>
-                      <p className="text-xs font-bold text-foreground leading-tight">+{data.detourMinutes} min</p>
-                      <p className="text-[9px] text-muted-foreground leading-tight">desvío</p>
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-xs font-bold text-foreground leading-tight flex items-center justify-center gap-1">
-                        <Clock className="w-2.5 h-2.5 text-secondary" />
-                        {data.etaMinutes ?? data.detourMinutes} min
-                      </p>
-                      <p className="text-[9px] text-muted-foreground leading-tight">llega en</p>
-                    </>
-                  )}
-                </div>
-                <div className="flex-1 bg-muted rounded-md py-1 text-center">
-                  <p className="text-xs font-bold text-foreground leading-tight">{data.pickupDistance}</p>
-                  <p className="text-[9px] text-muted-foreground leading-tight">recogida</p>
-                </div>
-                <div className={`flex-1 ${isDriverView ? 'bg-success/20' : 'bg-secondary/20'} rounded-md py-1 text-center`}>
-                  <p className={`text-xs font-bold leading-tight ${isDriverView ? 'text-success' : 'text-secondary'}`}>
-                    {isDriverView
-                      ? `+${data.compensation.toFixed(2)}€`
-                      : `${(data.totalPrice ?? data.compensation * (1 + COMMISSION)).toFixed(2)}€`}
-                  </p>
-                  <p className="text-[9px] text-muted-foreground leading-tight">
-                    {isDriverView ? 'recibes' : 'precio total'}
-                  </p>
-                </div>
-              </div>
-
-              {/* Price breakdown — compacto: una línea de total y una de
-                  detalle, en vez de una fila por concepto. La comisión no se
-                  descuenta del conductor (la paga el pasajero encima), pero
-                  se deja visible aquí para que quede claro que sigue existiendo. */}
-              {isDriverView ? (
-                <div className="mb-1.5 px-2 py-1 rounded-md bg-muted/40 border border-border/40 text-[9px]">
-                  <div className="flex items-center justify-between font-bold">
-                    <span className="text-foreground">Compensación gastos</span>
-                    <span className="text-success">{data.compensation.toFixed(2)}€</span>
-                  </div>
-                  <p className="text-muted-foreground mt-0.5 leading-tight">
-                    Trayecto + desvío {compensationWithoutExtras.toFixed(2)}€
-                    {data.tripDistanceKm != null && data.detourKm != null
-                      ? ` (${data.tripDistanceKm.toFixed(1)}km + ${data.detourKm.toFixed(1)}km desvío)`
-                      : ''}
-                    {extrasTotal > 0 ? ` + extras ${extrasTotal.toFixed(2)}€` : ''}
-                    {' · '}el pasajero paga {(data.compensation * (1 + COMMISSION)).toFixed(2)}€ (incl. 12% comisión)
-                  </p>
-                </div>
-              ) : (
-                <div className="mb-1.5 px-2 py-1 rounded-md bg-muted/40 border border-border/40 text-[10px]">
-                  <div className="flex items-center justify-between font-bold">
-                    <span className="text-foreground">Total a pagar</span>
-                    <span className="text-secondary">
-                      {(data.totalPrice ?? data.compensation * (1 + COMMISSION)).toFixed(2)}€
-                    </span>
-                  </div>
-                  <p className="text-muted-foreground mt-0.5 leading-tight">
-                    Trayecto {baseWithoutExtras.toFixed(2)}€
-                    {extrasTotal > 0 ? ` + extras ${extrasTotal.toFixed(2)}€` : ''}
-                    {' + '}comisión VIMATCH (12%) {(data.commissionAmount ?? data.compensation * COMMISSION).toFixed(2)}€
-                  </p>
-                </div>
-              )}
-
-              {/* Actions */}
-              <div className="flex gap-2 pb-0.5">
-                <Button variant="outline" size="sm" className="flex-1 h-8 text-xs" onClick={onReject}>
-                  <X className="w-3.5 h-3.5 mr-1" />
-                  Rechazar
-                </Button>
-                <Button
-                  variant={isDriverView ? 'driver' : 'passenger'}
-                  size="sm"
-                  className="flex-1 h-8 text-xs"
-                  onClick={onAccept}
-                >
-                  <Check className="w-3.5 h-3.5 mr-1" />
-                  Aceptar
-                </Button>
-              </div>
+              <button
+                onClick={onAccept}
+                className="flex items-center gap-1.5 pl-3 pr-3 py-2 rounded-full bg-success/80 backdrop-blur-md border border-success/60 shadow-lg text-white max-w-[52vw]"
+              >
+                <Check className="w-3.5 h-3.5 shrink-0" />
+                <span className="text-[11px] font-semibold truncate">
+                  +{data.detourMinutes} min · {data.userName} · +{data.compensation.toFixed(2)}€
+                </span>
+              </button>
             </div>
-          </motion.div>
-        </>
+            <button
+              onClick={onReject}
+              className="w-8 h-8 rounded-full bg-foreground/30 backdrop-blur-md border border-foreground/30 shadow-lg text-white flex items-center justify-center shrink-0"
+              aria-label="Rechazar solicitud"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </motion.div>
       )}
     </AnimatePresence>
   );

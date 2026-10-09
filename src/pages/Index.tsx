@@ -45,7 +45,6 @@ import VehicleManager from "@/components/VehicleManager";
 // ── Hooks ─────────────────────────────────────────────────────────────────────
 import { useDriverTracking } from "@/hooks/useDriverTracking";
 import { useWaypoints, type Waypoint, type TripLeg } from "@/hooks/useWaypoints";
-import { useWalkingRoute } from "@/hooks/useWalkingRoute";
 import { usePassengerSimulation, type SimulatedPassenger } from "@/hooks/usePassengerSimulation";
 // useNavigationSimulation removed: real GPS only for MVP
 import { useTripLifecycle } from "@/hooks/useTripLifecycle";
@@ -375,15 +374,6 @@ const Index = () => {
     enabled: trip.showActiveTrip,
   });
 
-  // ── Walking route (passenger → meeting point) ──────────────────────────────
-  const passengerWalkingEnabled =
-    trip.activeTripRole === "passenger" && trip.meetingPoint !== null && trip.showActiveTrip && !isDoorToDoor;
-
-  const { route: walkingRouteData } = useWalkingRoute({
-    origin: realUserLocation,
-    destination: trip.meetingPoint ? { lat: trip.meetingPoint.lat, lng: trip.meetingPoint.lng } : null,
-    enabled: passengerWalkingEnabled,
-  });
 
   // ── Open match popup when a new simulated passenger appears ────────────────
   const prevPassengerIdRef = useRef("");
@@ -396,46 +386,19 @@ const Index = () => {
   }, [simulatedPassenger, passengerSimEnabled, modals]);
 
   // ── Derived: match data for MatchPopup ─────────────────────────────────────
+  // MatchPopup solo se abre en modo conductor (ver passengerSimEnabled más
+  // abajo), así que esto solo construye la chapa de un pasajero simulado
+  // nuevo — nunca se ve desde el lado del pasajero.
   const currentMatchData = useMemo(() => {
-    // Passenger mode → show the simulated DRIVER we matched with
-    if (!isDriverMode) {
-      const d = driverSim.currentDriver;
-      if (!d) return undefined;
-      return {
-        userName: d.name,
-        rating: d.rating,
-        detourMinutes: d.etaMinutes,
-        compensation: d.basePrice,
-        pickupDistance: d.distanceLabel,
-        acceptsPets: d.acceptsPets,
-        hasChildSeat: d.hasChildSeat,
-        doorToDoor: isDoorToDoor,
-        origin: "Tu ubicación",
-        destination: "Tu destino",
-        vehicle: d.vehicle,
-        etaMinutes: d.etaMinutes,
-        basePrice: d.basePrice,
-        commissionAmount: d.commission,
-        totalPrice: d.totalPrice,
-      };
-    }
     if (!simulatedPassenger) return undefined;
     return {
       userName: simulatedPassenger.name,
-      rating: simulatedPassenger.rating,
       detourMinutes: simulatedPassenger.detourMinutes,
       compensation: simulatedPassenger.compensation,
-      pickupDistance: simulatedPassenger.pickupDistance,
       acceptsPets: simulatedPassenger.acceptsPets,
       hasChildSeat: simulatedPassenger.hasChildSeat,
-      doorToDoor: simulatedPassenger.doorToDoor,
-      tripPrice: simulatedPassenger.compensation,
-      origin: simulatedPassenger.origin.name,
-      destination: simulatedPassenger.destination.name,
-      tripDistanceKm: simulatedPassenger.tripDistanceKm,
-      detourKm: simulatedPassenger.detourKm,
     };
-  }, [simulatedPassenger, isDriverMode, isDoorToDoor, driverSim.currentDriver]);
+  }, [simulatedPassenger]);
 
   // ── Derived: preview waypoints shown on map during match popup ─────────────
   const previewWaypoints = useMemo(() => {
@@ -1005,9 +968,8 @@ const Index = () => {
     setShowPreview(false);
     modals.closeMatchPopup();
     dismissSimPassenger();
-    if (!isDriverMode) driverSim.clearDriver();
     toast({ title: "Solicitud rechazada", description: "Seguirás recibiendo nuevas solicitudes", duration: 1800 });
-  }, [modals, dismissSimPassenger, toast, isDriverMode, driverSim]);
+  }, [modals, dismissSimPassenger, toast]);
 
   const handlePassengerToggle = useCallback(() => {
     setIsPassengerMode((prev) => {
@@ -1254,7 +1216,6 @@ const Index = () => {
         purpleUntilStop={extraStops[0] ?? null}
         meetingPoint={passengerPickupPoint}
         driverPickupPoint={passengerPickupPoint}
-        walkingRoute={trip.activeTripRole === "passenger" && passengerWalkingEnabled ? walkingRouteData : null}
         onRouteUpdate={nav.setCurrentRoute}
         onRouteError={handleRouteError}
         onRouteLoadingChange={nav.setIsRouteLoading}
@@ -1401,9 +1362,6 @@ const Index = () => {
           driverSeats={driverSettings.seats}
           driverMaxDetour={driverSettings.maxDetour}
           activeVehiclePlate={vehicles.activeVehicle?.licensePlate}
-          isDoorToDoor={isDoorToDoor}
-          hasMeetingPoint={trip.meetingPoint !== null}
-          walkingRouteData={walkingRouteData}
         />
 
 
@@ -1426,20 +1384,11 @@ const Index = () => {
         <ActiveTripView
           isOpen={trip.showActiveTrip}
           onClose={handleTripEndWithSummary}
-          onCancel={handlePassengerCancel}
           userRole={trip.activeTripRole}
           tripStatus={effectiveTripStatus}
           onPickup={handleActiveTripPickupAction}
           pickupEta={pickupEta}
-          dropoffEta={trip.activeTripRole === "passenger" ? nav.dynamicETA?.minutes : dropoffEta}
-          driverVehicle={trip.activeTripRole === "passenger" ? driverSim.currentDriver?.vehicle : undefined}
-          driverEta={trip.activeTripRole === "passenger" ? driverSim.currentDriver?.etaMinutes : undefined}
-          walkingMinutes={
-            trip.activeTripRole === "passenger" && walkingRouteData
-              ? Math.ceil(walkingRouteData.duration / 60)
-              : undefined
-          }
-          onDriverArrived={trip.handlePickup}
+          dropoffEta={dropoffEta}
           tripData={activeTripData}
           hasMoreStops={multiStops.length > 0}
         />
@@ -1450,6 +1399,11 @@ const Index = () => {
           stops={[passengerChipStop]}
           pendingKeys={NO_PENDING_KEYS}
           onConfirm={handlePassengerChipConfirm}
+          leadingAction={
+            passengerChipStop.status === "waiting_pickup"
+              ? { onClick: handlePassengerCancel, label: "Cancelar viaje" }
+              : undefined
+          }
         />
       )}
 
@@ -1549,7 +1503,6 @@ const Index = () => {
         isOpen={modals.showMatchPopup}
         onAccept={handleMatchAcceptAndClose}
         onReject={handleMatchReject}
-        isDriverView={isDriverMode}
         matchData={currentMatchData}
       />
 

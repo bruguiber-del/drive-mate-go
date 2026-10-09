@@ -1,31 +1,18 @@
 import { memo } from 'react';
 import { motion } from 'framer-motion';
-import { Phone, MessageCircle, MapPin, Clock, Star, Navigation, User, Car, Footprints, X } from 'lucide-react';
+import { Phone, MessageCircle, MapPin, Clock, Navigation, User, Star, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { OVERLAY_BOTTOM_PX, overlayBottom } from '@/lib/overlayLayout';
 
 interface ActiveTripViewProps {
   isOpen: boolean;
   onClose: () => void;
-  /** Cancelar antes de subir — distinto de onClose (bajar/terminar). Si no
-   *  se pasa, cae en onClose. */
-  onCancel?: () => void;
   userRole: 'driver' | 'passenger';
   tripStatus?: 'waiting' | 'picked_up' | 'in_progress';
   onPickup?: () => void;
-  isTrackingActive?: boolean;
   /** Minutes until reaching the passenger pickup point */
   pickupEta?: number;
   /** Minutes until dropping the passenger at their destination */
   dropoffEta?: number;
-  /** Passenger view — driver's vehicle */
-  driverVehicle?: { brand: string; model: string; color?: string; licensePlate: string };
-  /** Passenger view — minutes until the driver arrives at the meeting point */
-  driverEta?: number;
-  /** Passenger view — walking minutes to the meeting point */
-  walkingMinutes?: number;
-  /** Passenger view — called when confirming the driver has arrived */
-  onDriverArrived?: () => void;
   /** Driver view: true mientras queden recogidas/bajadas pendientes de
    *  algún pasajero — esas acciones se confirman con las chapas del
    *  lateral derecho (StopConfirmButtons), no desde esta tarjeta, así que
@@ -40,38 +27,37 @@ interface ActiveTripViewProps {
     pickupPoint: string;
     eta: number;
     price: number;
-    acceptsPets?: boolean;
-    hasChildSeat?: boolean;
   };
 }
 
-const ActiveTripView = ({ isOpen, onClose, onCancel, userRole, tripStatus = 'waiting', onPickup, isTrackingActive = true, pickupEta, dropoffEta, driverVehicle, driverEta, walkingMinutes, onDriverArrived, hasMoreStops = false, tripData }: ActiveTripViewProps) => {
-  const defaultData = {
-    otherUser: userRole === 'driver' ? 'Ana M.' : 'Carlos G.',
-    otherUserRating: 4.8,
-    origin: 'Huesca',
-    destination: 'Zaragoza',
-    pickupPoint: 'Estación de autobuses, Huesca',
-    eta: 5,
-    price: 6.50,
-    acceptsPets: true,
-    hasChildSeat: true,
-  };
+const defaultData = {
+  otherUser: 'Ana M.',
+  otherUserRating: 4.8,
+  origin: 'Huesca',
+  destination: 'Zaragoza',
+  pickupPoint: 'Estación de autobuses, Huesca',
+  eta: 5,
+  price: 6.50,
+};
 
+/** Solo para el conductor — el pasajero tiene su propia chapa compacta
+ *  (StopConfirmButtons, con su botón de cancelar) que ya cubre recogida,
+ *  bajada y cancelar sin necesidad de esta tarjeta. */
+const ActiveTripView = ({ isOpen, onClose, userRole, tripStatus = 'waiting', onPickup, pickupEta, dropoffEta, hasMoreStops = false, tripData }: ActiveTripViewProps) => {
   const data = tripData || defaultData;
 
-  if (!isOpen) return null;
+  if (!isOpen || userRole === 'passenger') return null;
 
-  // Conductor con paradas pendientes, O sin ninguna ya (todos bajados,
-  // camino de su propio destino): nada de avatar/estrellas/ETA tiene
-  // sentido aquí — con paradas pendientes, ese detalle ya vive en las
-  // chapas de StopConfirmButtons; sin paradas, el ETA/km hasta destino ya
-  // lo da el aviso de navegación de arriba, repetirlo abajo en una chapa
-  // aparte (encima pegada a los controles de zoom) era la misma
-  // información dos veces. Se queda solo un botón mínimo para cancelar el
-  // viaje entero — no hace falta más: el cierre normal, al llegar de
-  // verdad (GPS) a tu destino, ya es automático.
-  if (userRole === 'driver' && (hasMoreStops || tripStatus === 'picked_up')) {
+  // Con paradas pendientes, O sin ninguna ya (todos bajados, camino de su
+  // propio destino): nada de avatar/estrellas/ETA tiene sentido aquí — con
+  // paradas pendientes, ese detalle ya vive en las chapas de
+  // StopConfirmButtons; sin paradas, el ETA/km hasta destino ya lo da el
+  // aviso de navegación de arriba, repetirlo abajo en una chapa aparte
+  // (encima pegada a los controles de zoom) era la misma información dos
+  // veces. Se queda solo un botón mínimo para cancelar el viaje entero —
+  // no hace falta más: el cierre normal, al llegar de verdad (GPS) a tu
+  // destino, ya es automático.
+  if (hasMoreStops || tripStatus === 'picked_up') {
     return (
       <motion.div
         initial={{ scale: 0.7, opacity: 0 }}
@@ -92,28 +78,6 @@ const ActiveTripView = ({ isOpen, onClose, onCancel, userRole, tripStatus = 'wai
     );
   }
 
-  // Pasajero: chapa pequeña encima de los controles de zoom, como las chapas
-  // de recogida del conductor. Solo pide lo que hace falta: quién viene, cuánto
-  // tarda, el coche que buscar y el botón de subida o bajada.
-  if ((userRole as string) === 'passenger') {
-    // Cancelar solo tiene sentido antes de subir — una vez a bordo, la única
-    // acción es bajar (desde la chapa), no "cancelar" un viaje que ya empezó.
-    if (tripStatus !== 'waiting') return null;
-    return (
-      <motion.div
-        initial={{ scale: 0.7, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.7, opacity: 0 }}
-        className="fixed right-3 z-40"
-        style={{ bottom: overlayBottom(OVERLAY_BOTTOM_PX.addStopButton) }}
-      >
-        <Button variant="destructive" size="icon-sm" className="h-7 w-7 rounded-full shadow-lg" onClick={onCancel ?? onClose} aria-label="Cancelar viaje">
-          <X className="w-3.5 h-3.5" />
-        </Button>
-      </motion.div>
-    );
-  }
-
   return (
     // Wrapper is non-interactive so it never blocks map drag/zoom/pinch.
     // Only the inner card re-enables pointer events. Anclada solo a la
@@ -128,12 +92,10 @@ const ActiveTripView = ({ isOpen, onClose, onCancel, userRole, tripStatus = 'wai
     >
       <div className="glass-strong rounded-xl overflow-hidden pointer-events-auto w-[64vw] max-w-[250px]">
         {/* Trip Header */}
-        <div className={`px-2 py-1 ${userRole === 'driver' ? 'bg-primary/20' : 'bg-secondary/20'}`}>
+        <div className="px-2 py-1 bg-primary/20">
           <div className="flex items-center justify-between gap-1">
             <div className="flex items-center gap-1.5 min-w-0">
-              <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
-                userRole === 'driver' ? 'bg-primary' : 'bg-secondary'
-              }`}>
+              <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 bg-primary">
                 <User className="w-2.5 h-2.5 text-primary-foreground" />
               </div>
               <p className="font-semibold text-foreground text-[11px] truncate min-w-0">{data.otherUser}</p>
@@ -156,13 +118,10 @@ const ActiveTripView = ({ isOpen, onClose, onCancel, userRole, tripStatus = 'wai
 
         {/* Trip Details */}
         <div className="p-1.5 space-y-1">
-          {/* Pickup point — sin la cuenta atrás grande cuando el conductor
-              ya tiene su propio desglose "hasta recogida/hasta bajada" justo
-              debajo (si no, salía el mismo número dos veces). Para el
-              conductor con paradas pendientes, la recogida se confirma
-              desde la chapa del lateral derecho, no aquí — mostrarla
-              también en esta fila era la misma acción por duplicado. */}
-          {!(userRole === 'driver' && hasMoreStops) && (
+          {/* Pickup point — la recogida se confirma desde la chapa del
+              lateral derecho, no aquí: mostrarla también en esta fila era
+              la misma acción por duplicado. */}
+          {!hasMoreStops && (
             <div className="flex items-center gap-1.5">
               <div className="w-4 h-4 rounded bg-success/20 flex items-center justify-center shrink-0">
                 <MapPin className="w-2.5 h-2.5 text-success" />
@@ -170,66 +129,11 @@ const ActiveTripView = ({ isOpen, onClose, onCancel, userRole, tripStatus = 'wai
               <div className="flex-1 min-w-0">
                 <p className="text-[10px] text-muted-foreground truncate">{data.pickupPoint}</p>
               </div>
-              {userRole === 'passenger' && (
-                <div className="flex items-baseline gap-0.5 shrink-0">
-                  <Clock className="w-2.5 h-2.5 text-primary" />
-                  <span className="text-sm font-bold text-foreground">
-                    {tripStatus === 'picked_up' || tripStatus === 'in_progress'
-                      ? dropoffEta ?? data.eta
-                      : pickupEta ?? data.eta}
-                  </span>
-                  <span className="text-[9px] text-muted-foreground">min</span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Passenger — vehicle identification */}
-          {userRole === 'passenger' && driverVehicle && (
-            <div className="flex items-center gap-1.5 rounded-lg border border-secondary/30 bg-secondary/10 p-1.5">
-              <Car className="w-3 h-3 text-secondary shrink-0" />
-              <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-semibold text-foreground truncate">
-                  {driverVehicle.brand} {driverVehicle.model}
-                  {driverVehicle.color ? ` · ${driverVehicle.color}` : ''}
-                </p>
-                <p className="text-[8px] text-muted-foreground">Busca esta matrícula</p>
-              </div>
-              <span className="shrink-0 rounded border border-foreground/40 bg-background px-1.5 py-0.5 font-mono text-[10px] font-extrabold tracking-wider text-foreground">
-                {driverVehicle.licensePlate}
-              </span>
-            </div>
-          )}
-
-          {/* Passenger — status */}
-          {userRole === 'passenger' && tripStatus === 'waiting' && (
-            <div className="flex gap-1 text-[9px]">
-              <div className="flex-1 bg-secondary/20 rounded-lg p-1 text-center">
-                <p className="font-bold text-secondary">{driverEta ?? data.eta} min</p>
-                <p className="text-muted-foreground leading-tight">llega tu conductor</p>
-              </div>
-              {walkingMinutes != null && (
-                <div className="flex-1 rounded-lg p-1 text-center bg-muted flex flex-col items-center">
-                  <p className="font-bold text-foreground flex items-center gap-0.5">
-                    <Footprints className="w-2.5 h-2.5" /> {walkingMinutes} min
-                  </p>
-                  <p className="text-muted-foreground leading-tight">al punto de encuentro</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {userRole === 'passenger' && (tripStatus === 'picked_up' || tripStatus === 'in_progress') && (
-            <div className="rounded-lg bg-success/20 p-1 text-center text-[10px]">
-              <p className="font-bold text-success">En camino a tu destino</p>
-              <p className="text-muted-foreground leading-tight">
-                {dropoffEta ?? data.eta} min hasta {data.destination}
-              </p>
             </div>
           )}
 
           {/* Driver ETA breakdown */}
-          {userRole === 'driver' && tripStatus === 'waiting' && (
+          {tripStatus === 'waiting' && (
             <div className="flex gap-1 text-[9px]">
               <div className="flex-1 bg-warning/20 rounded-lg p-1 text-center">
                 <p className="font-bold text-warning">{pickupEta ?? '?'} min</p>
@@ -242,13 +146,6 @@ const ActiveTripView = ({ isOpen, onClose, onCancel, userRole, tripStatus = 'wai
             </div>
           )}
 
-          {userRole === 'driver' && tripStatus === 'picked_up' && (
-            <div className="bg-success/20 rounded-lg p-1 text-center text-[9px]">
-              <p className="font-bold text-success">{dropoffEta ?? '?'} min</p>
-              <p className="text-muted-foreground leading-tight">hasta bajada del pasajero</p>
-            </div>
-          )}
-
           {/* Route + Price - Combined */}
           <div className="flex items-center justify-between gap-1 pt-1 border-t border-border/50">
             <div className="flex items-center gap-0.5 text-[9px] min-w-0">
@@ -256,9 +153,7 @@ const ActiveTripView = ({ isOpen, onClose, onCancel, userRole, tripStatus = 'wai
               <Navigation className="w-2.5 h-2.5 text-primary shrink-0" />
               <span className="text-foreground truncate">{data.destination}</span>
             </div>
-            <span className={`text-xs font-bold shrink-0 ${userRole === 'driver' ? 'text-success' : 'text-foreground'}`}>
-              {userRole === 'driver' ? '+' : ''}€{data.price.toFixed(2)}
-            </span>
+            <span className="text-xs font-bold shrink-0 text-success">+€{data.price.toFixed(2)}</span>
           </div>
 
           {/* Actions — el botón de cancelar es solo icono para dejar todo
@@ -274,19 +169,9 @@ const ActiveTripView = ({ isOpen, onClose, onCancel, userRole, tripStatus = 'wai
             >
               <X className="w-3.5 h-3.5" />
             </Button>
-            {userRole === 'driver' && tripStatus === 'waiting' && !hasMoreStops && (
+            {tripStatus === 'waiting' && !hasMoreStops && (
               <Button variant="driver" size="sm" className="flex-1 h-7 text-[10px] px-1" onClick={onPickup}>
                 Pasajero recogido
-              </Button>
-            )}
-            {userRole === 'passenger' && tripStatus === 'waiting' && (
-              <Button variant="passenger" size="sm" className="flex-1 h-7 text-[10px] px-1" onClick={onDriverArrived ?? onPickup}>
-                Subir al coche
-              </Button>
-            )}
-            {tripStatus === 'picked_up' && !(userRole === 'driver' && hasMoreStops) && (
-              <Button variant={userRole === 'passenger' ? 'passenger' : 'driver'} size="sm" className="flex-1 h-7 text-[10px] px-1" onClick={onClose}>
-                {userRole === 'passenger' ? 'Bajar del coche' : 'Finalizar'}
               </Button>
             )}
           </div>

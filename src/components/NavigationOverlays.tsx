@@ -56,9 +56,6 @@ interface NavigationOverlaysProps {
   driverSeats: number;
   driverMaxDetour: number;
   activeVehiclePlate?: string;
-  isDoorToDoor: boolean;
-  hasMeetingPoint: boolean;
-  walkingRouteData: { duration: number; distance: number } | null;
 }
 
 /** All the status chips/banners shown over the map depending on driving
@@ -81,9 +78,6 @@ const NavigationOverlays = ({
   driverSeats,
   driverMaxDetour,
   activeVehiclePlate,
-  isDoorToDoor,
-  hasMeetingPoint,
-  walkingRouteData,
 }: NavigationOverlaysProps) => {
   return (
     <>
@@ -210,30 +204,6 @@ const NavigationOverlays = ({
                 {currentStep.instruction}
               </p>
               <p className="text-[9px] text-muted-foreground leading-tight line-clamp-1">{LEG_LABELS[currentLeg]}</p>
-            </div>
-          </div>
-        </motion.div>
-      )}
-
-      {/* Passenger walking chip — SOLO pasajero */}
-      {showActiveTrip && activeTripRole === "passenger" && hasMeetingPoint && !isDoorToDoor && walkingRouteData && (
-        <motion.div
-          className="absolute top-16 left-4 right-4 pointer-events-none z-10"
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <div className="glass-strong rounded-lg px-2.5 py-1.5 flex items-center gap-1.5 border border-[hsl(280,70%,55%)]/30">
-            <span className="text-sm">🚶</span>
-            <div className="flex-1 min-w-0">
-              <span className="text-[11px] font-medium text-foreground">Camina al punto de encuentro</span>
-            </div>
-            <div className="text-right shrink-0">
-              <span className="text-xs font-bold" style={{ color: "hsl(280,70%,55%)" }}>
-                {Math.ceil(walkingRouteData.duration / 60)} min
-              </span>
-              <span className="text-[9px] text-muted-foreground ml-1">
-                {(walkingRouteData.distance / 1000).toFixed(1)} km
-              </span>
             </div>
           </div>
         </motion.div>
