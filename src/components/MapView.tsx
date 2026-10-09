@@ -93,9 +93,9 @@ const SRC_PREVIEW = 'vm-preview';
 const LYR_PREVIEW = 'vm-preview-line';
 const SRC_DRIVER_ROUTE = 'vm-driver-route';
 const LYR_DRIVER_ROUTE = 'vm-driver-route-line';
-/** Mismo naranja discontinuo que la ruta de previsualización antes de
- *  aceptar — un conductor viniendo hacia ti es el mismo tipo de trazo. */
-const DRIVER_ROUTE_COLOR = 'hsl(24, 95%, 53%)';
+/** Mismo azul que la ruta principal de navegación — el conductor viniendo
+ *  hacia ti es, visualmente, "tu" ruta todavía. */
+const DRIVER_ROUTE_COLOR = ROUTE_COLOR;
 /** No se vuelve a pedir la ruta por cada metro que se mueve el conductor. */
 const DRIVER_ROUTE_REFETCH_METERS = 80;
 
