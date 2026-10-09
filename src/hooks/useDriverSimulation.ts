@@ -16,6 +16,10 @@ export interface SimulatedDriver {
   etaMinutes: number;
   /** Human readable distance to the passenger */
   distanceLabel: string;
+  /** Lo mismo que distanceLabel pero en metros, sin parsear texto — para
+   *  poder inventarle al conductor un punto de partida real a esa distancia
+   *  y animarlo acercándose en el mapa del pasajero. */
+  pickupDistanceMeters: number;
   /** Base cost shared with the driver (before commission) */
   basePrice: number;
   /** VIMATCH commission (12%) */
@@ -98,6 +102,7 @@ export function generateSimulatedDriver(
     vehicle: { ...vehicle, licensePlate: randomPlate() },
     etaMinutes: Math.round(randomInRange(3, 8)),
     distanceLabel: distanceM < 1000 ? `${distanceM}m` : `${(distanceM / 1000).toFixed(1)}km`,
+    pickupDistanceMeters: distanceM,
     basePrice: pricing.driverIncome,
     commission: pricing.commissionAmount,
     totalPrice: pricing.passengerPrice,

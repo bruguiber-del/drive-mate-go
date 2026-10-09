@@ -44,6 +44,7 @@ import VehicleManager from "@/components/VehicleManager";
 
 // ── Hooks ─────────────────────────────────────────────────────────────────────
 import { useDriverTracking } from "@/hooks/useDriverTracking";
+import { useSimulatedDriverPosition } from "@/hooks/useSimulatedDriverPosition";
 import { useWaypoints, type Waypoint, type TripLeg } from "@/hooks/useWaypoints";
 import { usePassengerSimulation, type SimulatedPassenger } from "@/hooks/usePassengerSimulation";
 // useNavigationSimulation removed: real GPS only for MVP
@@ -1102,6 +1103,18 @@ const Index = () => {
         (realUserLocation ? { lat: realUserLocation[0], lng: realUserLocation[1], name: "Tu ubicación" } : null)
       : null;
 
+  // El conductor que te ha aceptado es simulado (no hay ningún dispositivo
+  // real emitiendo su GPS), así que sin esto driverLocation se quedaba
+  // siempre a null para el pasajero y el mapa nunca enseñaba ni al
+  // conductor ni la ruta por la que viene — solo el punto de recogida fijo.
+  const simulatedDriverPosition = useSimulatedDriverPosition({
+    enabled: showDriverOnMap && !!passengerPickupPoint && !!driverSim.currentDriver,
+    driverId: driverSim.currentDriver?.id ?? null,
+    pickupPoint: passengerPickupPoint,
+    distanceMeters: driverSim.currentDriver?.pickupDistanceMeters ?? 0,
+    etaMinutes: driverSim.currentDriver?.etaMinutes ?? 5,
+  });
+
   // ── Current navigation step (turn-by-turn) ──────────────────────────────────
   const currentStepIndex = useMemo(() => {
     const steps = nav.currentRoute?.steps;
@@ -1215,7 +1228,7 @@ const Index = () => {
       <MapView
         destination={mapDestination}
         showRoute={nav.isNavigating || (trip.showActiveTrip && trip.activeTripRole === "driver")}
-        driverLocation={driverLocation}
+        driverLocation={driverLocation ?? simulatedDriverPosition}
         driverLocationHistory={locationHistory}
         showDriverMarker={showDriverOnMap}
         isNavigating={nav.isNavigating}
