@@ -237,15 +237,22 @@ export function useTripLifecycle({
 
   // ── handlePickup ────────────────────────────────────────────────────────────
   const handlePickup = useCallback(() => {
+    // "Pasajero recogido" tiene sentido para el conductor (ha recogido a
+    // otra persona) pero no para el propio pasajero, que es quien acaba de
+    // subir — antes salía el mismo aviso para los dos. Se usa el rol real
+    // del viaje en curso, no el interruptor de modo, por si cambiase
+    // mientras el viaje sigue activo.
+    const isDriver = activeTripRole === 'driver';
+    const title = isDriver ? '¡Pasajero recogido!' : '¡Ya vas en camino!';
     if (currentLeg === 'to_meeting_point') {
       confirmMeetingPointArrival();
-      toast({ title: '¡Pasajero recogido!', description: 'Continuando hacia bajada del pasajero', duration: 1800 });
+      toast({ title, description: isDriver ? 'Continuando hacia bajada del pasajero' : 'Continuando hacia tu destino', duration: 1800 });
     } else {
       confirmPickup();
-      toast({ title: '¡Pasajero recogido!', description: 'Continuando hacia el destino', duration: 1800 });
+      toast({ title, description: 'Continuando hacia el destino', duration: 1800 });
     }
     setTripStatus('picked_up');
-  }, [currentLeg, confirmMeetingPointArrival, confirmPickup, toast]);
+  }, [currentLeg, confirmMeetingPointArrival, confirmPickup, toast, activeTripRole]);
 
   // ── handleTripEnd ───────────────────────────────────────────────────────────
   const handleTripEnd = useCallback(() => {
