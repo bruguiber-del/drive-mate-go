@@ -1123,6 +1123,16 @@ const Index = () => {
   // calculando andando, aunque fuera a recogerle un coche.
   const effectiveTravelMode: TravelMode = trip.showActiveTrip ? "driving" : nav.travelMode;
 
+  // Adónde viene el conductor a buscarte — un punto de encuentro explícito,
+  // o tu ubicación real si es puerta a puerta. Antes, puerta a puerta no
+  // marcaba nada en el mapa porque trip.meetingPoint se queda a null en ese
+  // caso; con esto siempre hay un punto morado que mostrar mientras esperas.
+  const passengerPickupPoint =
+    trip.activeTripRole === "passenger" && trip.showActiveTrip && trip.tripStatus === "waiting"
+      ? trip.meetingPoint ??
+        (realUserLocation ? { lat: realUserLocation[0], lng: realUserLocation[1], name: "Tu ubicación" } : null)
+      : null;
+
   // ── Current navigation step (turn-by-turn) ──────────────────────────────────
   const currentStepIndex = useMemo(() => {
     const steps = nav.currentRoute?.steps;
@@ -1244,12 +1254,8 @@ const Index = () => {
         waypointMarkers={mapWaypointMarkers}
         intermediateRouteWaypoints={intermediateRouteWaypoints}
         purpleUntilStop={extraStops[0] ?? null}
-        meetingPoint={trip.activeTripRole === "passenger" && trip.showActiveTrip ? trip.meetingPoint : null}
-        driverPickupPoint={
-          trip.activeTripRole === "passenger" && trip.showActiveTrip && trip.tripStatus === "waiting"
-            ? trip.meetingPoint ?? (realUserLocation ? { lat: realUserLocation[0], lng: realUserLocation[1] } : null)
-            : null
-        }
+        meetingPoint={passengerPickupPoint}
+        driverPickupPoint={passengerPickupPoint}
         walkingRoute={trip.activeTripRole === "passenger" && passengerWalkingEnabled ? walkingRouteData : null}
         onRouteUpdate={nav.setCurrentRoute}
         onRouteError={handleRouteError}
