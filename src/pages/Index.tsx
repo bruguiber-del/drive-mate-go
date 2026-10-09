@@ -51,6 +51,7 @@ import { usePassengerSimulation, type SimulatedPassenger } from "@/hooks/usePass
 import { useTripLifecycle } from "@/hooks/useTripLifecycle";
 import { useMultiPassengerTrip } from "@/hooks/useMultiPassengerTrip";
 import { useNavigationState } from "@/hooks/useNavigationState";
+import type { TravelMode } from "@/hooks/useRouting";
 import { useUIModals } from "@/hooks/useUIModals";
 import { useVehicles } from "@/hooks/useVehicles";
 import { useDriverSimulation } from "@/hooks/useDriverSimulation";
@@ -1115,6 +1116,13 @@ const Index = () => {
 
   const showDriverOnMap = trip.showActiveTrip && trip.activeTripRole === "passenger";
 
+  // Con un viaje activo siempre vas en coche, seas quien lo conduce o quien
+  // va de pasajero — antes solo se forzaba "coche" para el conductor, así
+  // que si el pasajero había buscado su destino en modo "a pie" (o en
+  // bici), la ruta y el tiempo restante del viaje entero se seguían
+  // calculando andando, aunque fuera a recogerle un coche.
+  const effectiveTravelMode: TravelMode = trip.showActiveTrip ? "driving" : nav.travelMode;
+
   // ── Current navigation step (turn-by-turn) ──────────────────────────────────
   const currentStepIndex = useMemo(() => {
     const steps = nav.currentRoute?.steps;
@@ -1232,13 +1240,16 @@ const Index = () => {
         driverLocationHistory={locationHistory}
         showDriverMarker={showDriverOnMap}
         isNavigating={nav.isNavigating}
-        // Con pasajero a bordo el conductor siempre va en coche, sin importar
-        // qué modo tuviera seleccionado en su última búsqueda personal.
-        travelMode={trip.showActiveTrip && trip.activeTripRole === "driver" ? "driving" : nav.travelMode}
+        travelMode={effectiveTravelMode}
         waypointMarkers={mapWaypointMarkers}
         intermediateRouteWaypoints={intermediateRouteWaypoints}
         purpleUntilStop={extraStops[0] ?? null}
         meetingPoint={trip.activeTripRole === "passenger" && trip.showActiveTrip ? trip.meetingPoint : null}
+        driverPickupPoint={
+          trip.activeTripRole === "passenger" && trip.showActiveTrip && trip.tripStatus === "waiting"
+            ? trip.meetingPoint ?? (realUserLocation ? { lat: realUserLocation[0], lng: realUserLocation[1] } : null)
+            : null
+        }
         walkingRoute={trip.activeTripRole === "passenger" && passengerWalkingEnabled ? walkingRouteData : null}
         onRouteUpdate={nav.setCurrentRoute}
         onRouteError={handleRouteError}
@@ -1289,7 +1300,7 @@ const Index = () => {
           onOpenSearch={handleOpenDestinationSearch}
           destination={nav.destination}
           isNavigating={nav.isNavigating}
-          travelMode={nav.travelMode}
+          travelMode={effectiveTravelMode}
           isRouteLoading={nav.isRouteLoading}
           hasKnownLocation={!!realUserLocation}
           isMuted={voice.isMuted}

@@ -72,6 +72,10 @@ interface MapViewProps {
   purpleUntilStop?: { lat: number; lng: number } | null;
   /** Punto de encuentro del pasajero: marcador propio y visible. */
   meetingPoint?: { lat: number; lng: number; name: string } | null;
+  /** A dónde se dirige el conductor ahora mismo (punto de encuentro, o tu
+   *  posición real si es puerta a puerta) — para dibujar su ruta real hacia
+   *  ti y para encuadrar la cámara en vosotros dos, no en todo el trayecto. */
+  driverPickupPoint?: { lat: number; lng: number } | null;
 }
 
 // ── Visual constants ─────────────────────────────────────────────────────────
@@ -91,6 +95,13 @@ const SRC_TRAIL = 'vm-trail';
 const LYR_TRAIL = 'vm-trail-line';
 const SRC_PREVIEW = 'vm-preview';
 const LYR_PREVIEW = 'vm-preview-line';
+const SRC_DRIVER_ROUTE = 'vm-driver-route';
+const LYR_DRIVER_ROUTE = 'vm-driver-route-line';
+/** Mismo naranja discontinuo que la ruta de previsualización antes de
+ *  aceptar — un conductor viniendo hacia ti es el mismo tipo de trazo. */
+const DRIVER_ROUTE_COLOR = 'hsl(24, 95%, 53%)';
+/** No se vuelve a pedir la ruta por cada metro que se mueve el conductor. */
+const DRIVER_ROUTE_REFETCH_METERS = 80;
 
 const MapView = ({
   children,
@@ -114,6 +125,7 @@ const MapView = ({
   intermediateRouteWaypoints,
   purpleUntilStop,
   meetingPoint,
+  driverPickupPoint,
 }: MapViewProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -863,13 +875,75 @@ const MapView = ({
 
     const ul = userLocationRef.current;
     if (ul) {
+      // Encuadra al conductor y a ti, nunca el destino final del viaje —
+      // antes incluía el destino y la cámara se alejaba tanto para
+      // abarcarlo que el tramo que de verdad importa ahora (tú y el
+      // conductor acercándose) quedaba diminuto en una esquina.
       const bounds = new mapboxgl.LngLatBounds()
         .extend([ul[1], ul[0]])
         .extend(lngLat);
-      if (destination) bounds.extend([destination.lng, destination.lat]);
+      if (driverPickupPoint) bounds.extend([driverPickupPoint.lng, driverPickupPoint.lat]);
       m.fitBounds(bounds, { padding: 60, maxZoom: 16, duration: 600 });
     }
-  }, [driverLocation, driverLocationHistory, showDriverMarker, mapReady, destination]);
+  }, [driverLocation, driverLocationHistory, showDriverMarker, mapReady, driverPickupPoint]);
+
+  // ── Ruta real del conductor hacia el punto de recogida (vista pasajero) ────
+  const lastDriverRouteFetchRef = useRef<[number, number] | null>(null);
+  useEffect(() => {
+    if (!map.current || !mapReady) return;
+    const m = map.current;
+
+    const removeDriverRouteLayer = () => {
+      if (m.getLayer(LYR_DRIVER_ROUTE)) m.removeLayer(LYR_DRIVER_ROUTE);
+      if (m.getSource(SRC_DRIVER_ROUTE)) m.removeSource(SRC_DRIVER_ROUTE);
+      lastDriverRouteFetchRef.current = null;
+    };
+
+    if (!showDriverMarker || !driverLocation || !driverPickupPoint) {
+      removeDriverRouteLayer();
+      return;
+    }
+
+    const from: [number, number] = [driverLocation.latitude, driverLocation.longitude];
+    const last = lastDriverRouteFetchRef.current;
+    if (last) {
+      const movedM = Math.sqrt((from[0] - last[0]) ** 2 + (from[1] - last[1]) ** 2) * 111_320;
+      if (movedM < DRIVER_ROUTE_REFETCH_METERS) return;
+    }
+    lastDriverRouteFetchRef.current = from;
+
+    const coords = `${from[1]},${from[0]};${driverPickupPoint.lng},${driverPickupPoint.lat}`;
+    fetch(`https://api.mapbox.com/directions/v5/mapbox/driving-traffic/${coords}?geometries=geojson&overview=simplified&access_token=${MAPBOX_TOKEN}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data?.routes?.length || !map.current) return;
+        const geojson: GeoJSON.Feature<GeoJSON.LineString> = {
+          type: 'Feature',
+          properties: {},
+          geometry: data.routes[0].geometry,
+        };
+        const mm = map.current;
+        const src = mm.getSource(SRC_DRIVER_ROUTE) as mapboxgl.GeoJSONSource | undefined;
+        if (src) {
+          src.setData(geojson);
+        } else {
+          mm.addSource(SRC_DRIVER_ROUTE, { type: 'geojson', data: geojson });
+          mm.addLayer({
+            id: LYR_DRIVER_ROUTE,
+            type: 'line',
+            source: SRC_DRIVER_ROUTE,
+            layout: { 'line-join': 'round', 'line-cap': 'round' },
+            paint: {
+              'line-color': DRIVER_ROUTE_COLOR,
+              'line-width': 4,
+              'line-opacity': 0.8,
+              'line-dasharray': [2, 2],
+            },
+          });
+        }
+      })
+      .catch(() => {});
+  }, [driverLocation, driverPickupPoint, showDriverMarker, mapReady]);
 
   // ── Expose map controls to window for the bottom-bar zoom buttons ─────────
   useEffect(() => {
