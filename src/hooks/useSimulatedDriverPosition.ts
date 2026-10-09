@@ -12,12 +12,20 @@ const TICK_MS = 1000;
 
 /**
  * Anima una posición de conductor ficticia moviéndose en línea recta desde
- * un punto inventado a `distanceMeters` del punto de recogida (en una
- * dirección aleatoria) hasta el propio punto de recogida, a lo largo de
- * `etaMinutes` — para que el pasajero vea "por dónde va" un conductor
- * simulado aunque no haya ningún dispositivo real emitiendo su GPS (antes
- * el mapa del pasajero no mostraba ni la ruta ni la posición del conductor
- * porque esos dos props dependían solo del tracking real por Supabase).
+ * un punto inventado a `distanceMeters` del punto de recogida hasta el
+ * propio punto de recogida, a lo largo de `etaMinutes` — para que el
+ * pasajero vea "por dónde va" un conductor simulado aunque no haya ningún
+ * dispositivo real emitiendo su GPS (antes el mapa del pasajero no mostraba
+ * ni la ruta ni la posición del conductor porque esos dos props dependían
+ * solo del tracking real por Supabase).
+ *
+ * El punto de partida NO sale en una dirección aleatoria cualquiera: se
+ * coloca detrás de ti respecto a `travelBearingDeg` (la dirección de tu
+ * propio viaje, recogida → tu destino). Así el conductor viene de una zona
+ * de la que seguir hacia tu destino es, de verdad, "seguir en la misma
+ * dirección" — antes salía en cualquier lado, incluso en el sentido
+ * contrario a tu destino, y el viaje no tenía ningún sentido como "te
+ * recojo porque me pilla de camino".
  */
 export function useSimulatedDriverPosition({
   enabled,
@@ -25,12 +33,15 @@ export function useSimulatedDriverPosition({
   pickupPoint,
   distanceMeters,
   etaMinutes,
+  travelBearingDeg,
 }: {
   enabled: boolean;
   driverId: string | null;
   pickupPoint: { lat: number; lng: number } | null;
   distanceMeters: number;
   etaMinutes: number;
+  /** Rumbo de tu propio viaje (recogida → tu destino), si ya se conoce. */
+  travelBearingDeg: number | null;
 }): SimulatedDriverPosition | null {
   const [position, setPosition] = useState<SimulatedDriverPosition | null>(null);
   const startRef = useRef<{ lat: number; lng: number } | null>(null);
@@ -50,7 +61,15 @@ export function useSimulatedDriverPosition({
     // su trayecto sin reiniciar el avance ya hecho.
     if (driverIdRef.current !== driverId) {
       driverIdRef.current = driverId;
-      const bearing = Math.random() * 360;
+      // Detrás de ti, con un margen de ±35° — no exactamente en línea recta
+      // (las calles no lo son), pero sin llegar a venir de perpendicular o
+      // de frente, que rompería la sensación de "te pilla de camino". Sin
+      // destino todavía (travelBearingDeg null), no hay mejor opción que
+      // una dirección cualquiera.
+      const bearing =
+        travelBearingDeg != null
+          ? (travelBearingDeg + 180 + (Math.random() - 0.5) * 70 + 360) % 360
+          : Math.random() * 360;
       startRef.current = destinationPoint(pickupPoint.lat, pickupPoint.lng, bearing, distanceMeters / 1000);
       startTimeRef.current = Date.now();
     }
@@ -70,7 +89,7 @@ export function useSimulatedDriverPosition({
     tick();
     const id = setInterval(tick, TICK_MS);
     return () => clearInterval(id);
-  }, [enabled, driverId, pickupPoint?.lat, pickupPoint?.lng, distanceMeters, etaMinutes]);
+  }, [enabled, driverId, pickupPoint?.lat, pickupPoint?.lng, distanceMeters, etaMinutes, travelBearingDeg]);
 
   return position;
 }

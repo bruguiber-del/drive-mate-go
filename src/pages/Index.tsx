@@ -1,4 +1,5 @@
 import { haversineMeters } from "@/lib/geo";
+import { computeBearing } from "@/lib/mapGeo";
 import { useErrandStops } from "@/hooks/useErrandStops";
 import { useDriverSettings } from "@/hooks/useDriverSettings";
 import { useRecurringTripReminder } from "@/hooks/useRecurringTripReminder";
@@ -1103,6 +1104,16 @@ const Index = () => {
         (realUserLocation ? { lat: realUserLocation[0], lng: realUserLocation[1], name: "Tu ubicación" } : null)
       : null;
 
+  // Hacia dónde vas TÚ (recogida → tu destino) — para que el conductor
+  // simulado se invente viniendo de una zona desde la que recogerte
+  // realmente le pille de camino, no de cualquier lado al azar (antes podía
+  // aparecer en el sentido contrario a tu destino y el "te recojo porque me
+  // pilla de camino" no tenía ningún sentido).
+  const travelBearingDeg = useMemo(() => {
+    if (!passengerPickupPoint || !nav.destinationCoords) return null;
+    return computeBearing([passengerPickupPoint.lat, passengerPickupPoint.lng], nav.destinationCoords);
+  }, [passengerPickupPoint, nav.destinationCoords]);
+
   // El conductor que te ha aceptado es simulado (no hay ningún dispositivo
   // real emitiendo su GPS), así que sin esto driverLocation se quedaba
   // siempre a null para el pasajero y el mapa nunca enseñaba ni al
@@ -1113,6 +1124,7 @@ const Index = () => {
     pickupPoint: passengerPickupPoint,
     distanceMeters: driverSim.currentDriver?.pickupDistanceMeters ?? 0,
     etaMinutes: driverSim.currentDriver?.etaMinutes ?? 5,
+    travelBearingDeg,
   });
 
   // ── Current navigation step (turn-by-turn) ──────────────────────────────────
