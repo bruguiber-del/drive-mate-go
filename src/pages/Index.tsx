@@ -304,8 +304,6 @@ const Index = () => {
   const trip = useTripLifecycle({
     isDriverMode,
     simulatedPassenger,
-    realUserLocation,
-    isDoorToDoor,
     dismissSimPassenger,
     waypointControls: {
       addPassengerWaypoints: waypoints.addPassengerWaypoints,

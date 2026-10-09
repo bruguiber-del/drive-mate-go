@@ -20,10 +20,6 @@ interface UseTripLifecycleOptions {
   isDriverMode: boolean;
   /** The simulated passenger returned by usePassengerSimulation */
   simulatedPassenger: SimulatedPassenger | null;
-  /** Real user location [lat, lng] — used to compute meeting point midpoint */
-  realUserLocation: [number, number] | null;
-  /** Passenger door-to-door preference set in PassengerSettingsSheet */
-  isDoorToDoor: boolean;
   /** Called after a passenger is accepted / dismissed */
   dismissSimPassenger: () => void;
   /** Waypoint helpers forwarded from useWaypoints */
@@ -61,8 +57,6 @@ interface UseTripLifecycleReturn {
 export function useTripLifecycle({
   isDriverMode,
   simulatedPassenger,
-  realUserLocation,
-  isDoorToDoor,
   dismissSimPassenger,
   waypointControls,
 }: UseTripLifecycleOptions): UseTripLifecycleReturn {
@@ -190,44 +184,24 @@ export function useTripLifecycle({
       setActiveTripRole('passenger');
       setActiveTripId(newTripId);
 
-
-      if (!isDoorToDoor && realUserLocation) {
-        // Meeting point ~150m from passenger's real location
-        const mp: MeetingPoint = {
-          lat: realUserLocation[0] + 0.001,
-          lng: realUserLocation[1] + 0.001,
-          name: 'Punto de encuentro',
-        };
-        setMeetingPoint(mp);
-        toast({
-          title: '¡Viaje confirmado!',
-          description: 'Camina al punto de encuentro cercano.',
-          duration: 1800,
-        });
-      } else if (!isDoorToDoor && !realUserLocation) {
-        toast({
-          title: '¡Viaje confirmado!',
-          description: 'Esperando tu ubicación GPS...',
-          duration: 1800,
-        });
-      } else {
-        toast({
-          title: '¡Viaje confirmado!',
-          description: 'Tu conductor viene a recogerte.',
-          duration: 1800,
-        });
-      }
+      // El punto de recogida es siempre tu ubicación real — nunca uno
+      // inventado. Antes, con "puerta a puerta" desactivado, se desplazaba
+      // +0.001° en diagonal (~150m) sin relación con ninguna calle real;
+      // quien lo lee en el mapa (Index) ya usa tu posición real cuando no
+      // hay un punto de encuentro explícito aquí.
+      toast({
+        title: '¡Viaje confirmado!',
+        description: 'Tu conductor viene a recogerte.',
+        duration: 1800,
+      });
     }
 
     // Common to both branches — guaranteed to run
     setTripStatus('waiting');
     setShowActiveTrip(true);
   }, [
-
     isDriverMode,
     simulatedPassenger,
-    realUserLocation,
-    isDoorToDoor,
     dismissSimPassenger,
     addPassengerWaypoints,
     addMeetingPointWaypoints,
