@@ -1067,10 +1067,19 @@ const Index = () => {
     isPassengerMode && nav.isNavigating && !trip.showActiveTrip && !isScheduledPending && !driverSim.currentDriver;
   const { phase: searchPhase, radiusKm: searchRadiusKm, retry: retrySearch } = usePassengerMatch({
     enabled: driverSearchEnabled,
-    onMatched: () => {
-      driverSim.searchDriver(undefined, { ...passengerPreferences, doorToDoor: isDoorToDoor });
+    requireDoorToDoor: isDoorToDoor,
+    attemptMatch: () => {
+      const driver = driverSim.searchDriver(undefined, passengerPreferences);
+      // Si exiges puerta a puerta, este conductor concreto tiene que hacerla
+      // de verdad — antes se aceptaba a cualquiera y la preferencia no
+      // descartaba a nadie.
+      if (isDoorToDoor && !driver.doorToDoor) {
+        driverSim.clearDriver();
+        return false;
+      }
       trip.handleMatchAccept();
       toast({ title: "Conductor encontrado", description: "Tu conductor va hacia ti", duration: 2000 });
+      return true;
     },
   });
 
@@ -1276,7 +1285,8 @@ const Index = () => {
         {/* Buscando conductor (modo pasajero) — antes no había ningún aviso
             mientras se esperaba, ni manera de saber si se había ampliado el
             radio o si ya no había nadie cerca. */}
-        {driverSearchEnabled && (searchPhase === "searching" || searchPhase === "not_found") && (
+        {driverSearchEnabled &&
+          (searchPhase === "searching" || searchPhase === "not_found" || searchPhase === "door_to_door_unavailable") && (
           <div className="absolute top-28 left-3 right-3 z-20 flex justify-center pointer-events-none">
             <div className="glass-strong rounded-xl px-3 py-2 flex items-center gap-2 pointer-events-auto max-w-sm">
               {searchPhase === "searching" ? (
@@ -1287,6 +1297,26 @@ const Index = () => {
                   </p>
                   <Button variant="ghost" size="sm" className="h-6 text-[11px] px-2 shrink-0" onClick={handleStopNavigation}>
                     Cancelar
+                  </Button>
+                </>
+              ) : searchPhase === "door_to_door_unavailable" ? (
+                <>
+                  <p className="text-xs text-foreground flex-1">
+                    No hemos encontrado conductores puerta a puerta en 5 min.
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-6 text-[11px] px-2 shrink-0"
+                    onClick={() => {
+                      setIsDoorToDoor(false);
+                      retrySearch();
+                    }}
+                  >
+                    Buscar sin puerta a puerta
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-6 text-[11px] px-2 shrink-0" onClick={retrySearch}>
+                    Seguir buscando
                   </Button>
                 </>
               ) : (

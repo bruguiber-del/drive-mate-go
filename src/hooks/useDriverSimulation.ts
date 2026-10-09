@@ -24,6 +24,10 @@ export interface SimulatedDriver {
   totalPrice: number;
   acceptsPets: boolean;
   hasChildSeat: boolean;
+  /** Si este conductor concreto hace puerta a puerta — independiente de lo
+   *  que pida el pasajero, para que exigirlo de verdad filtre con quién te
+   *  emparejas (antes se guardaba la preferencia pero no descartaba a nadie). */
+  doorToDoor: boolean;
 }
 
 /** Lo que el pasajero pidió en sus ajustes — antes se guardaba pero nunca
@@ -32,7 +36,6 @@ export interface PassengerMatchPreferences {
   hasPet: boolean;
   needsChildSeat: boolean;
   genderPreference: 'none' | 'women' | 'men';
-  doorToDoor?: boolean;
 }
 
 const DRIVER_NAMES_WOMEN = ['Elena R.', 'Sofía L.', 'Nuria B.', 'Raquel D.', 'Cristina O.'];
@@ -100,6 +103,10 @@ export function generateSimulatedDriver(
     totalPrice: pricing.passengerPrice,
     acceptsPets: passengerPrefs?.hasPet ? true : Math.random() > 0.5,
     hasChildSeat: passengerPrefs?.needsChildSeat ? true : Math.random() > 0.75,
+    // A diferencia de mascota/silla, esto NO se fuerza a partir de lo que
+    // pide el pasajero: es una característica real de ESTE conductor, para
+    // que exigir puerta a puerta pueda de verdad no encontrar a nadie.
+    doorToDoor: Math.random() > 0.5,
   };
 }
 
