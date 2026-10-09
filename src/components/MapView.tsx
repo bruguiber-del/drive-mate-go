@@ -832,23 +832,25 @@ const MapView = ({
         .setLngLat(lngLat)
         .setPopup(new mapboxgl.Popup({ offset: 24 }).setText('Conductor en camino'))
         .addTo(m);
+
+      // Al asignarte un conductor, lo primero es centrar en TU ubicación —
+      // no unos bounds que incluyan también al conductor, que puede
+      // arrancar a 2km y forzaba un zoom muy alejado nada más aparecer.
+      // Antes además
+      // esto se repetía en CADA actualización de posición (cada segundo,
+      // con un conductor simulado moviéndose), así que la cámara no paraba
+      // de recentrarse sola y no dejaba mover el mapa a mano. Ahora se
+      // centra una sola vez, al aparecer, y luego queda libre: puedes
+      // arrastrar el mapa para seguir por dónde viene sin que se resetee.
+      const ul = userLocationRef.current;
+      if (ul) {
+        isFollowingRef.current = true;
+        m.easeTo({ center: [ul[1], ul[0]], zoom: Math.max(m.getZoom(), 15), duration: 600 });
+      }
     } else {
       driverMarkerRef.current.setLngLat(lngLat);
     }
-
-    const ul = userLocationRef.current;
-    if (ul) {
-      // Encuadra al conductor y a ti, nunca el destino final del viaje —
-      // antes incluía el destino y la cámara se alejaba tanto para
-      // abarcarlo que el tramo que de verdad importa ahora (tú y el
-      // conductor acercándose) quedaba diminuto en una esquina.
-      const bounds = new mapboxgl.LngLatBounds()
-        .extend([ul[1], ul[0]])
-        .extend(lngLat);
-      if (driverPickupPoint) bounds.extend([driverPickupPoint.lng, driverPickupPoint.lat]);
-      m.fitBounds(bounds, { padding: 60, maxZoom: 16, duration: 600 });
-    }
-  }, [driverLocation, driverLocationHistory, showDriverMarker, mapReady, driverPickupPoint]);
+  }, [driverLocation, driverLocationHistory, showDriverMarker, mapReady]);
 
   // ── Ruta real del conductor hacia el punto de recogida (vista pasajero) ────
   const lastDriverRouteFetchRef = useRef<[number, number] | null>(null);

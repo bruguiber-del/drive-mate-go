@@ -120,6 +120,10 @@ export function useNavigationState({
       setOriginalDistance(null);
       setFinalDestination({ lat: coords.lat, lng: coords.lng, name: dest });
       toast({ title: `Ruta hacia ${dest}`, duration: 1500 });
+      // Al poner un destino nuevo, lo primero es centrar en tu ubicación —
+      // si antes habías movido el mapa a mano para mirar otra zona, no se
+      // queda ahí mientras arranca la ruta.
+      (window as any).__mapCenterOnUser?.();
     },
     [setFinalDestination, toast],
   );
