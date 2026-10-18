@@ -68,9 +68,7 @@ function findPointNearRoute(
   const endIdx = Math.max(startIdx + 1, Math.floor(routeCoords.length * 0.8));
   const randomIdx = startIdx + Math.floor(Math.random() * (endIdx - startIdx));
   const [lat, lng] = routeCoords[randomIdx];
-  const offsetLat = (Math.random() - 0.5) * 0.01;
-  const offsetLng = (Math.random() - 0.5) * 0.01;
-  return { lat: lat + offsetLat, lng: lng + offsetLng, baseLat: lat, baseLng: lng };
+  return { lat, lng, baseLat: lat, baseLng: lng };
 }
 
 /**
@@ -140,11 +138,18 @@ function buildCandidateDraft(
     if (d < minD) { minD = d; driverIdx = i; }
   }
   if (driverIdx >= driverRoute.length - 2) return null;
-  const pickupIdx =
-    driverIdx + 1 + Math.floor(Math.random() * Math.max(1, Math.floor((driverRoute.length - driverIdx) * 0.5)));
+  // Elegir entre puntos realmente cercanos y adelantados, no entre la mitad
+  // de los vértices: en rutas largas eso generaba recogidas a más de 8 km.
+  const pickupIndices: number[] = [];
+  for (let i = driverIdx + 1; i < driverRoute.length - 2; i++) {
+    const distance = haversineKm(userLat, userLng, driverRoute[i][0], driverRoute[i][1]);
+    if (distance >= 0.1 && distance <= 8) pickupIndices.push(i);
+  }
+  if (pickupIndices.length === 0) return null;
+  const pickupIdx = pickupIndices[Math.floor(Math.random() * pickupIndices.length)];
   const basePickup = driverRoute[Math.min(pickupIdx, driverRoute.length - 2)];
-  const pickupLat = basePickup[0] + (Math.random() - 0.5) * 0.006;
-  const pickupLng = basePickup[1] + (Math.random() - 0.5) * 0.008;
+  const pickupLat = basePickup[0];
+  const pickupLng = basePickup[1];
 
   if (!isPickupAheadOnRoute(userLat, userLng, pickupLat, pickupLng, driverRoute)) {
     return null;
@@ -172,7 +177,7 @@ function buildCandidateDraft(
 
   const distM = distanceToDriverKm * 1000;
   const tripDistanceKm = haversineKm(pickupLat, pickupLng, destPoint.lat, destPoint.lng);
-  if (tripDistanceKm < 2) return null;
+  if (tripDistanceKm < 0.1) return null;
 
   const acceptsPets = driverPrefs?.acceptsPets ? Math.random() > 0.6 : false;
   const hasChildSeat = driverPrefs?.hasChildSeat ? Math.random() > 0.8 : false;
@@ -348,18 +353,25 @@ export function usePassengerSimulation({
     const route = routeRef.current;
     if (!route || route.length < 2) return;
 
-    const draft = buildCandidateDraft(lat, lng, route, prefsRef.current, activeNamesRef.current);
+    // Reintentar la geometría local sin esperar otro ciclo ni gastar red.
+    let draft: CandidateDraft | null = null;
+    for (let i = 0; i < 8 && !draft; i++) {
+      draft = buildCandidateDraft(lat, lng, route, prefsRef.current, activeNamesRef.current);
+    }
     if (!draft) return;
 
     isGeneratingRef.current = true;
     try {
     const candidateId = crypto.randomUUID();
-    const verified = await verifyRealDetour(
+    const [verified, tripReal] = await Promise.all([verifyRealDetour(
       lat, lng, draft, candidateId,
       trackedRef.current,
       destRef.current ?? null,
       maxDetourRef.current,
-    );
+    ), fetchRealRoute([
+      { lat: draft.pickupLat, lng: draft.pickupLng },
+      { lat: draft.destLat, lng: draft.destLng },
+    ])]);
     if (verified.kind === 'network') {
       onRoutingErrorRef.current?.();
       return;
@@ -368,10 +380,6 @@ export function usePassengerSimulation({
 
     // Distancia real del trayecto del pasajero (recogida → bajada), no la
     // línea recta: el precio tiene que salir de los mismos km que se cobran.
-    const tripReal = await fetchRealRoute([
-      { lat: draft.pickupLat, lng: draft.pickupLng },
-      { lat: draft.destLat, lng: draft.destLng },
-    ]);
     if (!tripReal) {
       onRoutingErrorRef.current?.();
       return;
@@ -416,6 +424,7 @@ export function usePassengerSimulation({
     };
 
     setPendingPassengers(prev => [...prev.slice(-4), passenger]);
+    currentRef.current = passenger;
     setCurrentPassenger(passenger);
     } finally {
       isGeneratingRef.current = false;
