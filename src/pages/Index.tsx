@@ -280,8 +280,7 @@ const Index = () => {
   const { currentPassenger: simulatedPassenger, dismissCurrent: dismissSimPassenger } = usePassengerSimulation({
     enabled: passengerSimEnabled && !modals.showMatchPopup,
     userLocation: realUserLocation,
-    // +10s sobre los 12s que había — llegaban demasiado seguidas.
-    intervalMs: 40000,
+    intervalMs: 5000,
     driverRoute: nav.currentRoute?.coordinates ?? null,
     driverDestination: nav.destinationCoords,
     costPerKm: liveCostPerKm,

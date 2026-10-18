@@ -287,9 +287,7 @@ interface UsePassengerSimulationOptions {
 export function usePassengerSimulation({
   enabled,
   userLocation,
-  // +10s sobre lo que había — llegaban solicitudes demasiado seguidas para
-  // sentirse "normal".
-  intervalMs = 18000,
+  intervalMs = 5000,
   driverRoute,
   driverDestination,
   costPerKm,
@@ -306,6 +304,8 @@ export function usePassengerSimulation({
   // Evita solapar dos verificaciones a la vez si una tarda más que el
   // intervalo entre intentos (la llamada a Mapbox es async).
   const isGeneratingRef = useRef(false);
+  const locationRef = useRef(userLocation);
+  useEffect(() => { locationRef.current = userLocation; }, [userLocation]);
 
   // Keep latest route/destination available to the interval callback without
   // resetting the timer every time the route updates slightly.
@@ -336,8 +336,9 @@ export function usePassengerSimulation({
     // nadie más en el coche.
     if (currentRef.current) return;
     if (trackedRef.current.length >= seatsRef.current) return;
-    if (!userLocation) return;
-    const [lat, lng] = userLocation;
+    const location = locationRef.current;
+    if (!location) return;
+    const [lat, lng] = location;
     if (
       Math.abs(lat - FALLBACK_LAT) < 1e-4 &&
       Math.abs(lng - FALLBACK_LNG) < 1e-4
@@ -351,6 +352,7 @@ export function usePassengerSimulation({
     if (!draft) return;
 
     isGeneratingRef.current = true;
+    try {
     const candidateId = crypto.randomUUID();
     const verified = await verifyRealDetour(
       lat, lng, draft, candidateId,
@@ -358,7 +360,6 @@ export function usePassengerSimulation({
       destRef.current ?? null,
       maxDetourRef.current,
     );
-    isGeneratingRef.current = false;
     if (verified.kind === 'network') {
       onRoutingErrorRef.current?.();
       return;
@@ -416,7 +417,10 @@ export function usePassengerSimulation({
 
     setPendingPassengers(prev => [...prev.slice(-4), passenger]);
     setCurrentPassenger(passenger);
-  }, [userLocation]);
+    } finally {
+      isGeneratingRef.current = false;
+    }
+  }, []);
 
   const dismissCurrent = useCallback(() => {
     setCurrentPassenger(null);
@@ -430,8 +434,9 @@ export function usePassengerSimulation({
 
   // Only generate passengers when enabled, GPS is known AND the driver has a route
   const hasRoute = !!(driverRoute && driverRoute.length >= 2);
+  const hasLocation = userLocation !== null;
   useEffect(() => {
-    if (!enabled || !userLocation || !hasRoute) {
+    if (!enabled || !hasLocation || !hasRoute) {
       // Stop generating new passengers, but KEEP the current one so the driver
       // can still accept it from the open MatchPopup. It is only cleared via
       // dismissCurrent / acceptCurrent.
@@ -444,7 +449,7 @@ export function usePassengerSimulation({
       generateNew();
       const interval = setInterval(generateNew, intervalMs);
       timerRef.current = interval as any;
-    }, 3000);
+    }, 1000);
 
     return () => {
       if (timerRef.current) {
@@ -452,7 +457,10 @@ export function usePassengerSimulation({
         clearInterval(timerRef.current as any);
       }
     };
-  }, [enabled, userLocation, intervalMs, generateNew, hasRoute]);
+  }, [enabled, hasLocation, intervalMs, generateNew, hasRoute,
+    maxDetourMinutes, seats, driverPreferences?.acceptsPets,
+    driverPreferences?.hasChildSeat, driverPreferences?.doorToDoor,
+    driverPreferences?.genderPreference]);
 
   return {
     currentPassenger,
