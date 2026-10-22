@@ -45,6 +45,20 @@ export function inferVehicleCategory(model: string): VehicleCategory {
 const FUEL_PRICE: Record<FuelType, number> = { gasoline: 1.94, diesel: 1.93, hybrid: 1.94, electric: 0 };
 const MAINTENANCE = 0.10;
 
+/** Techo del coste por km reconocido como gasto real (no beneficio) para
+ *  compartir coche en España. No hay una ley específica de carpooling que
+ *  fije un €/km — lo que sí hay es la Orden HFP/792/2023, de 12 de julio,
+ *  que desde el 17/07/2023 elevó de 0,19 a 0,26 €/km la cuantía exenta de
+ *  IRPF por kilometraje (sin actualizar desde 2005). Esa misma cifra
+ *  (antes 0,19€) es la que la Comunidad de Madrid usó como referencia
+ *  frente a BlaBlaCar para distinguir "reparto de gastos" (lícito, fuera
+ *  de la LOTT) de "transporte con ánimo de lucro" (exige licencia). Un
+ *  coche grande o de gasolina sin verificar puede salir por encima de esto
+ *  con el cálculo normal — se topa aquí para no basar nunca el precio en
+ *  un coste por km mayor que el que la propia Hacienda reconoce como
+ *  gasto real de usar tu coche. */
+export const LEGAL_MAX_COST_PER_KM = 0.26;
+
 const BASE_CONSUMPTION: Record<VehicleCategory, Record<FuelType, number>> = {
   small:    { gasoline: 5.5,  diesel: 4.2,  hybrid: 3.8,  electric: 0 },
   medium:   { gasoline: 6.5,  diesel: 5.0,  hybrid: 4.5,  electric: 0 },
@@ -78,12 +92,12 @@ export function calculateCostPerKm(
 ): number {
   if (fuelType === 'electric' || category === 'electric') {
     const base = (isVerified ? 0.04 : 0.046) + MAINTENANCE;
-    return Math.round(base * 1000) / 1000;
+    return Math.min(LEGAL_MAX_COST_PER_KM, Math.round(base * 1000) / 1000);
   }
   const consumption = BASE_CONSUMPTION[category][fuelType] * (isVerified ? 1 : 1.15);
   const pricePerLiter = livePricePerLiter ?? FUEL_PRICE[fuelType];
   const fuelCost = (consumption / 100) * pricePerLiter;
-  return Math.round((fuelCost + MAINTENANCE) * 1000) / 1000;
+  return Math.min(LEGAL_MAX_COST_PER_KM, Math.round((fuelCost + MAINTENANCE) * 1000) / 1000);
 }
 
 export function buildVehicle(

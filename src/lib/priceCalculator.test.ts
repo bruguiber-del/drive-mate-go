@@ -41,15 +41,22 @@ describe("calculatePrice", () => {
   });
 
   it("adds a detour surcharge based on the same cost per km", () => {
-    const base = calculatePrice({ distanceKm: 30, passengerCount: 2, costPerKm: 0.3 });
+    const base = calculatePrice({ distanceKm: 30, passengerCount: 2, costPerKm: 0.2 });
     const detoured = calculatePrice({
       distanceKm: 30,
       passengerCount: 2,
       detourKm: 5,
-      costPerKm: 0.3,
+      costPerKm: 0.2,
     });
-    expect(detoured.detourSurcharge).toBe(1.5);
-    expect(detoured.basePrice).toBeCloseTo(base.basePrice + 1.5, 2);
+    expect(detoured.detourSurcharge).toBe(1);
+    expect(detoured.basePrice).toBeCloseTo(base.basePrice + 1, 2);
+  });
+
+  it("never bases the price on a cost per km above the legal reference (Orden HFP/792/2023, 0,26€/km)", () => {
+    const overLimit = calculatePrice({ distanceKm: 20, passengerCount: 1, costPerKm: 0.5 });
+    const atLimit = calculatePrice({ distanceKm: 20, passengerCount: 1, costPerKm: 0.26 });
+    expect(overLimit.totalCost).toBe(atLimit.totalCost);
+    expect(overLimit.totalCost).toBe(5.2);
   });
 
   it("applies traffic multipliers", () => {
@@ -79,10 +86,10 @@ describe("calculatePrice", () => {
   });
 
   it("door-to-door itself adds no fixed surcharge — only the real detour km it causes", () => {
-    const withoutDoorToDoor = calculatePrice({ distanceKm: 20, passengerCount: 1, detourKm: 1.5, costPerKm: 0.3 });
+    const withoutDoorToDoor = calculatePrice({ distanceKm: 20, passengerCount: 1, detourKm: 1.5, costPerKm: 0.2 });
     // No hay parámetro "isDoorToDoor": su único coste es el detourKm real,
     // que ya se cobra igual venga o no de una recogida puerta a puerta.
     expect(withoutDoorToDoor.extrasSurcharge).toBe(0);
-    expect(withoutDoorToDoor.detourSurcharge).toBe(0.45);
+    expect(withoutDoorToDoor.detourSurcharge).toBe(0.3);
   });
 });

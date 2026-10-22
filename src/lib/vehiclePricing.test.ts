@@ -4,6 +4,7 @@ import {
   inferVehicleCategory,
   calculateCostPerKm,
   buildVehicle,
+  LEGAL_MAX_COST_PER_KM,
 } from "./vehiclePricing";
 
 describe("inferFuelType", () => {
@@ -65,6 +66,12 @@ describe("calculateCostPerKm", () => {
     expect(calculateCostPerKm("suv", "diesel", true)).toBeLessThan(
       calculateCostPerKm("suv", "gasoline", true),
     );
+  });
+
+  it("never exceeds the legal reference cost per km (Orden HFP/792/2023, 0,26€/km)", () => {
+    // Un SUV de gasolina sin verificar sale, sin tope, a ~0,29€/km — por
+    // encima de lo que Hacienda reconoce como gasto real de usar tu coche.
+    expect(calculateCostPerKm("suv", "gasoline", false)).toBe(LEGAL_MAX_COST_PER_KM);
   });
 });
 

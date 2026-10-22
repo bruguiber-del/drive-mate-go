@@ -2,6 +2,8 @@
 // Formula:
 //   precio_por_pasajero = (coste_total / factor_ocupacion) × (1 + comision)
 
+import { LEGAL_MAX_COST_PER_KM } from '@/lib/vehiclePricing';
+
 // ── Constants (fuel + maintenance) ───────────────────────────────────────────
 // Respaldo genérico para cuando no hay un vehículo concreto (o su coste/km)
 // — un conductor real siempre tiene uno activo, así que esto rara vez se usa
@@ -93,7 +95,13 @@ export function calculatePrice({
   const factor = OCCUPANCY_FACTORS[passengerCount] ?? OCCUPANCY_FACTORS[1];
   const trafficMultiplier = TRAFFIC_MULTIPLIER[traffic];
 
-  const costPerKmToUse = costPerKm ?? TOTAL_COST_PER_KM;
+  // Tope de seguridad: sea cual sea el coste/km que llegue (el del vehículo
+  // activo, el del fallback genérico, o uno calculado fuera), el precio
+  // nunca se basa en un coste por km mayor que el que Hacienda reconoce
+  // como gasto real de usar tu coche (ver LEGAL_MAX_COST_PER_KM) — es el
+  // criterio que ya usan las autoridades para distinguir reparto de gastos
+  // de transporte con ánimo de lucro.
+  const costPerKmToUse = Math.min(costPerKm ?? TOTAL_COST_PER_KM, LEGAL_MAX_COST_PER_KM);
   const totalCost = distanceKm * costPerKmToUse;
   const detourSurcharge = detourKm * costPerKmToUse;
 
