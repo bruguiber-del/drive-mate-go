@@ -1,6 +1,8 @@
 // Price calculator for VIMATCH — cost-sharing model (no profit)
 // Formula:
-//   precio_por_pasajero = (coste_total / factor_ocupacion) × (1 + comision)
+//   precio_por_pasajero = (coste_total / (nº_pasajeros + 1)) × (1 + comision)
+//   El "+1" es el propio conductor: el coste del tramo se reparte entre
+//   todos los que van en el coche, él incluido.
 
 import { LEGAL_MAX_COST_PER_KM } from '@/lib/vehiclePricing';
 
@@ -23,13 +25,15 @@ export const COMMISSION = 0.12;              // 12% VIMATCH
 export const PET_SURCHARGE = 2;              // €, material de protección + limpieza del habitáculo
 export const CHILD_SEAT_SURCHARGE = 1;       // €, amortización y ocupación del sistema de retención infantil
 
-// Occupancy factors (NOT linear: more passengers, less penalty per seat)
-const OCCUPANCY_FACTORS: Record<number, number> = {
-  1: 1.8,
-  2: 2.5,
-  3: 3.8,
-  4: 4.5,
-};
+// Reparto del tramo: entre el conductor y todos los pasajeros a bordo en
+// ese momento, contando al conductor como uno más — como un grupo que se
+// reparte la gasolina de un viaje incluyéndose ellos mismos. Así el
+// conductor nunca recupera el 100% del coste real (siempre se queda su
+// propia parte sin cobrar), lo que deja el reparto claramente del lado
+// seguro de "sin ánimo de lucro" frente al tope legal (LEGAL_MAX_COST_PER_KM).
+function occupancyFactor(passengerCount: number): number {
+  return passengerCount + 1;
+}
 
 export type TrafficFactor = 'normal' | 'moderate' | 'rush';
 const TRAFFIC_MULTIPLIER: Record<TrafficFactor, number> = {
@@ -79,9 +83,9 @@ export interface PriceBreakdown {
  *
  * Example for 75km, 2 passengers, no detour, normal traffic:
  *   totalCost = 75 × 0.226 = 16.95€
- *   basePrice = 16.95 / 2.5 = 6.78€
- *   passengerPrice = 6.78 × 1.12 = 7.59€
- *   driverTotalIncome = 6.78 × 2 = 13.56€
+ *   basePrice = 16.95 / 3 = 5.65€         (factor = 2 pasajeros + 1 conductor)
+ *   passengerPrice = 5.65 × 1.12 = 6.33€
+ *   driverTotalIncome = 5.65 × 2 = 11.30€
  */
 export function calculatePrice({
   distanceKm,
@@ -92,7 +96,7 @@ export function calculatePrice({
   hasPet = false,
   hasChildSeat = false,
 }: PriceInput): PriceBreakdown {
-  const factor = OCCUPANCY_FACTORS[passengerCount] ?? OCCUPANCY_FACTORS[1];
+  const factor = occupancyFactor(passengerCount);
   const trafficMultiplier = TRAFFIC_MULTIPLIER[traffic];
 
   // Tope de seguridad: sea cual sea el coste/km que llegue (el del vehículo

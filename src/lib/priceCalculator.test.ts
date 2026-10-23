@@ -8,12 +8,13 @@ import {
 } from "./priceCalculator";
 
 describe("calculatePrice", () => {
-  it("applies the documented cost-sharing formula", () => {
+  it("applies the documented cost-sharing formula (split among driver + passengers)", () => {
     const r = calculatePrice({ distanceKm: 75, passengerCount: 2 });
     expect(r.totalCost).toBe(16.95);
-    expect(r.basePrice).toBe(6.78);
-    expect(r.passengerPrice).toBe(7.59);
-    expect(r.driverTotalIncome).toBe(13.56);
+    // factor = 2 pasajeros + 1 conductor = 3
+    expect(r.basePrice).toBe(5.65);
+    expect(r.passengerPrice).toBe(6.33);
+    expect(r.driverTotalIncome).toBe(11.3);
     expect(r.trafficMultiplier).toBe(1);
   });
 
@@ -24,13 +25,16 @@ describe("calculatePrice", () => {
     expect(r.driverIncome).toBe(r.basePrice);
   });
 
-  it("uses non-linear occupancy factors (more seats, lower price each)", () => {
+  it("divides the cost among the driver and all passengers (more passengers, lower price each)", () => {
     const one = calculatePrice({ distanceKm: 50, passengerCount: 1 });
     const two = calculatePrice({ distanceKm: 50, passengerCount: 2 });
     const four = calculatePrice({ distanceKm: 50, passengerCount: 4 });
     expect(two.passengerPrice).toBeLessThan(one.passengerPrice);
     expect(four.passengerPrice).toBeLessThan(two.passengerPrice);
     expect(one.totalCost).toBe(50 * TOTAL_COST_PER_KM);
+    // factor = passengerCount + 1 (el conductor cuenta como uno más)
+    expect(one.basePrice).toBeCloseTo((50 * TOTAL_COST_PER_KM) / 2, 2);
+    expect(four.basePrice).toBeCloseTo((50 * TOTAL_COST_PER_KM) / 5, 2);
   });
 
   it("honours the optional costPerKm of the active vehicle", () => {
@@ -57,6 +61,14 @@ describe("calculatePrice", () => {
     const atLimit = calculatePrice({ distanceKm: 20, passengerCount: 1, costPerKm: 0.26 });
     expect(overLimit.totalCost).toBe(atLimit.totalCost);
     expect(overLimit.totalCost).toBe(5.2);
+  });
+
+  it("a lone passenger pays half the real cost, not the full rate — the driver counts as one more", () => {
+    const r = calculatePrice({ distanceKm: 10, passengerCount: 1, costPerKm: 0.26 });
+    expect(r.totalCost).toBe(2.6);
+    // factor = 1 pasajero + 1 conductor = 2
+    expect(r.basePrice).toBe(1.3);
+    expect(r.driverTotalIncome).toBe(1.3);
   });
 
   it("applies traffic multipliers", () => {

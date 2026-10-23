@@ -386,7 +386,12 @@ export function usePassengerSimulation({
     }
     const tripDistanceKm = tripReal.distanceM / 1000;
 
-    const passengerCount = Math.min(4, Math.max(1, seatsRef.current)) as 1 | 2 | 3 | 4;
+    // Cuántos van REALMENTE en el coche si este candidato también sube — no
+    // las plazas totales del coche. Antes se usaba la capacidad del coche
+    // entera (p. ej. 4 plazas) aunque solo fuera a subir 1 pasajero, así que
+    // el reparto del coste se calculaba como si ya fuera lleno.
+    const liveOccupancy = Math.min(seatsRef.current, trackedRef.current.length + 1);
+    const passengerCount = Math.min(4, Math.max(1, liveOccupancy)) as 1 | 2 | 3 | 4;
     const pricing = calculatePrice({
       distanceKm: tripDistanceKm,
       detourKm: verified.detourKm,
