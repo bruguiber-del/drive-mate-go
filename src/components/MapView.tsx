@@ -426,7 +426,12 @@ const MapView = ({
       (error) => {
         console.error('Geolocation error:', error);
         if (error.code === error.PERMISSION_DENIED) {
-          window.dispatchEvent(new CustomEvent('vimatch:gps-denied'));
+          // Solo se avisa una vez por racha de fallo — si no, el reintento
+          // automático cada 4s dispararía este toast una y otra vez
+          // mientras el permiso siga sin concederse.
+          if (gpsStatusRef.current !== 'denied') {
+            window.dispatchEvent(new CustomEvent('vimatch:gps-denied'));
+          }
           reportGpsStatus('denied');
         } else {
           reportGpsStatus('lost');
