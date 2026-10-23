@@ -831,6 +831,18 @@ const Index = () => {
       const tracked = multiTrip.passengers.find((p) => p.passenger.id === stop.passengerId);
       window.setTimeout(() => {
         multiTrip.confirmDropoff([stop.passengerId]);
+        // El reparto depende de cuántos iban en el coche en cada momento —
+        // si luego de aceptarlo subió o bajó alguien más, su compensación ya
+        // se recalculó en vivo dentro de multiTrip. Se fija aquí, en el
+        // historial del viaje, el valor que tenía justo antes de bajarse
+        // (el que de verdad le tocó mientras compartió coche), no el que
+        // tenía al emparejar.
+        if (tracked) {
+          const finalCompensation = tracked.passenger.compensation;
+          setTripPassengerHistory((prev) =>
+            prev.map((p) => (p.id === stop.passengerId ? { ...p, compensation: finalCompensation } : p)),
+          );
+        }
         if (tripId && tracked) {
           supabase
             .from("trip_passengers")

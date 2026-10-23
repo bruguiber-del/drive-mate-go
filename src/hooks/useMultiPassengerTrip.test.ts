@@ -20,6 +20,7 @@ function makePassenger(id: string, overrides: Partial<SimulatedPassenger> = {}):
     acceptsPets: false,
     hasChildSeat: false,
     doorToDoor: false,
+    costPerKm: 0.226,
     ...overrides,
   };
 }
@@ -84,5 +85,30 @@ describe("useMultiPassengerTrip", () => {
     // p2 sí necesita ambas.
     const p2Stops = stops.filter((s) => s.passengerIds.includes("p2"));
     expect(p2Stops.map((s) => s.kind).sort()).toEqual(["dropoff", "pickup"]);
+  });
+
+  it("recalculates every passenger's price when someone new joins — the reparto depends on live occupancy", () => {
+    const { result } = renderHook(() => useMultiPassengerTrip({ seats: 3 }));
+    act(() => result.current.acceptPassenger(makePassenger("p1", { tripDistanceKm: 10, detourKm: 0, costPerKm: 0.26 })));
+    // Solo: factor = 1 pasajero + 1 conductor = 2
+    expect(result.current.passengers[0].passenger.compensation).toBeCloseTo((10 * 0.26) / 2, 2);
+
+    act(() => result.current.acceptPassenger(makePassenger("p2", { tripDistanceKm: 5, detourKm: 0, costPerKm: 0.26 })));
+    // Ahora van 2 pasajeros: factor = 2 + 1 = 3 — p1 se recalcula, no se queda con el precio de cuando iba solo.
+    const p1 = result.current.passengers.find((p) => p.passenger.id === "p1")!.passenger;
+    expect(p1.compensation).toBeCloseTo((10 * 0.26) / 3, 2);
+  });
+
+  it("recalculates the remaining passengers' price after a dropoff frees a seat", () => {
+    const { result } = renderHook(() => useMultiPassengerTrip({ seats: 3 }));
+    act(() => result.current.acceptPassenger(makePassenger("p1", { tripDistanceKm: 10, detourKm: 0, costPerKm: 0.26 })));
+    act(() => result.current.acceptPassenger(makePassenger("p2", { tripDistanceKm: 5, detourKm: 0, costPerKm: 0.26 })));
+    const beforeDropoff = result.current.passengers.find((p) => p.passenger.id === "p1")!.passenger.compensation;
+
+    act(() => result.current.confirmDropoff(["p2"]));
+    const afterDropoff = result.current.passengers.find((p) => p.passenger.id === "p1")!.passenger.compensation;
+    // Con menos gente compartiendo, a p1 le toca pagar/cobrar una porción mayor.
+    expect(afterDropoff).toBeGreaterThan(beforeDropoff);
+    expect(afterDropoff).toBeCloseTo((10 * 0.26) / 2, 2);
   });
 });

@@ -6,12 +6,39 @@ import {
   type StopKind,
 } from '@/lib/multiStopPlanning';
 import type { SimulatedPassenger } from '@/hooks/usePassengerSimulation';
+import { calculatePrice } from '@/lib/priceCalculator';
 
 export type PassengerTripStatus = 'waiting_pickup' | 'in_car';
 
 export interface TrackedPassenger {
   passenger: SimulatedPassenger;
   status: PassengerTripStatus;
+}
+
+/** El reparto (coste / (pasajeros+1)) depende de cuántos van en el coche EN
+ *  ESE MOMENTO — así que si sube o baja alguien, el precio de TODOS los
+ *  demás tiene que recalcularse con la nueva ocupación, no quedarse
+ *  congelado con el que tenían al emparejar. Antes el precio nunca se
+ *  tocaba después de aceptarlo. */
+function recomputeCompensation(
+  entries: Record<string, TrackedPassenger>,
+): Record<string, TrackedPassenger> {
+  const passengerCount = Math.min(4, Math.max(1, Object.keys(entries).length)) as 1 | 2 | 3 | 4;
+  const next: Record<string, TrackedPassenger> = {};
+  for (const [id, tracked] of Object.entries(entries)) {
+    const p = tracked.passenger;
+    const pricing = calculatePrice({
+      distanceKm: p.tripDistanceKm,
+      detourKm: p.detourKm,
+      passengerCount,
+      traffic: 'normal',
+      costPerKm: p.costPerKm,
+      hasPet: p.acceptsPets,
+      hasChildSeat: p.hasChildSeat,
+    });
+    next[id] = { ...tracked, passenger: { ...p, compensation: pricing.driverIncome } };
+  }
+  return next;
 }
 
 interface UseMultiPassengerTripOptions {
@@ -41,7 +68,11 @@ export function useMultiPassengerTrip({ seats }: UseMultiPassengerTripOptions) {
       setTracked((prev) => {
         if (Object.keys(prev).length >= seats) return prev;
         if (prev[passenger.id]) return prev;
-        return { ...prev, [passenger.id]: { passenger, status: 'waiting_pickup' } };
+        const withNew: Record<string, TrackedPassenger> = {
+          ...prev,
+          [passenger.id]: { passenger, status: 'waiting_pickup' },
+        };
+        return recomputeCompensation(withNew);
       });
     },
     [seats],
@@ -99,7 +130,7 @@ export function useMultiPassengerTrip({ seats }: UseMultiPassengerTripOptions) {
     setTracked((prev) => {
       const next = { ...prev };
       for (const id of passengerIds) delete next[id];
-      return next;
+      return recomputeCompensation(next);
     });
   }, []);
 

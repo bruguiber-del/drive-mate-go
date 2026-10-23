@@ -14,8 +14,36 @@ describe("calculatePrice", () => {
     // factor = 2 pasajeros + 1 conductor = 3
     expect(r.basePrice).toBe(5.65);
     expect(r.passengerPrice).toBe(6.33);
-    expect(r.driverTotalIncome).toBe(11.3);
+    expect(r.driverGrossIncome).toBe(11.3);
+    expect(r.driverCommissionShare).toBe(0.68);
+    expect(r.driverTotalIncome).toBe(10.62);
+    expect(r.totalCommission).toBe(2.03);
     expect(r.trafficMultiplier).toBe(1);
+  });
+
+  it("splits the 12% commission among every occupant, driver included — not just the passengers", () => {
+    const r = calculatePrice({ distanceKm: 40, passengerCount: 3 });
+    // El conductor paga su propia parte, igual que cada pasajero.
+    expect(r.driverCommissionShare).toBeCloseTo(r.basePrice * COMMISSION, 2);
+    // La comisión total del viaje es exactamente el 12% del coste real,
+    // repartida entre los 3 pasajeros + el conductor.
+    expect(r.totalCommission).toBeCloseTo(r.totalCost * COMMISSION, 2);
+    expect(r.totalCommission).toBeCloseTo(r.commissionAmount * 3 + r.driverCommissionShare, 2);
+    expect(r.driverTotalIncome).toBe(r.driverGrossIncome - r.driverCommissionShare);
+  });
+
+  it("does not make the driver pay commission on another passenger's own detour or extras", () => {
+    const plain = calculatePrice({ distanceKm: 30, passengerCount: 2, costPerKm: 0.2 });
+    const withDetourAndExtras = calculatePrice({
+      distanceKm: 30,
+      passengerCount: 2,
+      detourKm: 4,
+      hasPet: true,
+      costPerKm: 0.2,
+    });
+    // El desvío y los extras son 100% de ese pasajero — no mueven la parte
+    // de comisión del conductor, que solo depende del tramo compartido.
+    expect(withDetourAndExtras.driverCommissionShare).toBeCloseTo(plain.driverCommissionShare, 2);
   });
 
   it("charges commission on top of the base price", () => {
@@ -68,7 +96,9 @@ describe("calculatePrice", () => {
     expect(r.totalCost).toBe(2.6);
     // factor = 1 pasajero + 1 conductor = 2
     expect(r.basePrice).toBe(1.3);
-    expect(r.driverTotalIncome).toBe(1.3);
+    expect(r.driverGrossIncome).toBe(1.3);
+    expect(r.driverCommissionShare).toBe(0.16);
+    expect(r.driverTotalIncome).toBe(1.14);
   });
 
   it("applies traffic multipliers", () => {

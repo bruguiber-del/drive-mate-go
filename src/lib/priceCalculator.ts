@@ -62,14 +62,28 @@ export interface PriceBreakdown {
   totalCost: number;
   /** Base price per passenger before commission */
   basePrice: number;
-  /** Final price the passenger pays (includes commission) */
+  /** Final price the passenger pays (includes su propia parte de comisión) */
   passengerPrice: number;
-  /** What the driver receives per passenger (= basePrice) */
+  /** What the driver collects per passenger (= basePrice), antes de restarle
+   *  su propia parte de comisión */
   driverIncome: number;
-  /** Total income the driver receives (basePrice × passengerCount) */
+  /** Lo recaudado de todos los pasajeros (basePrice × passengerCount), antes
+   *  de restarle al conductor su propia parte de comisión */
+  driverGrossIncome: number;
+  /** La parte de comisión que paga el propio conductor — es un ocupante más
+   *  del coche, así que también paga su parte del 12%, igual que cada
+   *  pasajero paga la suya. Se calcula solo sobre el tramo compartido (sin
+   *  el desvío ni los extras de cada pasajero, que son 100% suyos). */
+  driverCommissionShare: number;
+  /** Lo que el conductor se queda de verdad, ya descontada su propia parte
+   *  de comisión (driverGrossIncome - driverCommissionShare) */
   driverTotalIncome: number;
-  /** VIMATCH commission per passenger (in €) */
+  /** VIMATCH commission this passenger pays (su propia parte, en €) */
   commissionAmount: number;
+  /** Comisión total de VIMATCH para todo el viaje: 12% del coste real,
+   *  repartida entre TODOS los ocupantes (conductor incluido) — no solo
+   *  entre los pasajeros. */
+  totalCommission: number;
   /** Detour surcharge applied to base price */
   detourSurcharge: number;
   /** Suma de aportaciones fijas por mascota/silla infantil */
@@ -83,9 +97,12 @@ export interface PriceBreakdown {
  *
  * Example for 75km, 2 passengers, no detour, normal traffic:
  *   totalCost = 75 × 0.226 = 16.95€
- *   basePrice = 16.95 / 3 = 5.65€         (factor = 2 pasajeros + 1 conductor)
- *   passengerPrice = 5.65 × 1.12 = 6.33€
- *   driverTotalIncome = 5.65 × 2 = 11.30€
+ *   basePrice = 16.95 / 3 = 5.65€           (factor = 2 pasajeros + 1 conductor)
+ *   passengerPrice = 5.65 × 1.12 = 6.33€    (cada pasajero, sin cambios)
+ *   driverGrossIncome = 5.65 × 2 = 11.30€   (recaudado de los 2 pasajeros)
+ *   driverCommissionShare = 5.65 × 0.12 = 0.68€  (su propia parte del 12%)
+ *   driverTotalIncome = 11.30 − 0.68 = 10.62€    (lo que se queda de verdad)
+ *   totalCommission = 2×0.68 + 0.68 = 2.03€      (= 12% de 16.95€ exacto)
  */
 export function calculatePrice({
   distanceKm,
@@ -118,20 +135,34 @@ export function calculatePrice({
     (hasPet ? PET_SURCHARGE : 0) +
     (hasChildSeat ? CHILD_SEAT_SURCHARGE : 0);
 
+  // Parte del tramo que de verdad es igual para cualquier ocupante (conductor
+  // o pasajero) — sin el desvío ni los extras de ESTE pasajero en concreto,
+  // que son 100% suyos y no se comparten con nadie, ni siquiera con el
+  // conductor. Es la base sobre la que el conductor paga su propia comisión.
+  const occupantBaseShare = (totalCost / factor) * trafficMultiplier;
+
   // Base price per passenger before commission
-  const basePrice = (totalCost / factor + detourSurcharge) * trafficMultiplier + extrasSurcharge;
+  const basePrice = occupantBaseShare + detourSurcharge * trafficMultiplier + extrasSurcharge;
   const passengerPrice = basePrice * (1 + COMMISSION);
   const commissionAmount = passengerPrice - basePrice;
   const driverIncome = basePrice;
-  const driverTotalIncome = basePrice * passengerCount;
+  const driverGrossIncome = basePrice * passengerCount;
+  // El conductor es un ocupante más: paga su propia parte de comisión sobre
+  // su propio tramo compartido, igual que cada pasajero paga la suya.
+  const driverCommissionShare = occupantBaseShare * COMMISSION;
+  const driverTotalIncome = driverGrossIncome - driverCommissionShare;
+  const totalCommission = commissionAmount * passengerCount + driverCommissionShare;
 
   return {
     totalCost: round2(totalCost),
     basePrice: round2(basePrice),
     passengerPrice: round2(passengerPrice),
     driverIncome: round2(driverIncome),
+    driverGrossIncome: round2(driverGrossIncome),
+    driverCommissionShare: round2(driverCommissionShare),
     driverTotalIncome: round2(driverTotalIncome),
     commissionAmount: round2(commissionAmount),
+    totalCommission: round2(totalCommission),
     detourSurcharge: round2(detourSurcharge),
     extrasSurcharge: round2(extrasSurcharge),
     trafficMultiplier,

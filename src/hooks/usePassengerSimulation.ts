@@ -24,6 +24,11 @@ export interface SimulatedPassenger {
   acceptsPets: boolean;
   hasChildSeat: boolean;
   doorToDoor: boolean;
+  /** Coste/km usado para calcular `compensation` — guardado aquí para poder
+   *  recalcular el precio más tarde (si sube o baja gente del coche) con el
+   *  mismo coste real, sin depender de que el vehículo activo siga siendo
+   *  el mismo en ese momento. */
+  costPerKm: number;
 }
 
 /** Pasajero ya aceptado/a bordo — la forma mínima que hace falta para medir
@@ -426,6 +431,11 @@ export function usePassengerSimulation({
       acceptsPets: draft.acceptsPets,
       hasChildSeat: draft.hasChildSeat,
       doorToDoor: draft.doorToDoor,
+      // El coste/km real que se usó (vehículo activo, o el respaldo
+      // genérico si no había uno) — se deriva del propio totalCost en vez
+      // de volver a resolver costRef.current ?? TOTAL_COST_PER_KM aquí, así
+      // el tope legal (LEGAL_MAX_COST_PER_KM) solo vive en un sitio.
+      costPerKm: pricing.totalCost / tripDistanceKm,
     };
 
     setPendingPassengers(prev => [...prev.slice(-4), passenger]);
