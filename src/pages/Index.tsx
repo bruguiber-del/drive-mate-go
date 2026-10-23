@@ -47,7 +47,7 @@ import VehicleManager from "@/components/VehicleManager";
 import { useDriverTracking } from "@/hooks/useDriverTracking";
 import { useSimulatedDriverPosition } from "@/hooks/useSimulatedDriverPosition";
 import { useWaypoints, type Waypoint, type TripLeg } from "@/hooks/useWaypoints";
-import { usePassengerSimulation, type SimulatedPassenger } from "@/hooks/usePassengerSimulation";
+import { usePassengerSimulation, type SimulatedPassenger, type PassengerReceipt } from "@/hooks/usePassengerSimulation";
 // useNavigationSimulation removed: real GPS only for MVP
 import { useTripLifecycle } from "@/hooks/useTripLifecycle";
 import { useMultiPassengerTrip } from "@/hooks/useMultiPassengerTrip";
@@ -140,6 +140,12 @@ const Index = () => {
     tripInfo: string;
     targets: { id: string; name: string }[];
     totalSaved: number;
+    /** Un ticket por pasajero (desglose real), para el resumen de fin de
+     *  viaje del conductor — vacío cuando quien termina el viaje es el
+     *  pasajero (ahí no hay "varios pasajeros" que desglosar). RatingModal
+     *  saca de aquí tanto los totales de pasajeros/comisión como lo que el
+     *  conductor se queda de verdad — no hace falta pasárselos aparte. */
+    receiptLines: { id: string; name: string; receipt: PassengerReceipt }[];
   } | null>(null);
 
   // ── Vehicles ────────────────────────────────────────────────────────────────
@@ -678,12 +684,14 @@ const Index = () => {
         tripInfo,
         targets: tripPassengerHistory.map((p) => ({ id: p.id, name: p.name })),
         totalSaved: totalTripCompensation,
+        receiptLines: tripPassengerHistory.map((p) => ({ id: p.id, name: p.name, receipt: p.receipt })),
       });
     } else if (trip.activeTripRole === "passenger" && driverSim.currentDriver) {
       setLastTripSummary({
         tripInfo,
         targets: [{ id: driverSim.currentDriver.id, name: driverSim.currentDriver.name }],
         totalSaved: 0,
+        receiptLines: [],
       });
     } else {
       setLastTripSummary(null);
@@ -847,9 +855,11 @@ const Index = () => {
         // (el que de verdad le tocó mientras compartió coche), no el que
         // tenía al emparejar.
         if (tracked) {
-          const finalCompensation = tracked.passenger.compensation;
+          const { compensation: finalCompensation, receipt: finalReceipt } = tracked.passenger;
           setTripPassengerHistory((prev) =>
-            prev.map((p) => (p.id === stop.passengerId ? { ...p, compensation: finalCompensation } : p)),
+            prev.map((p) =>
+              p.id === stop.passengerId ? { ...p, compensation: finalCompensation, receipt: finalReceipt } : p,
+            ),
           );
         }
         if (tripId && tracked) {
@@ -1604,22 +1614,32 @@ const Index = () => {
       <RatingModal
         isOpen={trip.showRating}
         onClose={trip.closeRating}
-        onSubmit={(results) => {
-          const targets = lastTripSummary?.targets ?? [];
-          // El 10% solo se gana valorando a TODAS las personas del viaje,
-          // no con dejar a una sin valorar.
-          const allRated = targets.length > 0 && targets.every((t) => results.some((r) => r.id === t.id));
+        onSubmit={() => {
+          // Antes prometía un 10% de descuento por valorar a todos — no hay
+          // ningún sistema de descuentos detrás, era una promesa falsa (ver
+          // el mismo aviso ya corregido dentro de RatingModal).
           toast({
             title: "¡Gracias por tu valoración!",
-            description: allRated
-              ? "Has valorado a todos — 10% de descuento en tu próximo viaje"
-              : "Valora a todos la próxima vez para conseguir el 10% de descuento",
+            description: "Ayuda a que el resto sepa con quién va a compartir trayecto.",
             duration: 2200,
           });
         }}
         targets={lastTripSummary?.targets ?? []}
         tripInfo={lastTripSummary?.tripInfo ?? ""}
         totalSaved={lastTripSummary?.totalSaved}
+        receiptLines={lastTripSummary?.receiptLines ?? []}
+        onSubmitAppRating={(rating, review) => {
+          // Sin backend propio de valoraciones de la app todavía (igual que
+          // las valoraciones de pasajero/conductor, que tampoco se guardan
+          // en ningún sitio hoy) — se recoge aquí para no perderla en
+          // cuanto exista dónde guardarla.
+          console.info("[VIMATCH] Valoración de la app:", rating, review);
+          toast({
+            title: "¡Gracias por valorar VIMATCH!",
+            description: "Tu opinión nos ayuda a mejorar la app.",
+            duration: 2200,
+          });
+        }}
       />
 
       <VehicleManager

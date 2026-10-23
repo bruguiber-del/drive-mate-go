@@ -90,6 +90,15 @@ export interface PriceBreakdown {
   extrasSurcharge: number;
   /** Traffic multiplier applied */
   trafficMultiplier: number;
+  /** Su parte del tramo compartido, ya con el multiplicador de tráfico
+   *  aplicado — una pieza del desglose para un ticket (tripShare +
+   *  detourCharge + extrasSurcharge = basePrice). */
+  tripShare: number;
+  /** Lo que le costó su propio desvío, ya con el multiplicador de tráfico
+   *  aplicado — a diferencia de detourSurcharge (el valor crudo, sin
+   *  tráfico), este es el que de verdad suma con tripShare y extrasSurcharge
+   *  para dar basePrice. */
+  detourCharge: number;
 }
 
 /**
@@ -166,6 +175,8 @@ export function calculatePrice({
     detourSurcharge: round2(detourSurcharge),
     extrasSurcharge: round2(extrasSurcharge),
     trafficMultiplier,
+    tripShare: round2(occupantBaseShare),
+    detourCharge: round2(detourSurcharge * trafficMultiplier),
   };
 }
 

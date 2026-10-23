@@ -84,6 +84,21 @@ describe("calculatePrice", () => {
     expect(detoured.basePrice).toBeCloseTo(base.basePrice + 1, 2);
   });
 
+  it("breaks basePrice down into tripShare + detourCharge + extrasSurcharge, for a receipt", () => {
+    const r = calculatePrice({
+      distanceKm: 20,
+      passengerCount: 1,
+      detourKm: 2,
+      traffic: "rush",
+      costPerKm: 0.26,
+      hasPet: true,
+    });
+    expect(r.tripShare + r.detourCharge + r.extrasSurcharge).toBeCloseTo(r.basePrice, 2);
+    // El desvío con tráfico SÍ lleva el multiplicador aplicado, a diferencia
+    // del detourSurcharge crudo.
+    expect(r.detourCharge).toBeCloseTo(r.detourSurcharge * r.trafficMultiplier, 2);
+  });
+
   it("never bases the price on a cost per km above the legal reference (Orden HFP/792/2023, 0,26€/km)", () => {
     const overLimit = calculatePrice({ distanceKm: 20, passengerCount: 1, costPerKm: 0.5 });
     const atLimit = calculatePrice({ distanceKm: 20, passengerCount: 1, costPerKm: 0.26 });

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Star, User, ShieldCheck, Gift } from 'lucide-react';
+import { Star, User, ShieldCheck, Gift, Receipt } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import type { PassengerReceipt } from '@/hooks/usePassengerSimulation';
 
 export interface RatingTarget {
   id: string;
@@ -26,20 +27,43 @@ interface RatingModalProps {
   /** Total ahorrado por el conductor este viaje gracias a compartir gastos
    *  con sus pasajeros — no aplica cuando quien valora es un pasajero. */
   totalSaved?: number;
+  /** Un ticket por pasajero (lo que pagó y por qué) — vacío cuando quien
+   *  valora es un pasajero, o en un viaje sin desglose guardado. */
+  receiptLines?: { id: string; name: string; receipt: PassengerReceipt }[];
+  /** Valoración de la app en sí (no de las personas del viaje) — aparte del
+   *  resto, se envía en el momento (no espera al botón "Enviar valoración"). */
+  onSubmitAppRating?: (rating: number, review?: string) => void;
 }
 
 const MIN_REVIEW_LENGTH = 10;
 const MAX_REVIEW_LENGTH = 140;
 
-const RatingModal = ({ isOpen, onClose, onSubmit, targets, tripInfo, totalSaved }: RatingModalProps) => {
+const RatingModal = ({
+  isOpen,
+  onClose,
+  onSubmit,
+  targets,
+  tripInfo,
+  totalSaved,
+  receiptLines = [],
+  onSubmitAppRating,
+}: RatingModalProps) => {
   const [ratings, setRatings] = useState<Record<string, number>>({});
   const [hovered, setHovered] = useState<Record<string, number>>({});
   const [reviews, setReviews] = useState<Record<string, string>>({});
+  const [appRating, setAppRating] = useState(0);
+  const [appHovered, setAppHovered] = useState(0);
+  const [appReview, setAppReview] = useState('');
+  const [appRatingSent, setAppRatingSent] = useState(false);
 
   const reset = () => {
     setRatings({});
     setHovered({});
     setReviews({});
+    setAppRating(0);
+    setAppHovered(0);
+    setAppReview('');
+    setAppRatingSent(false);
   };
 
   const handleClose = () => {
@@ -72,6 +96,19 @@ const RatingModal = ({ isOpen, onClose, onSubmit, targets, tripInfo, totalSaved 
     onClose();
   };
 
+  // Totales del ticket — derivados de receiptLines, no se piden aparte.
+  const totalPaidByPassengers = receiptLines.reduce((s, l) => s + l.receipt.passengerPrice, 0);
+  const totalDriverCommission = receiptLines.reduce((s, l) => s + l.receipt.driverCommissionShare, 0);
+  const totalPassengerCommission = receiptLines.reduce((s, l) => s + l.receipt.commissionAmount, 0);
+  const totalCommission = totalDriverCommission + totalPassengerCommission;
+  const driverNet = (totalSaved ?? 0) - totalDriverCommission;
+
+  const handleSubmitAppRating = () => {
+    if (appRating === 0) return;
+    onSubmitAppRating?.(appRating, appReview.trim() || undefined);
+    setAppRatingSent(true);
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -97,21 +134,70 @@ const RatingModal = ({ isOpen, onClose, onSubmit, targets, tripInfo, totalSaved 
               </p>
             </div>
 
-            {/* Total ahorrado — solo tiene sentido para el conductor */}
-            {totalSaved != null && totalSaved > 0 && (
-              <div className="glass rounded-xl p-3 flex items-center gap-3 my-4 shrink-0">
-                <div className="w-10 h-10 rounded-lg bg-success/20 flex items-center justify-center shrink-0">
-                  <Gift className="w-5 h-5 text-success" />
+            {/* Todo el contenido scrollea junto — con el ticket + valoraciones
+                + valorar la app, el modal entero no cabe siempre en pantalla
+                (antes solo scrolleaba la lista de valoraciones). */}
+            <div className="flex-1 overflow-y-auto space-y-4 my-4 pr-1">
+              {/* Ticket del viaje — lo que pagó cada pasajero y por qué,
+                  resumido. Solo hay receiptLines en el lado conductor; si no
+                  hay desglose guardado pero sí un total, se enseña el aviso
+                  simple de siempre como respaldo. */}
+              {receiptLines.length > 0 ? (
+                <div className="glass rounded-xl p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Receipt className="w-4 h-4 text-success shrink-0" />
+                    <p className="font-semibold text-foreground text-sm">Resumen del viaje</p>
+                  </div>
+                  <div className="space-y-2 font-mono text-[11px]">
+                    {receiptLines.map((l) => {
+                      const parts = [
+                        `tramo ${l.receipt.tripShare.toFixed(2)}€`,
+                        l.receipt.detourCharge > 0 && `desvío ${l.receipt.detourCharge.toFixed(2)}€`,
+                        l.receipt.extrasSurcharge > 0 && `extras ${l.receipt.extrasSurcharge.toFixed(2)}€`,
+                        `comisión ${l.receipt.commissionAmount.toFixed(2)}€`,
+                      ].filter(Boolean);
+                      return (
+                        <div key={l.id}>
+                          <div className="flex justify-between gap-2 text-foreground">
+                            <span className="truncate">{l.name}</span>
+                            <span className="font-semibold shrink-0">{l.receipt.passengerPrice.toFixed(2)}€</span>
+                          </div>
+                          <p className="text-muted-foreground truncate">{parts.join(' · ')}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="border-t border-dashed border-border/60 mt-3 pt-2 space-y-1 font-mono text-[11px] text-muted-foreground">
+                    <div className="flex justify-between">
+                      <span>Total pasajeros</span>
+                      <span>{totalPaidByPassengers.toFixed(2)}€</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Comisión VIMATCH</span>
+                      <span>{totalCommission.toFixed(2)}€</span>
+                    </div>
+                    <div className="flex justify-between text-foreground font-sans font-bold text-sm">
+                      <span>Tu ganancia</span>
+                      <span className="text-success">{driverNet.toFixed(2)}€</span>
+                    </div>
+                  </div>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  Has ahorrado <span className="text-success font-bold">{totalSaved.toFixed(2)}€</span> compartiendo
-                  gastos con tus pasajeros.
-                </p>
-              </div>
-            )}
+              ) : (
+                totalSaved != null &&
+                totalSaved > 0 && (
+                  <div className="glass rounded-xl p-3 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-success/20 flex items-center justify-center shrink-0">
+                      <Gift className="w-5 h-5 text-success" />
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Has ahorrado <span className="text-success font-bold">{totalSaved.toFixed(2)}€</span> compartiendo
+                      gastos con tus pasajeros.
+                    </p>
+                  </div>
+                )
+              )}
 
-            {/* Una fila por persona a valorar */}
-            <div className="flex-1 overflow-y-auto space-y-4 my-2 pr-1">
+              {/* Una fila por persona a valorar */}
               {targets.map((t) => (
                 <div key={t.id} className="rounded-xl border border-border/50 p-3">
                   <div className="flex items-center gap-2 mb-2">
@@ -152,24 +238,77 @@ const RatingModal = ({ isOpen, onClose, onSubmit, targets, tripInfo, totalSaved 
                   )}
                 </div>
               ))}
-            </div>
 
-            {/* Antes prometía un 10% de descuento por valorar — no hay ningún
-                sistema de descuentos detrás, así que era una promesa falsa.
-                Lo que de verdad ocurre al valorar: ayuda a mantener la
-                confianza de la comunidad. */}
-            <div className="glass rounded-xl p-3 flex items-center gap-3 mb-4 mt-2 shrink-0">
-              <div
-                className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
-                  allRated ? 'bg-success/20' : 'bg-muted'
-                }`}
-              >
-                <ShieldCheck className={`w-5 h-5 ${allRated ? 'text-success' : 'text-muted-foreground'}`} />
+              {/* Antes prometía un 10% de descuento por valorar — no hay
+                  ningún sistema de descuentos detrás, así que era una
+                  promesa falsa. Lo que de verdad ocurre al valorar: ayuda a
+                  mantener la confianza de la comunidad. */}
+              {targets.length > 0 && (
+                <div className="glass rounded-xl p-3 flex items-center gap-3">
+                  <div
+                    className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
+                      allRated ? 'bg-success/20' : 'bg-muted'
+                    }`}
+                  >
+                    <ShieldCheck className={`w-5 h-5 ${allRated ? 'text-success' : 'text-muted-foreground'}`} />
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Valora a las {targets.length} personas de este viaje: ayuda a que el resto sepa con quién va a
+                    compartir trayecto.
+                  </p>
+                </div>
+              )}
+
+              {/* Apartado final — valorar la app en sí, aparte de a las
+                  personas del viaje. Se envía con su propio botón, sin
+                  esperar a "Enviar valoración" de abajo. */}
+              <div className="rounded-xl border border-border/50 p-3">
+                <p className="font-semibold text-foreground text-sm text-center mb-2">
+                  ¿Qué tal tu experiencia con VIMATCH?
+                </p>
+                <div className="flex justify-center gap-1.5 mb-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      onMouseEnter={() => setAppHovered(star)}
+                      onMouseLeave={() => setAppHovered(0)}
+                      onClick={() => {
+                        setAppRating(star);
+                        setAppRatingSent(false);
+                      }}
+                      className="transition-transform hover:scale-110"
+                      aria-label={`${star} estrellas para VIMATCH`}
+                    >
+                      <Star
+                        className={`w-7 h-7 transition-colors ${
+                          star <= (appHovered || appRating)
+                            ? 'text-warning fill-warning'
+                            : 'text-muted stroke-muted-foreground'
+                        }`}
+                      />
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="text"
+                  value={appReview}
+                  onChange={(e) => {
+                    setAppReview(e.target.value.slice(0, MAX_REVIEW_LENGTH));
+                    setAppRatingSent(false);
+                  }}
+                  placeholder="Qué podríamos mejorar (opcional)"
+                  className="w-full text-xs px-3 py-2 rounded-lg bg-muted text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full mt-2"
+                  disabled={appRating === 0 || appRatingSent}
+                  onClick={handleSubmitAppRating}
+                >
+                  {appRatingSent ? '¡Gracias por tu opinión!' : 'Enviar valoración de la app'}
+                </Button>
               </div>
-              <p className="text-sm text-muted-foreground">
-                Valora a las {targets.length} personas de este viaje: ayuda a que el resto sepa con quién va a compartir
-                trayecto.
-              </p>
             </div>
 
             {/* Actions */}

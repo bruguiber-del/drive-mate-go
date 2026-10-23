@@ -21,6 +21,14 @@ function makePassenger(id: string, overrides: Partial<SimulatedPassenger> = {}):
     hasChildSeat: false,
     doorToDoor: false,
     costPerKm: 0.226,
+    receipt: {
+      passengerPrice: 2.24,
+      tripShare: 2,
+      detourCharge: 0,
+      extrasSurcharge: 0,
+      commissionAmount: 0.24,
+      driverCommissionShare: 0.1,
+    },
     ...overrides,
   };
 }

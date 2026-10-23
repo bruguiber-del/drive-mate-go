@@ -36,7 +36,21 @@ function recomputeCompensation(
       hasPet: p.acceptsPets,
       hasChildSeat: p.hasChildSeat,
     });
-    next[id] = { ...tracked, passenger: { ...p, compensation: pricing.driverIncome } };
+    next[id] = {
+      ...tracked,
+      passenger: {
+        ...p,
+        compensation: pricing.driverIncome,
+        receipt: {
+          passengerPrice: pricing.passengerPrice,
+          tripShare: pricing.tripShare,
+          detourCharge: pricing.detourCharge,
+          extrasSurcharge: pricing.extrasSurcharge,
+          commissionAmount: pricing.commissionAmount,
+          driverCommissionShare: pricing.driverCommissionShare,
+        },
+      },
+    };
   }
   return next;
 }

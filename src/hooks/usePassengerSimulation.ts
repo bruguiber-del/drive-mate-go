@@ -4,6 +4,26 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { calculatePrice } from '@/lib/priceCalculator';
 import { clusterPlannedStops, findOptimalStopOrder } from '@/lib/multiStopPlanning';
 
+/** Desglose de precio de ESTE pasajero, tal y como quedó la última vez que
+ *  se recalculó (al aceptarlo, o al bajarse si cambió la ocupación después)
+ *  — para poder enseñar un ticket real al terminar el viaje, con el "por
+ *  qué" de cada cifra, no solo el total. */
+export interface PassengerReceipt {
+  /** Lo que pagó en total — tripShare + detourCharge + extrasSurcharge + commissionAmount. */
+  passengerPrice: number;
+  /** Su parte del tramo compartido con el conductor. */
+  tripShare: number;
+  /** Lo que le costó su propio desvío (recogida/bajada fuera de ruta). */
+  detourCharge: number;
+  /** Aportación fija por mascota/silla infantil, si pidió alguna. */
+  extrasSurcharge: number;
+  /** Su propia parte de la comisión de VIMATCH (12%). */
+  commissionAmount: number;
+  /** La parte de ESA comisión que puso el conductor por este mismo tramo
+   *  (no la paga el pasajero, pero hace falta para el total de VIMATCH). */
+  driverCommissionShare: number;
+}
+
 export interface SimulatedPassenger {
   id: string;
   name: string;
@@ -29,6 +49,8 @@ export interface SimulatedPassenger {
    *  mismo coste real, sin depender de que el vehículo activo siga siendo
    *  el mismo en ese momento. */
   costPerKm: number;
+  /** Desglose completo del precio, para el ticket de fin de viaje. */
+  receipt: PassengerReceipt;
 }
 
 /** Pasajero ya aceptado/a bordo — la forma mínima que hace falta para medir
@@ -436,6 +458,14 @@ export function usePassengerSimulation({
       // de volver a resolver costRef.current ?? TOTAL_COST_PER_KM aquí, así
       // el tope legal (LEGAL_MAX_COST_PER_KM) solo vive en un sitio.
       costPerKm: pricing.totalCost / tripDistanceKm,
+      receipt: {
+        passengerPrice: pricing.passengerPrice,
+        tripShare: pricing.tripShare,
+        detourCharge: pricing.detourCharge,
+        extrasSurcharge: pricing.extrasSurcharge,
+        commissionAmount: pricing.commissionAmount,
+        driverCommissionShare: pricing.driverCommissionShare,
+      },
     };
 
     setPendingPassengers(prev => [...prev.slice(-4), passenger]);
