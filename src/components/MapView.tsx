@@ -167,6 +167,15 @@ const MapView = ({
   // Timer to resume following after a fitBounds shows user + waypoints together.
   const resumeFollowTimerRef = useRef<number | null>(null);
   const lastPropagatedRef = useRef<[number, number] | null>(null);
+  // Último estado de GPS reportado — en un ref (no state) solo para que el
+  // reintento de abajo pueda leerlo sin provocar un re-render de más.
+  const gpsStatusRef = useRef<GpsStatus>('searching');
+  // Se incrementa cada pocos segundos SOLO mientras el GPS no esté "ok", para
+  // forzar un reintento de watchPosition. Antes, si fallaba una vez (p. ej.
+  // denegado), la app se quedaba así para siempre: conceder el permiso
+  // después, desde los ajustes de Safari, no lo reactivaba solo — hacía
+  // falta recargar toda la página para que el efecto volviera a arrancar.
+  const [gpsRetryTick, setGpsRetryTick] = useState(0);
 
   const [rawUserLocation, setRawUserLocation] = useState<[number, number] | null>(null);
   const [userHeading, setUserHeading] = useState<number | null>(null);
@@ -360,6 +369,20 @@ const MapView = ({
     return () => el.removeEventListener('pointerdown', handleFirstTouch);
   }, [requestCompassPermission]);
 
+  // Reintenta watchPosition cada 4s mientras el GPS no esté "ok" — ver el
+  // comentario de gpsRetryTick más arriba.
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      if (gpsStatusRef.current !== 'ok') setGpsRetryTick((t) => t + 1);
+    }, 4000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const reportGpsStatus = useCallback((status: GpsStatus) => {
+    gpsStatusRef.current = status;
+    onGpsStatusChange?.(status);
+  }, [onGpsStatusChange]);
+
   // ── Watch user GPS ────────────────────────────────────────────────────────
   useEffect(() => {
     if (!mapReady) return;
@@ -369,7 +392,7 @@ const MapView = ({
     }
 
     if (!('geolocation' in navigator)) {
-      onGpsStatusChange?.('unavailable');
+      reportGpsStatus('unavailable');
       return;
     }
 
@@ -393,7 +416,7 @@ const MapView = ({
           setSpeedTier(prevTier => nextSpeedTier(kmh, prevTier));
         }
 
-        onGpsStatusChange?.('ok');
+        reportGpsStatus('ok');
         setRawUserLocation(coords);
         if (position.coords.heading !== null && !isNaN(position.coords.heading)) {
           setUserHeading(position.coords.heading);
@@ -404,9 +427,9 @@ const MapView = ({
         console.error('Geolocation error:', error);
         if (error.code === error.PERMISSION_DENIED) {
           window.dispatchEvent(new CustomEvent('vimatch:gps-denied'));
-          onGpsStatusChange?.('denied');
+          reportGpsStatus('denied');
         } else {
-          onGpsStatusChange?.('lost');
+          reportGpsStatus('lost');
         }
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 2000 }
@@ -418,7 +441,7 @@ const MapView = ({
         watchIdRef.current = null;
       }
     };
-  }, [mapReady]);
+  }, [mapReady, gpsRetryTick, reportGpsStatus]);
 
   // ── User marker + auto-follow during navigation ───────────────────────────
   useEffect(() => {
@@ -915,10 +938,14 @@ const MapView = ({
     (window as any).__mapCenterOnUser = centerOnUser;
     (window as any).__mapZoomIn = zoomIn;
     (window as any).__mapZoomOut = zoomOut;
+    // Para el botón "Reintentar" del aviso de GPS — fuerza un reintento
+    // inmediato en vez de esperar a los 4s del reintento automático.
+    (window as any).__mapRetryGps = () => setGpsRetryTick((t) => t + 1);
     return () => {
       delete (window as any).__mapCenterOnUser;
       delete (window as any).__mapZoomIn;
       delete (window as any).__mapZoomOut;
+      delete (window as any).__mapRetryGps;
     };
   }, [centerOnUser, zoomIn, zoomOut]);
 
