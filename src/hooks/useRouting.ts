@@ -28,6 +28,10 @@ export interface RouteData {
   duration: number; // seconds
   /** Duration (s) of each leg between consecutive waypoints */
   legDurations?: number[];
+  /** Distance (m) of each leg between consecutive waypoints — mismo orden
+   *  que legDurations, para poder enseñar los km hasta cada parada igual
+   *  que ya se enseñan los minutos. */
+  legDistances?: number[];
   /** Congestion level per coordinate segment ('low' | 'moderate' | 'heavy' | 'severe' | 'unknown') */
   congestion?: string[];
   steps?: RouteStep[];
@@ -226,6 +230,7 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
         distance: routeData.distance,
         duration: routeData.duration,
         legDurations: routeData.legs?.map((leg: any) => leg.duration ?? 0) ?? [],
+        legDistances: routeData.legs?.map((leg: any) => leg.distance ?? 0) ?? [],
         congestion,
         steps,
       };

@@ -15,8 +15,12 @@ export interface PassengerStopPill {
   status: 'waiting_pickup' | 'in_car';
   /** Minutos hasta recogerlo — solo se muestra mientras está esperando. */
   pickupEtaMin?: number;
+  /** Km reales hasta recogerlo — debajo de pickupEtaMin, mismo caso de uso. */
+  pickupEtaKm?: number;
   /** Minutos hasta dejarlo — se muestra siempre que se conozca. */
   dropoffEtaMin?: number;
+  /** Km reales hasta dejarlo — debajo de dropoffEtaMin. */
+  dropoffEtaKm?: number;
   acceptsPets?: boolean;
   hasChildSeat?: boolean;
   /** Texto pequeño encima de la chapa (p. ej. el coche del conductor). */
@@ -43,8 +47,10 @@ interface StopConfirmButtonsProps {
 }
 
 // Separación mínima pero segura: suficiente para no dar a dos chapas a la
-// vez sin querer, sin desperdiciar el espacio del mapa como antes.
-const BUTTON_SPACING_PX = 44;
+// vez sin querer, sin desperdiciar el espacio del mapa como antes. Subida de
+// 44 a 58 al añadir una segunda línea (los km) dentro de cada chapa — con 44
+// las chapas apiladas se solapaban un poco.
+const BUTTON_SPACING_PX = 58;
 /** Chapas apiladas como máximo: con más, la pila subiría hasta tapar la barra
  *  superior. Las que sobran se resumen en un contador. */
 const MAX_VISIBLE_PILLS = 4;
@@ -67,6 +73,16 @@ const StopConfirmButtons = ({ stops, pendingKeys, onConfirm, leadingAction }: St
   if (stops.length === 0) return null;
   const visibleStops = stops.slice(0, MAX_VISIBLE_PILLS);
   const hiddenCount = stops.length - visibleStops.length;
+
+  // Min arriba, km debajo — para el mismo valor (recogida o bajada), no una
+  // segunda línea aparte con todos los km juntos. Así cada bloque se lee de
+  // un vistazo sin tener que cruzar la chapa entera para emparejarlos.
+  const etaStack = (min?: number, km?: number) => (
+    <span className="flex flex-col items-center leading-tight shrink-0">
+      <span>{min ?? '–'} min</span>
+      {km != null && <span className="text-[9px] font-normal text-white/70">{km.toFixed(1)} km</span>}
+    </span>
+  );
 
   const pill = (stop: PassengerStopPill, index: number, stacked: boolean) => {
     const isPending = pendingKeys.has(stop.key);
@@ -101,10 +117,16 @@ const StopConfirmButtons = ({ stops, pendingKeys, onConfirm, leadingAction }: St
         ) : (
           <Check className="w-3 h-3 shrink-0" />
         )}
-        <span className="text-[11px] font-semibold truncate">
-          {waitingPickup
-            ? `${stop.pickupEtaMin ?? '–'} min · ${stop.name} · ${stop.dropoffEtaMin ?? '–'} min`
-            : `${stop.name} · ${stop.dropoffEtaMin ?? '–'} min`}
+        <span className="flex items-center gap-1 text-[11px] font-semibold min-w-0">
+          {waitingPickup && (
+            <>
+              {etaStack(stop.pickupEtaMin, stop.pickupEtaKm)}
+              <span className="text-white/40 shrink-0">·</span>
+            </>
+          )}
+          <span className="truncate">{stop.name}</span>
+          <span className="text-white/40 shrink-0">·</span>
+          {etaStack(stop.dropoffEtaMin, stop.dropoffEtaKm)}
         </span>
       </motion.button>
     );

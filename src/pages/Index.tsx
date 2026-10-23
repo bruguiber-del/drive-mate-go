@@ -754,6 +754,15 @@ const Index = () => {
     return multiStops.map((_, i) => (legs.length > i ? sumTo(i) : undefined));
   }, [multiStops, nav.currentRoute]);
 
+  // Mismo cálculo que multiStopEtaMinutes pero en km, reutilizando
+  // legDistances — así cada chapa puede enseñar, además de los minutos,
+  // la distancia real hasta recoger/dejar a ese pasajero.
+  const multiStopEtaKm = useMemo(() => {
+    const legs = nav.currentRoute?.legDistances ?? [];
+    const sumTo = (idx: number) => legs.slice(0, idx + 1).reduce((a, b) => a + b, 0) / 1000;
+    return multiStops.map((_, i) => (legs.length > i ? sumTo(i) : undefined));
+  }, [multiStops, nav.currentRoute]);
+
   // Una chapa por pasajero trackeado (no solo la siguiente parada): cada
   // una lleva su propio estado — transparente mientras espera recogida,
   // verde en cuanto sube — y su propio ETA de recogida/bajada, en vez de
@@ -765,8 +774,8 @@ const Index = () => {
     // pendingKeys) hasta que confirmDropoff los quita de verdad, en vez de
     // desaparecer de golpe antes de que la animación de "esperando
     // confirmación" llegue a verse.
-    return buildPassengerStopPills(multiTrip.passengers, multiStops, multiStopEtaMinutes);
-  }, [multiPassengerWaypoints, multiTrip.passengers, multiStops, multiStopEtaMinutes]);
+    return buildPassengerStopPills(multiTrip.passengers, multiStops, multiStopEtaMinutes, multiStopEtaKm);
+  }, [multiPassengerWaypoints, multiTrip.passengers, multiStops, multiStopEtaMinutes, multiStopEtaKm]);
 
   // Explica el gesto de las chapas UNA sola vez, la primera vez que aparece
   // alguna en el viaje — antes había un texto fijo pegado a la chapa que,
@@ -1187,13 +1196,16 @@ const Index = () => {
   const passengerChipStop = useMemo<PassengerStopPill | null>(() => {
     const d = driverSim.currentDriver;
     if (trip.activeTripRole !== "passenger" || !trip.showActiveTrip || !d) return null;
+    const dropoffKmStr = liveETA?.distanceKm ?? nav.dynamicETA?.distanceKm;
     return {
       key: "driver",
       passengerId: d.id,
       name: d.name,
       status: trip.tripStatus === "waiting" ? "waiting_pickup" : "in_car",
       pickupEtaMin: d.etaMinutes,
+      pickupEtaKm: d.pickupDistanceMeters / 1000,
       dropoffEtaMin: liveETA?.minutes ?? nav.dynamicETA?.minutes,
+      dropoffEtaKm: dropoffKmStr != null ? parseFloat(dropoffKmStr) : undefined,
       topLabel: `${d.vehicle.brand} ${d.vehicle.model} · ${d.vehicle.color} · ${d.vehicle.licensePlate}`,
     };
   }, [driverSim.currentDriver, trip.activeTripRole, trip.showActiveTrip, trip.tripStatus, liveETA, nav.dynamicETA]);

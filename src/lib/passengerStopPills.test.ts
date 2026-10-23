@@ -21,4 +21,18 @@ describe("buildPassengerStopPills", () => {
     expect(pills[0].pickupEtaMin).toBeUndefined();
     expect(pills[0].dropoffEtaMin).toBeUndefined();
   });
+
+  it("also gives each passenger the km of their pickup and dropoff stops, when known", () => {
+    const pills = buildPassengerStopPills(
+      [{ passenger: { id: "a", name: "Ana" }, status: "waiting_pickup" }],
+      [
+        { kind: "pickup", lat: 0, lng: 0, passengerIds: ["a"], label: "Ana" } as any,
+        { kind: "dropoff", lat: 0, lng: 1, passengerIds: ["a"], label: "Ana" } as any,
+      ],
+      [4, 11],
+      [1.2, 6.8],
+    );
+    expect(pills[0].pickupEtaKm).toBe(1.2);
+    expect(pills[0].dropoffEtaKm).toBe(6.8);
+  });
 });
