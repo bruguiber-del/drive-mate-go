@@ -23,6 +23,7 @@ function makePassenger(id: string, overrides: Partial<SimulatedPassenger> = {}):
     costPerKm: 0.226,
     receipt: {
       passengerPrice: 2.24,
+      totalCost: 4,
       tripShare: 2,
       detourCharge: 0,
       extrasSurcharge: 0,

@@ -43,6 +43,7 @@ function recomputeCompensation(
         compensation: pricing.driverIncome,
         receipt: {
           passengerPrice: pricing.passengerPrice,
+          totalCost: pricing.totalCost,
           tripShare: pricing.tripShare,
           detourCharge: pricing.detourCharge,
           extrasSurcharge: pricing.extrasSurcharge,

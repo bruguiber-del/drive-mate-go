@@ -151,7 +151,7 @@ const RatingModal = ({
                   <div className="space-y-2 font-mono text-[11px]">
                     {receiptLines.map((l) => {
                       const parts = [
-                        `tramo ${l.receipt.tripShare.toFixed(2)}€`,
+                        `tu parte ${l.receipt.tripShare.toFixed(2)}€`,
                         l.receipt.detourCharge > 0 && `desvío ${l.receipt.detourCharge.toFixed(2)}€`,
                         l.receipt.extrasSurcharge > 0 && `extras ${l.receipt.extrasSurcharge.toFixed(2)}€`,
                         `comisión ${l.receipt.commissionAmount.toFixed(2)}€`,
@@ -162,6 +162,14 @@ const RatingModal = ({
                             <span className="truncate">{l.name}</span>
                             <span className="font-semibold shrink-0">{l.receipt.passengerPrice.toFixed(2)}€</span>
                           </div>
+                          {/* "tu parte" es solo la mitad (o 1/N con más
+                              pasajeros) del coste real del tramo — sin este
+                              coste real explícito, "tu parte" parecía el
+                              total del tramo y la comisión del 12% sobre
+                              ESTE (no sobre tu parte) salía "al doble". */}
+                          <p className="text-muted-foreground/70">
+                            coste real del tramo {l.receipt.totalCost.toFixed(2)}€
+                          </p>
                           <p className="text-muted-foreground truncate">{parts.join(' · ')}</p>
                         </div>
                       );

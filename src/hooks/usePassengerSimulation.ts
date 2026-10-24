@@ -11,6 +11,11 @@ import { clusterPlannedStops, findOptimalStopOrder } from '@/lib/multiStopPlanni
 export interface PassengerReceipt {
   /** Lo que pagó en total — tripShare + detourCharge + extrasSurcharge + commissionAmount. */
   passengerPrice: number;
+  /** Coste real de ESTE tramo (recogida → bajada de este pasajero), antes de
+   *  repartir entre ocupantes — tripShare es justo la mitad de esto cuando
+   *  va 1 solo pasajero (factor 2), por eso la comisión total (12% de ESTO,
+   *  no de tripShare) sale más alta de lo que parece a simple vista. */
+  totalCost: number;
   /** Su parte del tramo compartido con el conductor. */
   tripShare: number;
   /** Lo que le costó su propio desvío (recogida/bajada fuera de ruta). */
@@ -460,6 +465,7 @@ export function usePassengerSimulation({
       costPerKm: pricing.totalCost / tripDistanceKm,
       receipt: {
         passengerPrice: pricing.passengerPrice,
+        totalCost: pricing.totalCost,
         tripShare: pricing.tripShare,
         detourCharge: pricing.detourCharge,
         extrasSurcharge: pricing.extrasSurcharge,
