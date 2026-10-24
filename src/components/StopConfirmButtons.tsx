@@ -48,9 +48,10 @@ interface StopConfirmButtonsProps {
 
 // Separación mínima pero segura: suficiente para no dar a dos chapas a la
 // vez sin querer, sin desperdiciar el espacio del mapa como antes. Subida de
-// 44 a 58 al añadir una segunda línea (los km) dentro de cada chapa — con 44
-// las chapas apiladas se solapaban un poco.
-const BUTTON_SPACING_PX = 58;
+// 44 a 58 al añadir los km, y a 66 al añadir encima la etiqueta
+// "Recogida"/"Bajada" — con un valor más bajo las chapas apiladas se
+// solapaban un poco.
+const BUTTON_SPACING_PX = 66;
 /** Chapas apiladas como máximo: con más, la pila subiría hasta tapar la barra
  *  superior. Las que sobran se resumen en un contador. */
 const MAX_VISIBLE_PILLS = 4;
@@ -74,13 +75,17 @@ const StopConfirmButtons = ({ stops, pendingKeys, onConfirm, leadingAction }: St
   const visibleStops = stops.slice(0, MAX_VISIBLE_PILLS);
   const hiddenCount = stops.length - visibleStops.length;
 
-  // Min arriba, km debajo — para el mismo valor (recogida o bajada), no una
-  // segunda línea aparte con todos los km juntos. Así cada bloque se lee de
-  // un vistazo sin tener que cruzar la chapa entera para emparejarlos.
-  const etaStack = (min?: number, km?: number) => (
+  // Etiqueta arriba (qué es: recogida o bajada), min debajo, km al final —
+  // para el mismo valor, no una fila aparte con todos los km juntos. Así
+  // cada bloque se lee de un vistazo, sin tener que adivinar cuál es cuál
+  // por la posición ni cruzar la chapa entera para emparejar min con km.
+  const etaStack = (label: string, min?: number, km?: number) => (
     <span className="flex flex-col items-center leading-tight shrink-0">
+      <span className="text-[7px] uppercase tracking-wide text-white/50">{label}</span>
       <span>{min ?? '–'} min</span>
-      {km != null && <span className="text-[9px] font-normal text-white/70">{km.toFixed(1)} km</span>}
+      {km != null && !Number.isNaN(km) && (
+        <span className="text-[9px] font-normal text-white/70">{km.toFixed(1)} km</span>
+      )}
     </span>
   );
 
@@ -120,13 +125,13 @@ const StopConfirmButtons = ({ stops, pendingKeys, onConfirm, leadingAction }: St
         <span className="flex items-center gap-1 text-[11px] font-semibold min-w-0">
           {waitingPickup && (
             <>
-              {etaStack(stop.pickupEtaMin, stop.pickupEtaKm)}
+              {etaStack('Recogida', stop.pickupEtaMin, stop.pickupEtaKm)}
               <span className="text-white/40 shrink-0">·</span>
             </>
           )}
           <span className="truncate">{stop.name}</span>
           <span className="text-white/40 shrink-0">·</span>
-          {etaStack(stop.dropoffEtaMin, stop.dropoffEtaKm)}
+          {etaStack('Bajada', stop.dropoffEtaMin, stop.dropoffEtaKm)}
         </span>
       </motion.button>
     );
