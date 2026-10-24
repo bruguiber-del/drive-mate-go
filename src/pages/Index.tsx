@@ -401,6 +401,7 @@ const Index = () => {
     return {
       userName: simulatedPassenger.name,
       detourMinutes: simulatedPassenger.detourMinutes,
+      tripDistanceKm: simulatedPassenger.tripDistanceKm,
       compensation: simulatedPassenger.compensation,
       acceptsPets: simulatedPassenger.acceptsPets,
       hasChildSeat: simulatedPassenger.hasChildSeat,

@@ -6,6 +6,9 @@ import { OVERLAY_BOTTOM_PX, overlayBottom } from '@/lib/overlayLayout';
 export interface MatchData {
   userName: string;
   detourMinutes: number;
+  /** Km que el pasajero va a compartir contigo en el coche (su propio
+   *  trayecto, recogida → destino) — no el desvío, que es aparte. */
+  tripDistanceKm: number;
   /** Lo que recibe el conductor por este pasajero. */
   compensation: number;
   acceptsPets?: boolean;
@@ -22,6 +25,7 @@ interface MatchPopupProps {
 const defaultData: MatchData = {
   userName: 'María G.',
   detourMinutes: 3,
+  tripDistanceKm: 4.2,
   compensation: 4.50,
   acceptsPets: true,
   hasChildSeat: false,
@@ -37,8 +41,9 @@ const statStack = (label: string, value: string) => (
   </span>
 );
 
-/** Chapa de solicitud nueva — nombre, desvío y lo que recibes, con aceptar
- *  y rechazar, igual que las chapas de recogida/bajada. */
+/** Chapa de solicitud nueva — desvío, km que vais a compartir, nombre y
+ *  compensación, con aceptar y rechazar, igual que las chapas de
+ *  recogida/bajada. */
 const MatchPopup = ({ isOpen, onAccept, onReject, matchData }: MatchPopupProps) => {
   const data = matchData || defaultData;
   const extrasText = [
@@ -64,15 +69,17 @@ const MatchPopup = ({ isOpen, onAccept, onReject, matchData }: MatchPopupProps) 
               )}
               <button
                 onClick={onAccept}
-                className="flex items-center gap-1.5 pl-3 pr-3 py-2 rounded-full bg-success/80 backdrop-blur-md border border-success/60 shadow-lg text-white max-w-[58vw]"
+                className="flex items-center gap-1.5 pl-3 pr-3 py-2 rounded-full bg-success/80 backdrop-blur-md border border-success/60 shadow-lg text-white max-w-[72vw]"
               >
                 <Check className="w-4 h-4 shrink-0" />
                 <span className="flex items-center gap-1.5 text-[11px] font-semibold min-w-0">
                   {statStack('Desvío', `+${data.detourMinutes} min`)}
                   <span className="text-white/40 shrink-0">·</span>
+                  {statStack('Compartidos', `${data.tripDistanceKm.toFixed(1)} km`)}
+                  <span className="text-white/40 shrink-0">·</span>
                   <span className="truncate">{data.userName}</span>
                   <span className="text-white/40 shrink-0">·</span>
-                  {statStack('Ganas', `+${data.compensation.toFixed(2)}€`)}
+                  {statStack('Compensación', `+${data.compensation.toFixed(2)}€`)}
                 </span>
               </button>
             </div>
