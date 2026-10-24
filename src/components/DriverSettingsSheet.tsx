@@ -101,7 +101,7 @@ const DriverSettingsSheet = ({ isOpen, onClose, onSave, initialSettings, costPer
               <span className="text-xs font-normal text-muted-foreground">por persona</span>
             </p>
             <p className="text-[10px] text-muted-foreground mt-0.5">
-              Lo que recibes por persona con {seats} {seats === 1 ? 'plaza' : 'plazas'} ocupada{seats === 1 ? '' : 's'}, sin contar desvíos. El pasajero paga además el 12% de comisión de la app.
+              Lo que recibes por persona con {seats} {seats === 1 ? 'plaza' : 'plazas'} ocupada{seats === 1 ? '' : 's'}, sin contar desvíos. La comisión de la app es el 12% del coste real, repartida entre todos los que compartís coche — tú pagas tu parte igual que cada pasajero la suya.
             </p>
             {fuelPriceInfo && (
               <p className="text-[10px] text-success mt-0.5">
