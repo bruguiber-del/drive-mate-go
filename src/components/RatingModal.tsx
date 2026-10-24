@@ -165,12 +165,14 @@ const RatingModal = ({
                             <span className="truncate">{l.name}</span>
                             <span className="font-semibold shrink-0">{l.receipt.passengerPrice.toFixed(2)}€</span>
                           </div>
-                          {/* "tu parte" es solo la mitad (o 1/N con más
-                              pasajeros) del coste real del tramo — se enseña
-                              el coste real completo aparte para que se vea
-                              de dónde sale, sin tener que multiplicar. */}
+                          {/* "tu parte" es el coste real ÷ los que iban en
+                              el coche EN ESE MOMENTO — no el total de
+                              personas del viaje entero. Un pasajero que
+                              coincidió con más gente se divide entre más
+                              (y paga menos cada uno) que uno que fue solo
+                              contigo, aunque sea el mismo viaje. */}
                           <p className="text-muted-foreground/70">
-                            coste real del tramo {l.receipt.totalCost.toFixed(2)}€
+                            coste real del tramo {l.receipt.totalCost.toFixed(2)}€ · dividido entre {l.receipt.occupants}
                           </p>
                           <p className="text-muted-foreground truncate">{parts.join(' · ')}</p>
                         </div>

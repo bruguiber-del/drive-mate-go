@@ -12,11 +12,15 @@ export interface PassengerReceipt {
   /** Lo que pagó en total — tripShare + detourCharge + extrasSurcharge + commissionAmount. */
   passengerPrice: number;
   /** Coste real de ESTE tramo (recogida → bajada de este pasajero), antes de
-   *  repartir entre ocupantes — tripShare es justo la mitad de esto cuando
-   *  va 1 solo pasajero (factor 2), por eso la comisión total (12% de ESTO,
-   *  no de tripShare) sale más alta de lo que parece a simple vista. */
+   *  repartir entre ocupantes — tripShare es ese coste dividido entre
+   *  `occupants`. */
   totalCost: number;
-  /** Su parte del tramo compartido con el conductor. */
+  /** Entre cuántos se dividió el tramo: tú + los pasajeros que iban en el
+   *  coche EN ESE MOMENTO (no el total del viaje completo) — un pasajero que
+   *  va solo contigo se divide entre 2, otro que coincide con alguien más se
+   *  divide entre 3, aunque sea el mismo viaje. */
+  occupants: number;
+  /** Su parte del tramo compartido con el conductor (totalCost / occupants). */
   tripShare: number;
   /** Lo que le costó su propio desvío (recogida/bajada fuera de ruta). */
   detourCharge: number;
@@ -466,6 +470,7 @@ export function usePassengerSimulation({
       receipt: {
         passengerPrice: pricing.passengerPrice,
         totalCost: pricing.totalCost,
+        occupants: passengerCount + 1,
         tripShare: pricing.tripShare,
         detourCharge: pricing.detourCharge,
         extrasSurcharge: pricing.extrasSurcharge,

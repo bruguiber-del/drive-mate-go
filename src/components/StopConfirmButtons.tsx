@@ -101,7 +101,7 @@ const StopConfirmButtons = ({ stops, pendingKeys, onConfirm, leadingAction }: St
         transition={{ type: 'spring', damping: 22, stiffness: 280 }}
         disabled={isPending}
         onClick={() => onConfirm(stop)}
-        className={`${stacked ? 'absolute right-0 bottom-0' : 'relative'} pointer-events-auto flex items-center gap-1.5 max-w-[58vw] px-3 py-2 rounded-full backdrop-blur-md border shadow-lg text-white disabled:opacity-50 ${
+        className={`${stacked ? 'absolute right-0 bottom-0' : 'relative'} pointer-events-auto flex items-center gap-1.5 min-w-[15rem] max-w-[58vw] px-3 py-2 rounded-full backdrop-blur-md border shadow-lg text-white disabled:opacity-50 ${
           waitingPickup ? 'bg-foreground/30 border-foreground/30' : 'bg-success/70 border-success/60'
         }`}
       >
@@ -129,7 +129,7 @@ const StopConfirmButtons = ({ stops, pendingKeys, onConfirm, leadingAction }: St
               <span className="text-white/40 shrink-0">·</span>
             </>
           )}
-          <span className="truncate">{stop.name}</span>
+          <span className="truncate flex-1 min-w-[4.5rem] text-center">{stop.name}</span>
           <span className="text-white/40 shrink-0">·</span>
           {etaStack('Bajada', stop.dropoffEtaMin, stop.dropoffEtaKm)}
         </span>
@@ -178,7 +178,7 @@ const StopConfirmButtons = ({ stops, pendingKeys, onConfirm, leadingAction }: St
         className="absolute right-0 text-[8px] text-white/60 whitespace-nowrap pointer-events-none"
         style={{ bottom: -16 }}
       >
-        Toca para confirmar
+        Toca para confirmar la recogida o la bajada
       </p>
     </div>
   );
