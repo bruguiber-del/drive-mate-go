@@ -1,11 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { calculatePrice, COMMISSION, PET_SURCHARGE, CHILD_SEAT_SURCHARGE } from "./priceCalculator";
+import { calculatePrice, PET_SURCHARGE, CHILD_SEAT_SURCHARGE } from "./priceCalculator";
 
 describe("calculatePrice cost sharing", () => {
-  it("adds the commission on top of the driver's base for the passenger", () => {
+  it("adds half the commission on top for the passenger, and takes the other half from the driver", () => {
     const p = calculatePrice({ distanceKm: 10, passengerCount: 2 });
-    expect(p.passengerPrice).toBeCloseTo(p.basePrice * (1 + COMMISSION), 1);
-    expect(p.driverIncome).toBe(p.basePrice);
+    expect(p.passengerPrice).toBeCloseTo(p.basePrice + p.commissionAmount, 2);
+    // Precisión a 1 decimal: basePrice, driverIncome y driverCommissionShare
+    // se redondean cada uno por separado a céntimos, así que compararlos
+    // entre sí puede quedar a un céntimo exacto de diferencia.
+    expect(p.driverIncome).toBeCloseTo(p.basePrice - p.driverCommissionShare, 1);
+    expect(p.commissionAmount).toBeCloseTo(p.driverCommissionShare, 2);
   });
 
   it("splits the cost among more passengers", () => {

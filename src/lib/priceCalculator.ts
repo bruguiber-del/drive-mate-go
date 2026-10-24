@@ -1,8 +1,12 @@
 // Price calculator for VIMATCH — cost-sharing model (no profit)
 // Formula:
-//   precio_por_pasajero = (coste_total / (nº_pasajeros + 1)) × (1 + comision)
-//   El "+1" es el propio conductor: el coste del tramo se reparte entre
-//   todos los que van en el coche, él incluido.
+//   tramo_compartido = (coste_real_del_trayecto) / (nº_pasajeros + 1)
+//   comisión_del_par = tramo_compartido × 12%, repartida a MEDIAS entre el
+//     conductor y ESE pasajero (6 puntos cada uno) — ninguno paga el 12%
+//     completo él solo. Ni el desvío ni los extras llevan comisión: son
+//     coste real de ese pasajero en concreto, sin margen.
+//   precio_pasajero = tramo_compartido + desvío + extras + su mitad de comisión
+//   conductor_recibe = tramo_compartido + desvío + extras − su mitad de comisión
 
 import { LEGAL_MAX_COST_PER_KM } from '@/lib/vehiclePricing';
 
@@ -58,31 +62,32 @@ export interface PriceInput {
 
 
 export interface PriceBreakdown {
-  /** Total cost the driver pays (fuel + maintenance) */
+  /** Coste real de este tramo (recogida → bajada de este pasajero), antes de
+   *  repartir entre ocupantes. */
   totalCost: number;
-  /** Base price per passenger before commission */
+  /** tripShare + detourCharge + extrasSurcharge — antes de la comisión. */
   basePrice: number;
-  /** Final price the passenger pays (includes su propia parte de comisión) */
+  /** Final price the passenger pays: basePrice + su mitad de la comisión. */
   passengerPrice: number;
-  /** What the driver collects per passenger (= basePrice), antes de restarle
-   *  su propia parte de comisión */
+  /** Lo que el conductor recibe de ESTE pasajero, ya descontada su propia
+   *  mitad de la comisión (basePrice - driverCommissionShare). */
   driverIncome: number;
   /** Lo recaudado de todos los pasajeros (basePrice × passengerCount), antes
-   *  de restarle al conductor su propia parte de comisión */
+   *  de restarle al conductor su propia parte de comisión. */
   driverGrossIncome: number;
-  /** La parte de comisión que paga el propio conductor — es un ocupante más
-   *  del coche, así que también paga su parte del 12%, igual que cada
-   *  pasajero paga la suya. Se calcula solo sobre el tramo compartido (sin
-   *  el desvío ni los extras de cada pasajero, que son 100% suyos). */
+  /** La mitad de la comisión de ESTE par conductor-pasajero que paga el
+   *  conductor — ninguno de los dos paga el 12% completo, cada uno paga 6
+   *  puntos. Se calcula solo sobre tripShare: ni el desvío ni los extras de
+   *  este pasajero llevan comisión, son coste real suyo sin margen. */
   driverCommissionShare: number;
-  /** Lo que el conductor se queda de verdad, ya descontada su propia parte
-   *  de comisión (driverGrossIncome - driverCommissionShare) */
+  /** Lo que el conductor se queda de verdad, sumado para los passengerCount
+   *  pasajeros (driverIncome × passengerCount, con pasajeros iguales). */
   driverTotalIncome: number;
-  /** VIMATCH commission this passenger pays (su propia parte, en €) */
+  /** La mitad de la comisión de este par que paga el pasajero (misma cifra
+   *  que driverCommissionShare: la comisión se reparte a medias). */
   commissionAmount: number;
-  /** Comisión total de VIMATCH para todo el viaje: 12% del coste real,
-   *  repartida entre TODOS los ocupantes (conductor incluido) — no solo
-   *  entre los pasajeros. */
+  /** Comisión total de VIMATCH por este pasajero: su mitad + la del
+   *  conductor por este mismo tramo (commissionAmount + driverCommissionShare). */
   totalCommission: number;
   /** Detour surcharge applied to base price */
   detourSurcharge: number;
@@ -90,14 +95,14 @@ export interface PriceBreakdown {
   extrasSurcharge: number;
   /** Traffic multiplier applied */
   trafficMultiplier: number;
-  /** Su parte del tramo compartido, ya con el multiplicador de tráfico
-   *  aplicado — una pieza del desglose para un ticket (tripShare +
-   *  detourCharge + extrasSurcharge = basePrice). */
+  /** Tramo compartido: coste real del trayecto ÷ (pasajeros+1), con el
+   *  multiplicador de tráfico aplicado — la base sobre la que se calcula la
+   *  comisión (tripShare + detourCharge + extrasSurcharge = basePrice). */
   tripShare: number;
   /** Lo que le costó su propio desvío, ya con el multiplicador de tráfico
    *  aplicado — a diferencia de detourSurcharge (el valor crudo, sin
    *  tráfico), este es el que de verdad suma con tripShare y extrasSurcharge
-   *  para dar basePrice. */
+   *  para dar basePrice. Sin comisión: es 100% coste real suyo. */
   detourCharge: number;
 }
 
@@ -106,12 +111,13 @@ export interface PriceBreakdown {
  *
  * Example for 75km, 2 passengers, no detour, normal traffic:
  *   totalCost = 75 × 0.226 = 16.95€
- *   basePrice = 16.95 / 3 = 5.65€           (factor = 2 pasajeros + 1 conductor)
- *   passengerPrice = 5.65 × 1.12 = 6.33€    (cada pasajero, sin cambios)
- *   driverGrossIncome = 5.65 × 2 = 11.30€   (recaudado de los 2 pasajeros)
- *   driverCommissionShare = 5.65 × 0.12 = 0.68€  (su propia parte del 12%)
- *   driverTotalIncome = 11.30 − 0.68 = 10.62€    (lo que se queda de verdad)
- *   totalCommission = 2×0.68 + 0.68 = 2.03€      (= 12% de 16.95€ exacto)
+ *   tripShare = 16.95 / 3 = 5.65€             (factor = 2 pasajeros + 1 conductor)
+ *   pairCommission = 5.65 × 0.12 = 0.68€      (comisión de ESTE par, antes de repartir)
+ *   commissionAmount = driverCommissionShare = 0.68 / 2 = 0.34€  (mitad cada uno)
+ *   passengerPrice = 5.65 + 0.34 = 5.99€
+ *   driverIncome = 5.65 − 0.34 = 5.31€        (de ESTE pasajero)
+ *   driverTotalIncome = 5.31 × 2 = 10.62€     (de los 2 pasajeros)
+ *   totalCommission = (0.34 + 0.34) × 2 = 1.36€
  */
 export function calculatePrice({
   distanceKm,
@@ -144,23 +150,30 @@ export function calculatePrice({
     (hasPet ? PET_SURCHARGE : 0) +
     (hasChildSeat ? CHILD_SEAT_SURCHARGE : 0);
 
-  // Parte del tramo que de verdad es igual para cualquier ocupante (conductor
-  // o pasajero) — sin el desvío ni los extras de ESTE pasajero en concreto,
-  // que son 100% suyos y no se comparten con nadie, ni siquiera con el
-  // conductor. Es la base sobre la que el conductor paga su propia comisión.
-  const occupantBaseShare = (totalCost / factor) * trafficMultiplier;
+  // Tramo compartido: coste real ÷ ocupantes — la parte que de verdad es
+  // igual para cualquier ocupante (conductor o pasajero). Ni el desvío ni
+  // los extras de ESTE pasajero entran aquí: son 100% suyos, sin repartir
+  // con nadie y sin comisión — solo el tramo compartido lleva margen.
+  const tripShare = (totalCost / factor) * trafficMultiplier;
+  const detourCharge = detourSurcharge * trafficMultiplier;
 
-  // Base price per passenger before commission
-  const basePrice = occupantBaseShare + detourSurcharge * trafficMultiplier + extrasSurcharge;
-  const passengerPrice = basePrice * (1 + COMMISSION);
-  const commissionAmount = passengerPrice - basePrice;
-  const driverIncome = basePrice;
+  // La comisión del 12% es de ESTE PAR conductor-pasajero, sobre su tramo
+  // compartido — y se reparte a MEDIAS entre los dos, nunca el 12% completo
+  // por cada lado (eso serían 24 puntos entre los dos, no 12).
+  const pairCommission = tripShare * COMMISSION;
+  const commissionAmount = pairCommission / 2;       // lo que aporta el pasajero
+  const driverCommissionShare = pairCommission / 2;  // lo que aporta el conductor — misma cifra
+
+  const basePrice = tripShare + detourCharge + extrasSurcharge;
+  const passengerPrice = basePrice + commissionAmount;
+  const driverIncome = basePrice - driverCommissionShare;
+
+  // Agregados "si todos los pasajeros fueran como este" — ningún sitio de
+  // la app los usa para cobrar de verdad (cada pasajero tiene su propio
+  // tramo y se le llama aparte), solo sirven de referencia/resumen.
   const driverGrossIncome = basePrice * passengerCount;
-  // El conductor es un ocupante más: paga su propia parte de comisión sobre
-  // su propio tramo compartido, igual que cada pasajero paga la suya.
-  const driverCommissionShare = occupantBaseShare * COMMISSION;
-  const driverTotalIncome = driverGrossIncome - driverCommissionShare;
-  const totalCommission = commissionAmount * passengerCount + driverCommissionShare;
+  const driverTotalIncome = driverIncome * passengerCount;
+  const totalCommission = (commissionAmount + driverCommissionShare) * passengerCount;
 
   return {
     totalCost: round2(totalCost),
@@ -175,8 +188,8 @@ export function calculatePrice({
     detourSurcharge: round2(detourSurcharge),
     extrasSurcharge: round2(extrasSurcharge),
     trafficMultiplier,
-    tripShare: round2(occupantBaseShare),
-    detourCharge: round2(detourSurcharge * trafficMultiplier),
+    tripShare: round2(tripShare),
+    detourCharge: round2(detourCharge),
   };
 }
 

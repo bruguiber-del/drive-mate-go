@@ -13,23 +13,23 @@ describe("calculatePrice", () => {
     expect(r.totalCost).toBe(16.95);
     // factor = 2 pasajeros + 1 conductor = 3
     expect(r.basePrice).toBe(5.65);
-    expect(r.passengerPrice).toBe(6.33);
+    expect(r.passengerPrice).toBe(5.99);
     expect(r.driverGrossIncome).toBe(11.3);
-    expect(r.driverCommissionShare).toBe(0.68);
+    expect(r.driverCommissionShare).toBe(0.34);
     expect(r.driverTotalIncome).toBe(10.62);
-    expect(r.totalCommission).toBe(2.03);
+    expect(r.totalCommission).toBe(1.36);
     expect(r.trafficMultiplier).toBe(1);
   });
 
-  it("splits the 12% commission among every occupant, driver included — not just the passengers", () => {
+  it("splits the pair's commission half and half — neither side pays the full 12% alone", () => {
     const r = calculatePrice({ distanceKm: 40, passengerCount: 3 });
-    // El conductor paga su propia parte, igual que cada pasajero.
-    expect(r.driverCommissionShare).toBeCloseTo(r.basePrice * COMMISSION, 2);
-    // La comisión total del viaje es exactamente el 12% del coste real,
-    // repartida entre los 3 pasajeros + el conductor.
-    expect(r.totalCommission).toBeCloseTo(r.totalCost * COMMISSION, 2);
-    expect(r.totalCommission).toBeCloseTo(r.commissionAmount * 3 + r.driverCommissionShare, 2);
-    expect(r.driverTotalIncome).toBe(r.driverGrossIncome - r.driverCommissionShare);
+    // Misma cifra a cada lado: ni el conductor ni el pasajero pagan el 12%
+    // completo, cada uno paga la mitad (6 puntos).
+    expect(r.driverCommissionShare).toBeCloseTo(r.commissionAmount, 2);
+    // Precisión a 1 decimal: cada mitad se redondea aparte a céntimos, así
+    // que la suma puede quedar a un céntimo del 12% exacto sin redondear.
+    expect(r.commissionAmount + r.driverCommissionShare).toBeCloseTo(r.tripShare * COMMISSION, 1);
+    expect(r.driverTotalIncome).toBeCloseTo(r.driverIncome * 3, 1);
   });
 
   it("does not make the driver pay commission on another passenger's own detour or extras", () => {
@@ -46,11 +46,11 @@ describe("calculatePrice", () => {
     expect(withDetourAndExtras.driverCommissionShare).toBeCloseTo(plain.driverCommissionShare, 2);
   });
 
-  it("charges commission on top of the base price", () => {
+  it("charges commission on top of the base price — half from each side", () => {
     const r = calculatePrice({ distanceKm: 10, passengerCount: 1 });
-    expect(r.commissionAmount).toBeCloseTo(r.basePrice * COMMISSION, 2);
+    expect(r.commissionAmount).toBeCloseTo((r.tripShare * COMMISSION) / 2, 2);
     expect(r.passengerPrice).toBeCloseTo(r.basePrice + r.commissionAmount, 2);
-    expect(r.driverIncome).toBe(r.basePrice);
+    expect(r.driverIncome).toBeCloseTo(r.basePrice - r.driverCommissionShare, 2);
   });
 
   it("divides the cost among the driver and all passengers (more passengers, lower price each)", () => {
@@ -112,8 +112,8 @@ describe("calculatePrice", () => {
     // factor = 1 pasajero + 1 conductor = 2
     expect(r.basePrice).toBe(1.3);
     expect(r.driverGrossIncome).toBe(1.3);
-    expect(r.driverCommissionShare).toBe(0.16);
-    expect(r.driverTotalIncome).toBe(1.14);
+    expect(r.driverCommissionShare).toBe(0.08);
+    expect(r.driverTotalIncome).toBe(1.22);
   });
 
   it("applies traffic multipliers", () => {
@@ -133,8 +133,10 @@ describe("calculatePrice", () => {
     });
     expect(withExtras.extrasSurcharge).toBe(PET_SURCHARGE + CHILD_SEAT_SURCHARGE);
     expect(withExtras.basePrice).toBeCloseTo(base.basePrice + withExtras.extrasSurcharge, 2);
-    // La comisión se aplica también sobre los extras, no solo sobre el trayecto.
-    expect(withExtras.passengerPrice).toBeCloseTo(withExtras.basePrice * (1 + COMMISSION), 2);
+    expect(withExtras.passengerPrice).toBeCloseTo(withExtras.basePrice + withExtras.commissionAmount, 2);
+    // Los extras no llevan comisión — son coste real sin margen, igual que
+    // el desvío — así que la comisión sale igual con o sin ellos.
+    expect(withExtras.commissionAmount).toBeCloseTo(base.commissionAmount, 2);
   });
 
   it("charges nothing extra when no extra is requested", () => {

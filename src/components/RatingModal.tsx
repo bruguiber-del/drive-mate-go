@@ -101,7 +101,10 @@ const RatingModal = ({
   const totalDriverCommission = receiptLines.reduce((s, l) => s + l.receipt.driverCommissionShare, 0);
   const totalPassengerCommission = receiptLines.reduce((s, l) => s + l.receipt.commissionAmount, 0);
   const totalCommission = totalDriverCommission + totalPassengerCommission;
-  const driverNet = (totalSaved ?? 0) - totalDriverCommission;
+  // totalSaved ya es lo que el conductor recibe de verdad (driverIncome ya
+  // descuenta su propia mitad de la comisión dentro de calculatePrice) — no
+  // se le resta totalDriverCommission otra vez, eso la descontaría dos veces.
+  const driverNet = totalSaved ?? 0;
 
   const handleSubmitAppRating = () => {
     if (appRating === 0) return;
@@ -163,10 +166,9 @@ const RatingModal = ({
                             <span className="font-semibold shrink-0">{l.receipt.passengerPrice.toFixed(2)}€</span>
                           </div>
                           {/* "tu parte" es solo la mitad (o 1/N con más
-                              pasajeros) del coste real del tramo — sin este
-                              coste real explícito, "tu parte" parecía el
-                              total del tramo y la comisión del 12% sobre
-                              ESTE (no sobre tu parte) salía "al doble". */}
+                              pasajeros) del coste real del tramo — se enseña
+                              el coste real completo aparte para que se vea
+                              de dónde sale, sin tener que multiplicar. */}
                           <p className="text-muted-foreground/70">
                             coste real del tramo {l.receipt.totalCost.toFixed(2)}€
                           </p>
@@ -180,11 +182,11 @@ const RatingModal = ({
                       <span>Total pasajeros</span>
                       <span>{totalPaidByPassengers.toFixed(2)}€</span>
                     </div>
-                    {/* Tu propia comisión no se ve en ningún otro sitio del
-                        ticket (no la paga nadie visible, se te descuenta a
-                        ti) — sin esta línea, "Comisión VIMATCH" salía más
-                        alta que la suma de las comisiones de los pasajeros
-                        y parecía un error, cuando es la mitad de ambas. */}
+                    {/* Tu propia mitad de la comisión — no la paga nadie
+                        visible, ya está descontada de "Recibes" más abajo.
+                        Se enseña aparte para que "Comisión VIMATCH" cuadre a
+                        simple vista con la suma de esta línea y la de cada
+                        pasajero. */}
                     <div className="flex justify-between">
                       <span>Tu comisión</span>
                       <span>{totalDriverCommission.toFixed(2)}€</span>
