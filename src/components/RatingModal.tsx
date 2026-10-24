@@ -172,12 +172,21 @@ const RatingModal = ({
                       <span>Total pasajeros</span>
                       <span>{totalPaidByPassengers.toFixed(2)}€</span>
                     </div>
+                    {/* Tu propia comisión no se ve en ningún otro sitio del
+                        ticket (no la paga nadie visible, se te descuenta a
+                        ti) — sin esta línea, "Comisión VIMATCH" salía más
+                        alta que la suma de las comisiones de los pasajeros
+                        y parecía un error, cuando es la mitad de ambas. */}
+                    <div className="flex justify-between">
+                      <span>Tu comisión</span>
+                      <span>{totalDriverCommission.toFixed(2)}€</span>
+                    </div>
                     <div className="flex justify-between">
                       <span>Comisión VIMATCH</span>
                       <span>{totalCommission.toFixed(2)}€</span>
                     </div>
                     <div className="flex justify-between text-foreground font-sans font-bold text-sm">
-                      <span>Tu ganancia</span>
+                      <span>Recibes</span>
                       <span className="text-success">{driverNet.toFixed(2)}€</span>
                     </div>
                   </div>

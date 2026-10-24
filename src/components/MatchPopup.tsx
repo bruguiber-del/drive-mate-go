@@ -31,7 +31,7 @@ const defaultData: MatchData = {
   hasChildSeat: false,
 };
 
-/** Etiqueta arriba (qué es: desvío o ganancia), valor debajo en grande —
+/** Etiqueta arriba (qué es: desvío, km o compensación), valor debajo en grande —
  *  mismo patrón que las chapas de recogida/bajada, para que aquí tampoco
  *  haga falta adivinar qué significa cada número por su posición. */
 const statStack = (label: string, value: string) => (
