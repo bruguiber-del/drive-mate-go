@@ -27,6 +27,16 @@ const defaultData: MatchData = {
   hasChildSeat: false,
 };
 
+/** Etiqueta arriba (qué es: desvío o ganancia), valor debajo en grande —
+ *  mismo patrón que las chapas de recogida/bajada, para que aquí tampoco
+ *  haga falta adivinar qué significa cada número por su posición. */
+const statStack = (label: string, value: string) => (
+  <span className="flex flex-col items-center leading-tight shrink-0">
+    <span className="text-[9px] uppercase tracking-wide text-white/60 font-normal">{label}</span>
+    <span className="text-sm font-bold">{value}</span>
+  </span>
+);
+
 /** Chapa de solicitud nueva — nombre, desvío y lo que recibes, con aceptar
  *  y rechazar, igual que las chapas de recogida/bajada. */
 const MatchPopup = ({ isOpen, onAccept, onReject, matchData }: MatchPopupProps) => {
@@ -54,11 +64,15 @@ const MatchPopup = ({ isOpen, onAccept, onReject, matchData }: MatchPopupProps) 
               )}
               <button
                 onClick={onAccept}
-                className="flex items-center gap-1.5 pl-3 pr-3 py-2 rounded-full bg-success/80 backdrop-blur-md border border-success/60 shadow-lg text-white max-w-[52vw]"
+                className="flex items-center gap-1.5 pl-3 pr-3 py-2 rounded-full bg-success/80 backdrop-blur-md border border-success/60 shadow-lg text-white max-w-[58vw]"
               >
-                <Check className="w-3.5 h-3.5 shrink-0" />
-                <span className="text-[11px] font-semibold truncate">
-                  +{data.detourMinutes} min · {data.userName} · +{data.compensation.toFixed(2)}€
+                <Check className="w-4 h-4 shrink-0" />
+                <span className="flex items-center gap-1.5 text-[11px] font-semibold min-w-0">
+                  {statStack('Desvío', `+${data.detourMinutes} min`)}
+                  <span className="text-white/40 shrink-0">·</span>
+                  <span className="truncate">{data.userName}</span>
+                  <span className="text-white/40 shrink-0">·</span>
+                  {statStack('Ganas', `+${data.compensation.toFixed(2)}€`)}
                 </span>
               </button>
             </div>
