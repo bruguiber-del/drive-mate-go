@@ -3,6 +3,7 @@ import { Users, Timer, PawPrint, Baby, MapPin, User, Euro, Save, Info, CalendarC
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { calculatePrice, PET_SURCHARGE, CHILD_SEAT_SURCHARGE } from '@/lib/priceCalculator';
+import StripeConnectCard from '@/components/StripeConnectCard';
 import {
   Drawer,
   DrawerContent,
@@ -89,6 +90,11 @@ const DriverSettingsSheet = ({ isOpen, onClose, onSave, initialSettings, costPer
             </div>
             <ChevronRight className="w-4 h-4 text-muted-foreground" />
           </button>
+
+          {/* Sin esto no hay cuenta a la que transferir nada — va antes
+             incluso que la compensación, porque sin ella da igual lo que
+             se calcule, no hay forma real de cobrarlo. */}
+          <StripeConnectCard />
 
           {/* Section 1: Compensation - TOP PRIORITY */}
           <div className="bg-gradient-to-r from-success/20 to-primary/20 rounded-xl p-3 mb-4">

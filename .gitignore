@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Caché local del CLI de Supabase — no es parte del proyecto
+supabase/.temp/
