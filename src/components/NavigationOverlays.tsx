@@ -168,9 +168,9 @@ const NavigationOverlays = ({
             {dynamicETA?.distanceKm && (
               <div className="text-right shrink-0 border-l border-border/40 pl-2.5">
                 <p className="text-sm font-bold text-primary leading-tight tabular-nums">
-                  {dynamicETA.distanceKm} km
+                  {dynamicETA.minutes} min
                 </p>
-                <p className="text-[9px] text-muted-foreground leading-tight">{dynamicETA.minutes} min restantes</p>
+                <p className="text-[9px] text-muted-foreground leading-tight">{dynamicETA.distanceKm} km restantes</p>
               </div>
             )}
           </div>
