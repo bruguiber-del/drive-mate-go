@@ -62,9 +62,20 @@ Deno.serve(async (req) => {
     return json({ error: "este tramo no tiene ninguna retención que capturar" }, 400);
   }
 
+  // Nunca se pide más de lo que se retuvo al aceptar — si el importe final
+  // (con la ocupación real) acabara siendo mayor por mala suerte, se
+  // captura como mucho lo retenido; lo que sobre siempre se libera solo,
+  // nunca al revés.
+  const heldIntent = await stripe.paymentIntents.retrieve(row.stripe_payment_intent_id);
+  const amountToCaptureCents = Math.min(Math.round(amountCents), heldIntent.amount);
+  const applicationFeeCents = Math.min(
+    Math.round(applicationFeeAmountCents),
+    amountToCaptureCents,
+  );
+
   const captured = await stripe.paymentIntents.capture(row.stripe_payment_intent_id, {
-    amount_to_capture: Math.round(amountCents),
-    application_fee_amount: Math.round(applicationFeeAmountCents),
+    amount_to_capture: amountToCaptureCents,
+    application_fee_amount: applicationFeeCents,
   });
 
   // Deja el precio final de verdad en la fila — antes se quedaba sin
@@ -72,7 +83,11 @@ Deno.serve(async (req) => {
   // aceptar al pasajero.
   await admin
     .from("trip_passengers")
-    .update({ price: Math.round(amountCents) / 100, status: "completed", dropped_off_at: new Date().toISOString() })
+    .update({
+      price: captured.amount_received / 100,
+      status: "completed",
+      dropped_off_at: new Date().toISOString(),
+    })
     .eq("id", tripPassengerId);
 
   return json({ captured: true, amountCents: captured.amount_received });

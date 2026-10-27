@@ -91,16 +91,31 @@ Deno.serve(async (req) => {
     return json({ error: "no hay ninguna tarjeta guardada como predeterminada" }, 400);
   }
 
-  const paymentIntent = await stripe.paymentIntents.create({
-    amount: Math.round(holdAmountCents),
-    currency: "eur",
-    customer: profile.stripe_customer_id,
-    payment_method: defaultPaymentMethod,
-    off_session: true,
-    confirm: true,
-    capture_method: "manual",
-    transfer_data: { destination: profile.stripe_connect_account_id },
-  });
+  let paymentIntent;
+  try {
+    paymentIntent = await stripe.paymentIntents.create({
+      amount: Math.round(holdAmountCents),
+      currency: "eur",
+      customer: profile.stripe_customer_id,
+      payment_method: defaultPaymentMethod,
+      off_session: true,
+      confirm: true,
+      capture_method: "manual",
+      transfer_data: { destination: profile.stripe_connect_account_id },
+    });
+  } catch (err) {
+    // Sin este try/catch, un error de Stripe aquí (p.ej. la tarjeta pide
+    // verificación 3D Secure, algo que un cobro en segundo plano sin el
+    // pasajero delante no puede completar) tiraba la función entera sin
+    // CORS en la respuesta — el cliente solo veía "Failed to send a
+    // request", sin ninguna pista de qué pasó de verdad.
+    const stripeErr = err as { code?: string; message?: string };
+    const message =
+      stripeErr.code === "authentication_required"
+        ? "La tarjeta guardada pide verificación adicional (3D Secure) — en modo prueba, usa el número 4242 4242 4242 4242, que no la pide."
+        : (stripeErr.message ?? "No se pudo retener el pago.");
+    return json({ error: message }, 402);
+  }
 
   await admin
     .from("trip_passengers")

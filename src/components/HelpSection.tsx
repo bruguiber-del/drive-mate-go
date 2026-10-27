@@ -105,7 +105,17 @@ const HelpSection = ({ isOpen, onClose }: HelpSectionProps) => {
                 <p className="font-medium text-foreground">¿Emergencia durante un viaje?</p>
                 <p className="text-sm text-muted-foreground">Contacta con servicios de emergencia</p>
               </div>
-              <Button variant="destructive" size="sm">SOS</Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => {
+                  // Antes este botón no hacía nada al pulsarlo — en una
+                  // emergencia real eso es lo peor posible.
+                  window.location.href = 'tel:112';
+                }}
+              >
+                SOS
+              </Button>
             </div>
 
             {/* FAQs */}

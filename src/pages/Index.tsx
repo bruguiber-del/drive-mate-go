@@ -32,6 +32,7 @@ import NavigationSearch from "@/components/NavigationSearch";
 import DriverSettingsSheet from "@/components/DriverSettingsSheet";
 import PassengerSettingsSheet, { type PassengerSettingsData } from "@/components/PassengerSettingsSheet";
 import { supabase } from "@/integrations/supabase/client";
+import { playNewPassengerAlert } from "@/lib/alertSound";
 import MatchPopup from "@/components/MatchPopup";
 import SettingsMenu from "@/components/SettingsMenu";
 import ProfileSection from "@/components/ProfileSection";
@@ -389,6 +390,10 @@ const Index = () => {
       prevPassengerIdRef.current = simulatedPassenger.id;
       modals.openMatchPopup();
       setShowPreview(true);
+      // Antes, un pasajero nuevo solo se notaba si estabas mirando la
+      // pantalla en ese momento — sin esto era fácil que se quedara
+      // esperando sin que nadie se enterara.
+      playNewPassengerAlert();
     }
   }, [simulatedPassenger, passengerSimEnabled, modals]);
 
@@ -716,8 +721,30 @@ const Index = () => {
             }
             if (message) {
               toast({ title: `No se pudo cobrar a ${p.name}`, description: message, variant: 'destructive', duration: 3500 });
+              return;
             }
+            // Antes, si el cobro funcionaba, no se enteraba nadie — solo
+            // se avisaba cuando algo salía mal.
+            const captured = (data as { amountCents?: number } | null)?.amountCents;
+            toast({
+              title: `Cobrado a ${p.name}`,
+              description: captured != null ? `${(captured / 100).toFixed(2)}€` : undefined,
+              duration: 2200,
+            });
           }, () => {});
+      }
+      // Deja el total del viaje en la fila `trips` — antes nunca se
+      // escribía, se quedaba para siempre a null. Es la suma de lo que
+      // pagó cada pasajero (mismo criterio que trip_passengers.price), no
+      // lo que recibe el conductor — esas dos cifras difieren por la
+      // comisión.
+      if (trip.activeTripId) {
+        const totalPassengerPaid = tripPassengerHistory.reduce((sum, p) => sum + p.receipt.passengerPrice, 0);
+        supabase
+          .from('trips')
+          .update({ price: totalPassengerPaid })
+          .eq('id', trip.activeTripId)
+          .then(() => {}, () => {});
       }
     } else if (trip.activeTripRole === "passenger" && driverSim.currentDriver) {
       setLastTripSummary({

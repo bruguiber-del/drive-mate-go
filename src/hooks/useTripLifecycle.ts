@@ -146,12 +146,14 @@ export function useTripLifecycle({
             .select('id')
             .single();
 
-          // Retiene el máximo posible (con margen) ahora mismo — el importe
-          // final real, menor o igual a este, se captura al bajarse, cuando
-          // ya se sabe cuánta gente más compartió el tramo con él/ella.
+          // Retiene exactamente el precio que se le mostró al aceptarlo —
+          // sin margen añadido. Si al bajarse el importe final real es
+          // menor (porque subió más gente y se repartió más el tramo), se
+          // libera solo lo que no se llegue a capturar; nunca se le pide
+          // más de lo que se retuvo aquí (ver stripe-capture-trip).
           if (tripPassengerRow?.id) {
             simToDbIdRef.current.set(simulatedPassenger.id, tripPassengerRow.id);
-            const holdAmountCents = Math.ceil(simulatedPassenger.receipt.passengerPrice * 1.5 * 100);
+            const holdAmountCents = Math.ceil(simulatedPassenger.receipt.passengerPrice * 100);
             supabase.functions
               .invoke('stripe-authorize-trip', {
                 body: { tripPassengerId: tripPassengerRow.id, holdAmountCents },
@@ -306,6 +308,12 @@ export function useTripLifecycle({
         .update({ status: 'cancelled' })
         .eq('id', activeTripId)
         .then(() => {}, () => {});
+    }
+    // Libera cualquier retención pendiente — si no, el dinero se queda
+    // bloqueado en la tarjeta del pasajero hasta que Stripe lo libera solo
+    // a los 7 días.
+    for (const tripPassengerId of simToDbIdRef.current.values()) {
+      supabase.functions.invoke('stripe-void-trip', { body: { tripPassengerId } }).then(() => {}, () => {});
     }
     setShowActiveTrip(false);
     setTripStatus('waiting');
