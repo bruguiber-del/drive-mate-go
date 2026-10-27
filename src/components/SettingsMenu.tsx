@@ -84,8 +84,12 @@ const SettingsMenu = ({ isOpen, onClose, onNavigate, userName, userSubtitle, use
                 <ChevronRight className="w-5 h-5 text-muted-foreground" />
               </button>
 
-              {/* Menu Items */}
-              <nav className="flex-1 space-y-1">
+              {/* Menu Items — flex-1 + min-h-0 es lo que permite que esto
+                  haga scroll en vez de cortarse: sin min-h-0, un hijo
+                  flex-1 nunca se encoge por debajo de su contenido, así
+                  que "Ayuda" y "Cerrar sesión" quedaban fuera de pantalla
+                  sin ninguna forma de llegar a ellos. */}
+              <nav className="flex-1 min-h-0 overflow-y-auto space-y-1">
                 {menuItems.map((item) => (
                   <button
                     key={item.id}
