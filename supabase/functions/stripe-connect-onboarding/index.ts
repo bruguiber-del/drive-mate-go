@@ -25,8 +25,8 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS_HEADERS });
   if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
 
-  const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
-  if (!stripeKey) return json({ error: "Stripe no configurado (falta STRIPE_SECRET_KEY)" }, 500);
+  const stripeKey = Deno.env.get("STRIPE_TEST_API_KEY");
+  if (!stripeKey) return json({ error: "Stripe no configurado (falta STRIPE_TEST_API_KEY)" }, 500);
   const stripe = new Stripe(stripeKey);
 
   const authHeader = req.headers.get("Authorization") ?? "";
