@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CreditCard, CheckCircle2, Loader2 } from 'lucide-react';
+import { CreditCard, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
@@ -14,6 +14,33 @@ const StripeConnectCard = () => {
   const [checking, setChecking] = useState(true);
   const [onboarded, setOnboarded] = useState(false);
   const [connecting, setConnecting] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
+  const [errorText, setErrorText] = useState('');
+  const [explaining, setExplaining] = useState(false);
+  const [explanation, setExplanation] = useState<{ cause: string; steps: string[] } | null>(null);
+
+  const handleExplain = async () => {
+    if (errorText.trim().length < 5) return;
+    setExplaining(true);
+    setExplanation(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('stripe-connect-error-help', {
+        body: { message: errorText.trim() },
+      });
+      if (error || !data?.cause) {
+        toast({
+          title: 'No se pudo analizar',
+          description: data?.error ?? 'Inténtalo de nuevo en un momento.',
+          variant: 'destructive',
+          duration: 3000,
+        });
+        return;
+      }
+      setExplanation({ cause: data.cause, steps: data.steps ?? [] });
+    } finally {
+      setExplaining(false);
+    }
+  };
 
   const checkStatus = async () => {
     setChecking(true);
