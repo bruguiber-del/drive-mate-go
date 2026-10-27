@@ -987,14 +987,24 @@ const Index = () => {
 
   const handleVehicleSelected = useCallback(() => {
     setShowVehicleManager(false);
+    // Sin esto, cualquiera podía activar el modo conductor y aceptar
+    // pasajeros con un vehículo sin verificar — antes solo subía el precio
+    // un 15%, no impedía nada de verdad.
+    if (vehicles.activeVehicle?.verificationStatus !== "verified") {
+      toast({
+        title: "Vehículo sin verificar",
+        description: "Verifica la matrícula de tu vehículo antes de poder activar el modo conductor.",
+        variant: "destructive",
+        duration: 3500,
+      });
+      return;
+    }
     setIsPassengerMode(false);
     driverSim.clearDriver();
     setIsDriverMode(true);
     toast({
       title: "Modo conductor activado",
-      description: vehicles.activeVehicle
-        ? `Usando ${vehicles.activeVehicle.brand} ${vehicles.activeVehicle.model} · ${vehicles.activeVehicle.licensePlate}`
-        : "Navega a tu destino y aparecerán pasajeros cercanos",
+      description: `Usando ${vehicles.activeVehicle.brand} ${vehicles.activeVehicle.model} · ${vehicles.activeVehicle.licensePlate}`,
       duration: 1800,
     });
   }, [vehicles.activeVehicle, toast, driverSim]);

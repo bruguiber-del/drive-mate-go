@@ -8,11 +8,18 @@ import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { useProfile } from '@/hooks/useProfile';
 import IdentityVerification from '@/components/IdentityVerification';
+import AdminVerificationReview from '@/components/AdminVerificationReview';
 
 interface ProfileSectionProps {
   isOpen: boolean;
   onClose: () => void;
 }
+
+// Único dueño de la app por ahora — sin backend de roles todavía, así que
+// esto solo decide si se MUESTRA el botón; quien de verdad autoriza la
+// acción es profiles.is_admin, comprobado en el servidor en las dos edge
+// functions de revisión.
+const ADMIN_EMAIL = 'bruguiber@gmail.com';
 
 export type SpacePreference = 'none' | 'spacious-car' | 'spacious-front';
 
@@ -29,6 +36,7 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
   const [draftPhone, setDraftPhone] = useState('');
   const [draftCity, setDraftCity] = useState('');
   const [saving, setSaving] = useState(false);
+  const [showAdminReview, setShowAdminReview] = useState(false);
 
   useEffect(() => {
     if (profile) {
@@ -275,6 +283,21 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
                   </div>
                 </div>
               </div>
+
+              {authEmail === ADMIN_EMAIL && (
+                <button
+                  onClick={() => setShowAdminReview(true)}
+                  className="w-full glass rounded-xl p-4 flex items-center gap-3 text-left hover:bg-muted/50 transition-colors"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center">
+                    <User className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-foreground">Revisión de documentos (admin)</p>
+                    <p className="text-sm text-muted-foreground">Aprobar o rechazar a mano lo que la IA no resolvió</p>
+                  </div>
+                </button>
+              )}
             </div>
 
             {/* Personal Data */}
@@ -330,6 +353,9 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
           )}
         </div>
       </motion.div>
+      {authEmail === ADMIN_EMAIL && (
+        <AdminVerificationReview isOpen={showAdminReview} onClose={() => setShowAdminReview(false)} />
+      )}
     </motion.div>
   );
 };
