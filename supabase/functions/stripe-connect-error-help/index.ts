@@ -115,7 +115,6 @@ Deno.serve(async (req) => {
   } catch (err) {
     const status = (err as { status?: number }).status;
     console.error("AI gateway error:", status, (err as { detail?: string }).detail ?? String(err));
-    return json({ error: `debug: status=${status} detail=${(err as { detail?: string }).detail ?? String(err)}` }, 500);
     if (status === 402 || status === 403) {
       return json({ error: "El servicio de IA no está disponible ahora mismo. Inténtalo más tarde." }, 503);
     }
