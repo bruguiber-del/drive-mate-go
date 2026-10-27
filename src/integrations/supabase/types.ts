@@ -59,6 +59,8 @@ export type Database = {
           full_name: string | null
           id: string
           phone: string | null
+          stripe_connect_account_id: string | null
+          stripe_connect_onboarded: boolean
         }
         Insert: {
           avatar_url?: string | null
@@ -68,6 +70,8 @@ export type Database = {
           full_name?: string | null
           id: string
           phone?: string | null
+          stripe_connect_account_id?: string | null
+          stripe_connect_onboarded?: boolean
         }
         Update: {
           avatar_url?: string | null
@@ -77,6 +81,8 @@ export type Database = {
           full_name?: string | null
           id?: string
           phone?: string | null
+          stripe_connect_account_id?: string | null
+          stripe_connect_onboarded?: boolean
         }
         Relationships: []
       }
