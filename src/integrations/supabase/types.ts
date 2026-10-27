@@ -58,6 +58,7 @@ export type Database = {
           created_at: string
           full_name: string | null
           id: string
+          is_admin: boolean
           phone: string | null
           stripe_connect_account_id: string | null
           stripe_connect_onboarded: boolean
@@ -70,6 +71,7 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id: string
+          is_admin?: boolean
           phone?: string | null
           stripe_connect_account_id?: string | null
           stripe_connect_onboarded?: boolean
@@ -82,6 +84,7 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id?: string
+          is_admin?: boolean
           phone?: string | null
           stripe_connect_account_id?: string | null
           stripe_connect_onboarded?: boolean
