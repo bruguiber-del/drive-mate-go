@@ -61,6 +61,7 @@ export type Database = {
           phone: string | null
           stripe_connect_account_id: string | null
           stripe_connect_onboarded: boolean
+          stripe_customer_id: string | null
         }
         Insert: {
           avatar_url?: string | null
@@ -72,6 +73,7 @@ export type Database = {
           phone?: string | null
           stripe_connect_account_id?: string | null
           stripe_connect_onboarded?: boolean
+          stripe_customer_id?: string | null
         }
         Update: {
           avatar_url?: string | null
@@ -83,6 +85,7 @@ export type Database = {
           phone?: string | null
           stripe_connect_account_id?: string | null
           stripe_connect_onboarded?: boolean
+          stripe_customer_id?: string | null
         }
         Relationships: []
       }
@@ -146,6 +149,7 @@ export type Database = {
           picked_up_at: string | null
           price: number | null
           status: string
+          stripe_payment_intent_id: string | null
           trip_id: string
         }
         Insert: {
@@ -162,6 +166,7 @@ export type Database = {
           picked_up_at?: string | null
           price?: number | null
           status?: string
+          stripe_payment_intent_id?: string | null
           trip_id: string
         }
         Update: {
@@ -178,6 +183,7 @@ export type Database = {
           picked_up_at?: string | null
           price?: number | null
           status?: string
+          stripe_payment_intent_id?: string | null
           trip_id?: string
         }
         Relationships: [
