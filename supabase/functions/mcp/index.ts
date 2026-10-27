@@ -139,18 +139,16 @@ import { defineTool as defineTool3 } from "npm:@lovable.dev/mcp-js@0.26.1";
 import { z as z3 } from "npm:zod@^3.25.76";
 
 // src/lib/priceCalculator.ts
+import { LEGAL_MAX_COST_PER_KM } from "npm:@/lib/vehiclePricing";
 var FUEL_COST_PER_KM = 0.126;
 var MAINTENANCE_PER_KM = 0.1;
 var TOTAL_COST_PER_KM = FUEL_COST_PER_KM + MAINTENANCE_PER_KM;
 var COMMISSION = 0.12;
 var PET_SURCHARGE = 2;
 var CHILD_SEAT_SURCHARGE = 1;
-var OCCUPANCY_FACTORS = {
-  1: 1.8,
-  2: 2.5,
-  3: 3.8,
-  4: 4.5
-};
+function occupancyFactor(passengerCount) {
+  return passengerCount + 1;
+}
 var TRAFFIC_MULTIPLIER = {
   normal: 1,
   moderate: 1.15,
@@ -165,27 +163,38 @@ function calculatePrice({
   hasPet = false,
   hasChildSeat = false
 }) {
-  const factor = OCCUPANCY_FACTORS[passengerCount] ?? OCCUPANCY_FACTORS[1];
+  const factor = occupancyFactor(passengerCount);
   const trafficMultiplier = TRAFFIC_MULTIPLIER[traffic];
-  const costPerKmToUse = costPerKm ?? TOTAL_COST_PER_KM;
+  const costPerKmToUse = Math.min(costPerKm ?? TOTAL_COST_PER_KM, LEGAL_MAX_COST_PER_KM);
   const totalCost = distanceKm * costPerKmToUse;
   const detourSurcharge = detourKm * costPerKmToUse;
   const extrasSurcharge = (hasPet ? PET_SURCHARGE : 0) + (hasChildSeat ? CHILD_SEAT_SURCHARGE : 0);
-  const basePrice = (totalCost / factor + detourSurcharge) * trafficMultiplier + extrasSurcharge;
-  const passengerPrice = basePrice * (1 + COMMISSION);
-  const commissionAmount = passengerPrice - basePrice;
-  const driverIncome = basePrice;
-  const driverTotalIncome = basePrice * passengerCount;
+  const tripShare = totalCost / factor * trafficMultiplier;
+  const detourCharge = detourSurcharge * trafficMultiplier;
+  const pairCommission = tripShare * COMMISSION;
+  const commissionAmount = pairCommission / 2;
+  const driverCommissionShare = pairCommission / 2;
+  const basePrice = tripShare + detourCharge + extrasSurcharge;
+  const passengerPrice = basePrice + commissionAmount;
+  const driverIncome = basePrice - driverCommissionShare;
+  const driverGrossIncome = basePrice * passengerCount;
+  const driverTotalIncome = driverIncome * passengerCount;
+  const totalCommission = (commissionAmount + driverCommissionShare) * passengerCount;
   return {
     totalCost: round2(totalCost),
     basePrice: round2(basePrice),
     passengerPrice: round2(passengerPrice),
     driverIncome: round2(driverIncome),
+    driverGrossIncome: round2(driverGrossIncome),
+    driverCommissionShare: round2(driverCommissionShare),
     driverTotalIncome: round2(driverTotalIncome),
     commissionAmount: round2(commissionAmount),
+    totalCommission: round2(totalCommission),
     detourSurcharge: round2(detourSurcharge),
     extrasSurcharge: round2(extrasSurcharge),
-    trafficMultiplier
+    trafficMultiplier,
+    tripShare: round2(tripShare),
+    detourCharge: round2(detourCharge)
   };
 }
 function round2(n) {
