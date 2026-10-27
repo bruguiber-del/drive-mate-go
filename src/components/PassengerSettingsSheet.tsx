@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { PET_SURCHARGE, CHILD_SEAT_SURCHARGE } from '@/lib/priceCalculator';
+import PassengerPaymentCard from '@/components/PassengerPaymentCard';
 import {
   Drawer,
   DrawerContent,
@@ -113,6 +114,10 @@ const PassengerSettingsSheet = ({ isOpen, onClose, onSave, userLocation, initial
           <DrawerHeader className="px-0 pt-2 pb-3">
             <DrawerTitle className="text-lg font-bold text-foreground">Preferencias de viaje</DrawerTitle>
           </DrawerHeader>
+
+          {/* Sin tarjeta no hay con qué cobrar ningún viaje — va antes
+              incluso que el resto de preferencias. */}
+          <PassengerPaymentCard />
 
           {/* Section 0: Origen, para quién y cuándo */}
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Tu viaje</p>

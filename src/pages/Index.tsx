@@ -687,6 +687,38 @@ const Index = () => {
         totalSaved: totalTripCompensation,
         receiptLines: tripPassengerHistory.map((p) => ({ id: p.id, name: p.name, receipt: p.receipt })),
       });
+      // Captura el importe final real de cada pasajero (ya recalculado con
+      // su ocupación real) de la retención que se creó al aceptarlo —
+      // VIMATCH se queda con la comisión y el resto se transfiere al
+      // conductor en el mismo movimiento. Solo dispara para los que de
+      // verdad llegaron a tener una retención (getTripPassengerDbId puede
+      // no encontrar nada si falló la retención al aceptar, p.ej. sin
+      // tarjeta guardada).
+      for (const p of tripPassengerHistory) {
+        const tripPassengerId = trip.getTripPassengerDbId(p.id);
+        if (!tripPassengerId) continue;
+        const amountCents = Math.round(p.receipt.passengerPrice * 100);
+        const applicationFeeAmountCents = Math.round(
+          (p.receipt.commissionAmount + p.receipt.driverCommissionShare) * 100,
+        );
+        supabase.functions
+          .invoke('stripe-capture-trip', { body: { tripPassengerId, amountCents, applicationFeeAmountCents } })
+          .then(async ({ data, error }) => {
+            let message = (data as { error?: string } | null)?.error;
+            if (!message && error) {
+              message = error.message;
+              try {
+                const body = await (error as unknown as { context?: Response }).context?.clone().json();
+                if (body?.error) message = body.error;
+              } catch {
+                /* keep the generic message */
+              }
+            }
+            if (message) {
+              toast({ title: `No se pudo cobrar a ${p.name}`, description: message, variant: 'destructive', duration: 3500 });
+            }
+          }, () => {});
+      }
     } else if (trip.activeTripRole === "passenger" && driverSim.currentDriver) {
       setLastTripSummary({
         tripInfo,
@@ -708,7 +740,7 @@ const Index = () => {
     trip.handleTripEnd();
     nav.handleStopNavigation();
     setExtraStops([]);
-  }, [activeTripData, trip, multiTrip, tripPassengerHistory, totalTripCompensation, driverSim, nav]);
+  }, [activeTripData, trip, multiTrip, tripPassengerHistory, totalTripCompensation, driverSim, nav, toast]);
 
   // Cierra el viaje solo al llegar de verdad (GPS) a tu destino — ya no
   // hace falta pulsar "Finalizar" a mano. handleTripEndWithSummary pone

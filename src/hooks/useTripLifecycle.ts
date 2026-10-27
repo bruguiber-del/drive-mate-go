@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { useWaypoints } from '@/hooks/useWaypoints';
@@ -50,6 +50,10 @@ interface UseTripLifecycleReturn {
   handleTripEnd: () => void;
   handleTripCancel: () => void;
   closeRating: () => void;
+  /** id real de `trip_passengers` para un pasajero simulado, si llegó a
+   *  persistirse — hace falta para capturar su cobro final al bajarse
+   *  (SimulatedPassenger.id es solo local, la BD no lo conoce). */
+  getTripPassengerDbId: (simulatedPassengerId: string) => string | null;
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -79,6 +83,7 @@ export function useTripLifecycle({
   const [tripStatus, setTripStatus] = useState<TripStatus>('waiting');
   const [activeTripId, setActiveTripId] = useState<string | null>(null);
   const [meetingPoint, setMeetingPoint] = useState<MeetingPoint | null>(null);
+  const simToDbIdRef = useRef<Map<string, string>>(new Map());
 
   // ── handleMatchAccept ───────────────────────────────────────────────────────
   /**
@@ -118,18 +123,60 @@ export function useTripLifecycle({
               .single();
             if (!error && data?.id) newTripId = data.id;
           }
-          await supabase.from('trip_passengers').insert({
-            trip_id: newTripId,
-            passenger_name: simulatedPassenger.name,
-            origin_name: simulatedPassenger.origin.name,
-            origin_lat: simulatedPassenger.origin.lat,
-            origin_lng: simulatedPassenger.origin.lng,
-            destination_name: simulatedPassenger.destination.name,
-            destination_lat: simulatedPassenger.destination.lat,
-            destination_lng: simulatedPassenger.destination.lng,
-            price: simulatedPassenger.compensation,
-            status: 'waiting_pickup',
-          });
+          // passenger_id: driverId — el pasajero sigue siendo simulado (no
+          // hay modo pasajero real todavía), pero para poder probar el
+          // cobro de verdad de extremo a extremo, el propio conductor hace
+          // de las dos partes: paga con su tarjeta y cobra en su cuenta
+          // Connect. Cuando exista un pasajero real, esto apuntará a él.
+          const { data: tripPassengerRow } = await supabase
+            .from('trip_passengers')
+            .insert({
+              trip_id: newTripId,
+              passenger_id: driverId,
+              passenger_name: simulatedPassenger.name,
+              origin_name: simulatedPassenger.origin.name,
+              origin_lat: simulatedPassenger.origin.lat,
+              origin_lng: simulatedPassenger.origin.lng,
+              destination_name: simulatedPassenger.destination.name,
+              destination_lat: simulatedPassenger.destination.lat,
+              destination_lng: simulatedPassenger.destination.lng,
+              price: simulatedPassenger.compensation,
+              status: 'waiting_pickup',
+            })
+            .select('id')
+            .single();
+
+          // Retiene el máximo posible (con margen) ahora mismo — el importe
+          // final real, menor o igual a este, se captura al bajarse, cuando
+          // ya se sabe cuánta gente más compartió el tramo con él/ella.
+          if (tripPassengerRow?.id) {
+            simToDbIdRef.current.set(simulatedPassenger.id, tripPassengerRow.id);
+            const holdAmountCents = Math.ceil(simulatedPassenger.receipt.passengerPrice * 1.5 * 100);
+            supabase.functions
+              .invoke('stripe-authorize-trip', {
+                body: { tripPassengerId: tripPassengerRow.id, holdAmountCents },
+              })
+              .then(async ({ data, error }) => {
+                // supabase-js no vuelca el cuerpo JSON del error en
+                // `error.message` (solo un genérico "non-2xx") — hay que
+                // leerlo de la Response cruda en `error.context` para ver
+                // el motivo real que puso nuestra función.
+                let message = (data as { error?: string } | null)?.error;
+                if (!message && error) {
+                  message = error.message;
+                  const ctx = (error as unknown as { context?: Response }).context;
+                  try {
+                    const body = await ctx?.clone().json();
+                    if (body?.error) message = body.error;
+                  } catch {
+                    /* keep the generic message */
+                  }
+                }
+                if (message) {
+                  toast({ title: 'No se pudo retener el pago', description: message, variant: 'destructive', duration: 3500 });
+                }
+              }, () => {});
+          }
         }
       } catch {
         /* keep the local UUID if the trip could not be persisted */
@@ -243,6 +290,7 @@ export function useTripLifecycle({
     setTripStatus('waiting');
     setActiveTripId(null);
     setMeetingPoint(null);
+    simToDbIdRef.current.clear();
     completeTrip();
     setShowRating(true);
   }, [completeTrip, activeTripId]);
@@ -263,12 +311,18 @@ export function useTripLifecycle({
     setTripStatus('waiting');
     setActiveTripId(null);
     setMeetingPoint(null);
+    simToDbIdRef.current.clear();
     cancelTrip();
     toast({ title: 'Viaje cancelado', duration: 1500 });
   }, [activeTripId, cancelTrip, toast]);
 
   // ── closeRating ─────────────────────────────────────────────────────────────
   const closeRating = useCallback(() => setShowRating(false), []);
+
+  const getTripPassengerDbId = useCallback(
+    (simulatedPassengerId: string) => simToDbIdRef.current.get(simulatedPassengerId) ?? null,
+    [],
+  );
 
   return {
     showActiveTrip,
@@ -282,5 +336,6 @@ export function useTripLifecycle({
     handleTripEnd,
     handleTripCancel,
     closeRating,
+    getTripPassengerDbId,
   };
 }
