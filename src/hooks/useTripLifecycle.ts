@@ -4,6 +4,12 @@ import { useToast } from '@/components/ui/use-toast';
 import { useWaypoints } from '@/hooks/useWaypoints';
 import type { SimulatedPassenger } from '@/hooks/usePassengerSimulation';
 
+// €/km usado SOLO para calcular cuánto retener al aceptar a un pasajero —
+// deliberadamente más alto que el coste/km real (~0,226€, ver
+// TOTAL_COST_PER_KM en priceCalculator.ts) y sin dividir entre ocupantes,
+// para que la retención cubra de sobra cualquier precio final posible.
+const HOLD_RATE_PER_KM = 0.26;
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type TripRole = 'driver' | 'passenger';
@@ -146,14 +152,19 @@ export function useTripLifecycle({
             .select('id')
             .single();
 
-          // Retiene exactamente el precio que se le mostró al aceptarlo —
-          // sin margen añadido. Si al bajarse el importe final real es
-          // menor (porque subió más gente y se repartió más el tramo), se
-          // libera solo lo que no se llegue a capturar; nunca se le pide
-          // más de lo que se retuvo aquí (ver stripe-capture-trip).
+          // Retiene el coste bruto de sus km (recogida→destino + su desvío)
+          // SIN repartir entre nadie ni restar comisión — a propósito muy
+          // por encima de lo que podría llegar a pagar de verdad (que
+          // siempre es, como mucho, ese mismo tramo dividido entre él y el
+          // conductor, más su comisión). Así nunca se corre el riesgo de
+          // tener que pedir más de lo retenido; al bajarse se captura solo
+          // el importe final real y lo que sobre se libera solo.
           if (tripPassengerRow?.id) {
             simToDbIdRef.current.set(simulatedPassenger.id, tripPassengerRow.id);
-            const holdAmountCents = Math.ceil(simulatedPassenger.receipt.passengerPrice * 100);
+            const holdKm = simulatedPassenger.tripDistanceKm + simulatedPassenger.detourKm;
+            const holdAmountCents = Math.ceil(
+              (holdKm * HOLD_RATE_PER_KM + simulatedPassenger.receipt.extrasSurcharge) * 100,
+            );
             supabase.functions
               .invoke('stripe-authorize-trip', {
                 body: { tripPassengerId: tripPassengerRow.id, holdAmountCents },
