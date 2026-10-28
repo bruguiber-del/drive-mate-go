@@ -175,7 +175,22 @@ export function useTripLifecycle({
               .from('trip_passengers')
               .update({ price: simulatedPassenger.compensation, status: 'waiting_pickup' })
               .eq('id', simulatedPassenger.realRequestId);
-            if (!error) tripPassengerId = simulatedPassenger.realRequestId;
+            if (!error) {
+              tripPassengerId = simulatedPassenger.realRequestId;
+              if (simulatedPassenger.realPassengerId) {
+                supabase.functions
+                  .invoke('send-push-notification', {
+                    body: {
+                      tripId: newTripId,
+                      targetUserId: simulatedPassenger.realPassengerId,
+                      title: '¡Viaje aceptado!',
+                      body: 'Tu conductor viene a recogerte',
+                      tag: 'request-accepted',
+                    },
+                  })
+                  .then(() => {}, () => {});
+              }
+            }
           } else {
             // Simulado (o autocobro de prueba): passenger_id = el propio
             // conductor, para poder probar el ciclo de dinero real de

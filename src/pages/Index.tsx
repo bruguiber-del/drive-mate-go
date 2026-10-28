@@ -145,7 +145,11 @@ const Index = () => {
    *  multiTrip.passengers ya están vacíos. */
   const [lastTripSummary, setLastTripSummary] = useState<{
     tripInfo: string;
-    targets: { id: string; name: string }[];
+    /** El trip_id real (fila `trips`), capturado ANTES de que
+     *  handleTripEnd lo ponga a null — hace falta para poder guardar la
+     *  valoración. null si nunca llegó a persistirse (todo simulado). */
+    tripId: string | null;
+    targets: { id: string; name: string; realUserId?: string }[];
     totalSaved: number;
     /** Un ticket por pasajero (desglose real), para el resumen de fin de
      *  viaje del conductor — vacío cuando quien termina el viaje es el
@@ -724,7 +728,8 @@ const Index = () => {
     if (trip.activeTripRole === "driver" && tripPassengerHistory.length > 0) {
       setLastTripSummary({
         tripInfo,
-        targets: tripPassengerHistory.map((p) => ({ id: p.id, name: p.name })),
+        tripId: trip.activeTripId,
+        targets: tripPassengerHistory.map((p) => ({ id: p.id, name: p.name, realUserId: p.realPassengerId })),
         totalSaved: totalTripCompensation,
         receiptLines: tripPassengerHistory.map((p) => ({ id: p.id, name: p.name, receipt: p.receipt })),
       });
@@ -785,7 +790,12 @@ const Index = () => {
     } else if (trip.activeTripRole === "passenger" && driverSim.currentDriver) {
       setLastTripSummary({
         tripInfo,
-        targets: [{ id: driverSim.currentDriver.id, name: driverSim.currentDriver.name }],
+        tripId: trip.activeTripId,
+        // driver.id ya ES el id real del conductor en un emparejamiento de
+        // verdad (useRealDriverSearch lo rellena con trip.driver_id) — en
+        // uno simulado no corresponde a ningún usuario real, y guardar la
+        // valoración fallará sola (RLS), sin pasar nada raro.
+        targets: [{ id: driverSim.currentDriver.id, name: driverSim.currentDriver.name, realUserId: driverSim.currentDriver.id }],
         totalSaved: 0,
         receiptLines: [],
       });
@@ -1733,10 +1743,37 @@ const Index = () => {
       <RatingModal
         isOpen={trip.showRating}
         onClose={trip.closeRating}
-        onSubmit={() => {
+        onSubmit={async (results) => {
           // Antes prometía un 10% de descuento por valorar a todos — no hay
           // ningún sistema de descuentos detrás, era una promesa falsa (ver
           // el mismo aviso ya corregido dentro de RatingModal).
+          const tripId = lastTripSummary?.tripId;
+          const targets = lastTripSummary?.targets ?? [];
+          if (tripId) {
+            const { data: userData } = await supabase.auth.getUser();
+            const raterId = userData?.user?.id;
+            // Sin realUserId no hay a quién guardarle la valoración (viaje
+            // simulado/autocobro de prueba) — se omite esa fila sin más,
+            // no es un error.
+            const rows = raterId
+              ? results
+                  .map((r) => {
+                    const target = targets.find((t) => t.id === r.id);
+                    if (!target?.realUserId) return null;
+                    return {
+                      trip_id: tripId,
+                      rater_id: raterId,
+                      rated_user_id: target.realUserId,
+                      stars: r.rating,
+                      review: r.review ?? null,
+                    };
+                  })
+                  .filter((r): r is NonNullable<typeof r> => r != null)
+              : [];
+            if (rows.length > 0) {
+              supabase.from('ratings').insert(rows).then(() => {}, () => {});
+            }
+          }
           toast({
             title: "¡Gracias por tu valoración!",
             description: "Ayuda a que el resto sepa con quién va a compartir trayecto.",

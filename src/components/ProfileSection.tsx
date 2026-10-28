@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { useProfile } from '@/hooks/useProfile';
 import IdentityVerification from '@/components/IdentityVerification';
 import AdminVerificationReview from '@/components/AdminVerificationReview';
+import PushNotificationCard from '@/components/PushNotificationCard';
 
 interface ProfileSectionProps {
   isOpen: boolean;
@@ -242,6 +243,8 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
               </p>
             </div>
 
+            <PushNotificationCard />
+
             {/* Verification Status — señales reales, no fechas inventadas */}
             <div className="space-y-3">
               <h4 className="font-semibold text-foreground">Estado de verificación</h4>
@@ -269,18 +272,6 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
                 <div>
                   <p className="font-medium text-foreground">{phoneConfirmed ? 'Teléfono verificado' : 'Teléfono sin verificar'}</p>
                   <p className="text-sm text-muted-foreground">{profile?.phone ?? 'Sin número asociado'}</p>
-                </div>
-              </div>
-
-              <div className="glass rounded-xl p-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-warning/20 flex items-center justify-center">
-                    <AlertCircle className="w-5 h-5 text-warning" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-foreground">Carnet de conducir</p>
-                    <p className="text-sm text-muted-foreground">Todavía no disponible</p>
-                  </div>
                 </div>
               </div>
 

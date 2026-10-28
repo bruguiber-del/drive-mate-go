@@ -13,6 +13,7 @@ export type RealSearchPhase = 'idle' | 'searching' | 'matched' | 'not_found';
 
 interface TripCandidateRow {
   id: string;
+  driver_id: string;
   driver_lat: number | null;
   driver_lng: number | null;
   free_seats: number | null;
@@ -153,7 +154,7 @@ export function useRealDriverSearch({
 
       const { data: candidates } = await supabase
         .from('trips')
-        .select('id, driver_lat, driver_lng, free_seats, location_updated_at')
+        .select('id, driver_id, driver_lat, driver_lng, free_seats, location_updated_at')
         .eq('status', 'active')
         .not('driver_lat', 'is', null)
         .gte('location_updated_at', new Date(Date.now() - RECENT_LOCATION_MS).toISOString());
@@ -196,7 +197,23 @@ export function useRealDriverSearch({
         .select('id')
         .single();
 
-      if (!error && row?.id) pendingRowIdRef.current = row.id;
+      if (!error && row?.id) {
+        pendingRowIdRef.current = row.id;
+        // Para que el conductor se entere aunque no tenga la app abierta
+        // mirando la pantalla — si falla (p.ej. no tiene push activado),
+        // no pasa nada, simplemente no le llega el aviso.
+        supabase.functions
+          .invoke('send-push-notification', {
+            body: {
+              tripId: best.id,
+              targetUserId: best.driver_id,
+              title: 'Nueva petición de viaje',
+              body: `${passengerName || 'Un pasajero'} quiere subirse`,
+              tag: 'new-request',
+            },
+          })
+          .then(() => {}, () => {});
+      }
     };
 
     tick();
