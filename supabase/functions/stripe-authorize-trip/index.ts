@@ -5,13 +5,11 @@
 //
 // Recibe: { tripPassengerId, holdAmountCents }. Devuelve: { paymentIntentId, status }.
 //
-// NOTA (fase de autocobro de prueba, modo prueba): el pasajero de este
-// tramo es simulado — es el propio conductor autenticado quien hace de las
-// dos partes para poder probar el ciclo de dinero real de extremo a
-// extremo. Por eso el Customer (quien paga) y la cuenta Connect (quien
-// cobra) se leen del MISMO perfil. Cuando exista el modo pasajero real,
-// aquí se leerá el customer del pasajero real y la cuenta Connect del
-// conductor real, cada uno de su propio perfil.
+// El Customer de quien paga (passenger_id de la fila) y la cuenta Connect
+// de quien cobra (driver_id del viaje) se leen cada uno de SU PROPIO
+// perfil — nunca del perfil de quien llama. En las pruebas de autocobro,
+// ambos ids coinciden (el propio conductor hace de las dos partes), pero
+// el código no depende de eso: funciona igual con un pasajero real.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import Stripe from "npm:stripe@17";
@@ -59,31 +57,34 @@ Deno.serve(async (req) => {
   // cualquiera retenga dinero en nombre de un trip_passengers ajeno.
   const { data: row } = await admin
     .from("trip_passengers")
-    .select("id, stripe_payment_intent_id, trips!inner(driver_id)")
+    .select("id, passenger_id, stripe_payment_intent_id, trips!inner(driver_id)")
     .eq("id", tripPassengerId)
     .maybeSingle();
 
-  if (!row || (row as unknown as { trips: { driver_id: string } }).trips.driver_id !== user.id) {
+  const driverId = (row as unknown as { trips: { driver_id: string } } | null)?.trips.driver_id;
+  if (!row || driverId !== user.id) {
     return json({ error: "no autorizado para este tramo" }, 403);
+  }
+  if (!row.passenger_id) {
+    return json({ error: "este tramo todavía no tiene pasajero" }, 400);
   }
   if (row.stripe_payment_intent_id) {
     return json({ error: "este tramo ya tiene una retención creada" }, 409);
   }
 
-  const { data: profile } = await admin
-    .from("profiles")
-    .select("stripe_customer_id, stripe_connect_account_id")
-    .eq("id", user.id)
-    .maybeSingle();
+  const [{ data: passengerProfile }, { data: driverProfile }] = await Promise.all([
+    admin.from("profiles").select("stripe_customer_id").eq("id", row.passenger_id).maybeSingle(),
+    admin.from("profiles").select("stripe_connect_account_id").eq("id", driverId).maybeSingle(),
+  ]);
 
-  if (!profile?.stripe_customer_id) {
-    return json({ error: "falta guardar una tarjeta (modo pasajero) antes de poder retener nada" }, 400);
+  if (!passengerProfile?.stripe_customer_id) {
+    return json({ error: "el pasajero todavía no ha guardado ninguna tarjeta" }, 400);
   }
-  if (!profile?.stripe_connect_account_id) {
+  if (!driverProfile?.stripe_connect_account_id) {
     return json({ error: "falta completar el alta de Stripe Connect (modo conductor)" }, 400);
   }
 
-  const customer = await stripe.customers.retrieve(profile.stripe_customer_id);
+  const customer = await stripe.customers.retrieve(passengerProfile.stripe_customer_id);
   const defaultPaymentMethod = !customer.deleted
     ? (customer.invoice_settings?.default_payment_method as string | null)
     : null;
@@ -96,12 +97,12 @@ Deno.serve(async (req) => {
     paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(holdAmountCents),
       currency: "eur",
-      customer: profile.stripe_customer_id,
+      customer: passengerProfile.stripe_customer_id,
       payment_method: defaultPaymentMethod,
       off_session: true,
       confirm: true,
       capture_method: "manual",
-      transfer_data: { destination: profile.stripe_connect_account_id },
+      transfer_data: { destination: driverProfile.stripe_connect_account_id },
     });
   } catch (err) {
     // Sin este try/catch, un error de Stripe aquí (p.ej. la tarjeta pide

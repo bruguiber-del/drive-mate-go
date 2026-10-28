@@ -60,6 +60,12 @@ export interface SimulatedPassenger {
   costPerKm: number;
   /** Desglose completo del precio, para el ticket de fin de viaje. */
   receipt: PassengerReceipt;
+  /** Si viene de una petición real (no simulada): el id de la fila
+   *  trip_passengers que YA existe (la creó el propio pasajero al pedirlo)
+   *  y el id de usuario real de quien pide. Si están presentes, aceptar
+   *  actualiza esa fila en vez de insertar una nueva. */
+  realRequestId?: string;
+  realPassengerId?: string;
 }
 
 /** Pasajero ya aceptado/a bordo — la forma mínima que hace falta para medir
@@ -141,7 +147,7 @@ function isPickupAheadOnRoute(
   return pickupRouteIdx > driverRouteIdx;
 }
 
-interface CandidateDraft {
+export interface CandidateDraft {
   pickupLat: number;
   pickupLng: number;
   destLat: number;
@@ -235,7 +241,7 @@ function buildCandidateDraft(
   };
 }
 
-type VerifyResult =
+export type VerifyResult =
   | { kind: 'ok'; detourMinutes: number; detourKm: number; routeTotalDurationS: number }
   | { kind: 'rejected' }
   | { kind: 'network' };
@@ -246,7 +252,7 @@ type VerifyResult =
  *  añade SOLO esta candidata. Así el número no depende de una ruta calculada
  *  antes, de otra posición ni de paradas ya movidas. Si Mapbox no responde,
  *  no se ofrece el candidato. */
-async function verifyRealDetour(
+export async function verifyRealDetour(
   driverLat: number,
   driverLng: number,
   draft: CandidateDraft,

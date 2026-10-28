@@ -127,5 +127,10 @@ export function useDriverSimulation() {
 
   const clearDriver = useCallback(() => setCurrentDriver(null), []);
 
-  return { currentDriver, isSearching, setIsSearching, searchDriver, clearDriver };
+  // Para un emparejamiento REAL (useRealDriverSearch): mismo molde que el
+  // conductor simulado, así todo lo que ya lee driverSim.currentDriver en
+  // Index.tsx (el mapa, el ticket, el ETA...) funciona igual sin tocarlo.
+  const setRealDriver = useCallback((driver: SimulatedDriver) => setCurrentDriver(driver), []);
+
+  return { currentDriver, isSearching, setIsSearching, searchDriver, setRealDriver, clearDriver };
 }

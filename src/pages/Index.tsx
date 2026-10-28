@@ -5,7 +5,6 @@ import { useDriverSettings } from "@/hooks/useDriverSettings";
 import { useRecurringTripReminder } from "@/hooks/useRecurringTripReminder";
 import { useScheduledTripReminder } from "@/hooks/useScheduledTripReminder";
 import RecurringTripsSheet from "@/components/RecurringTripsSheet";
-import { usePassengerMatch, SEARCH_RADIUS_KM } from "@/hooks/usePassengerMatch";
 import GpsStatusBanner from "@/components/GpsStatusBanner";
 import { useProfile } from "@/hooks/useProfile";
 import { submitDocumentForVerification } from "@/lib/documentVerification";
@@ -49,6 +48,9 @@ import { useDriverTracking } from "@/hooks/useDriverTracking";
 import { useSimulatedDriverPosition } from "@/hooks/useSimulatedDriverPosition";
 import { useWaypoints, type Waypoint, type TripLeg } from "@/hooks/useWaypoints";
 import { usePassengerSimulation, type SimulatedPassenger, type PassengerReceipt } from "@/hooks/usePassengerSimulation";
+import { useIncomingRealRequests } from "@/hooks/useIncomingRealRequests";
+import { useDriverPresence } from "@/hooks/useDriverPresence";
+import { useRealDriverSearch, REAL_SEARCH_RADIUS_KM } from "@/hooks/useRealDriverSearch";
 // useNavigationSimulation removed: real GPS only for MVP
 import { useTripLifecycle } from "@/hooks/useTripLifecycle";
 import { useMultiPassengerTrip } from "@/hooks/useMultiPassengerTrip";
@@ -85,6 +87,10 @@ const Index = () => {
   // ── Driver mode & settings ──────────────────────────────────────────────────
   const [isDriverMode, setIsDriverMode] = useState(false);
   const [driverSettings, setDriverSettings] = useDriverSettings();
+  // id de la fila `trips` de esta sesión de conducción, creada en cuanto te
+  // pones online (no al aceptar al primer pasajero) — para que un pasajero
+  // real pueda descubrirte desde el minuto uno.
+  const [driverOnlineTripId, setDriverOnlineTripId] = useState<string | null>(null);
   const [showRecurringTrips, setShowRecurringTrips] = useState(false);
   /** Lo que el pasajero pidió al buscar conductor — antes se guardaba y no
    *  filtraba nada. */
@@ -284,7 +290,7 @@ const Index = () => {
     });
   }, [toast]);
 
-  const { currentPassenger: simulatedPassenger, dismissCurrent: dismissSimPassenger } = usePassengerSimulation({
+  const { currentPassenger: simulatedFakePassenger, dismissCurrent: dismissSimFakePassenger } = usePassengerSimulation({
     enabled: passengerSimEnabled && !modals.showMatchPopup,
     userLocation: realUserLocation,
     intervalMs: 5000,
@@ -305,6 +311,36 @@ const Index = () => {
     // ambas calculadas de verdad por Mapbox, no geometría aproximada.
     seats: driverSettings.seats,
     onRoutingError: notifyRoutingError,
+  });
+
+  // Peticiones reales de pasajeros de verdad en este viaje — tienen
+  // prioridad sobre el pasajero simulado. Reutiliza exactamente la misma
+  // forma (SimulatedPassenger) para que todo lo que ya lee
+  // "simulatedPassenger" más abajo (el popup, el ticket, aceptar/rechazar)
+  // funcione igual sin tener que tocarlo.
+  const incomingReal = useIncomingRealRequests({
+    enabled: isDriverMode && !!driverOnlineTripId && nav.isNavigating,
+    tripId: driverOnlineTripId,
+    userLocation: realUserLocation,
+    driverRoute: nav.currentRoute?.coordinates ?? null,
+    driverDestination: nav.destinationCoords,
+    costPerKm: liveCostPerKm,
+    maxDetourMinutes: driverSettings.maxDetour,
+    activeTrackedPassengers: activeSimTrackedPassengers,
+    seats: driverSettings.seats,
+  });
+  const simulatedPassenger = incomingReal.currentRequest ?? simulatedFakePassenger;
+  const dismissSimPassenger = incomingReal.currentRequest ? incomingReal.dismissCurrent : dismissSimFakePassenger;
+
+  // Emite tu posición aproximada + destino mientras estás online, para que
+  // un pasajero real pueda descubrirte antes de que exista ningún viaje en
+  // común.
+  useDriverPresence({
+    tripId: driverOnlineTripId,
+    enabled: isDriverMode && nav.isNavigating,
+    location: realUserLocation,
+    destination: nav.destinationCoords,
+    freeSeats: multiTrip.freeSeats,
   });
 
   // ── Trip lifecycle ──────────────────────────────────────────────────────────
@@ -767,6 +803,9 @@ const Index = () => {
     trip.handleTripEnd();
     nav.handleStopNavigation();
     setExtraStops([]);
+    // La fila `trips` de esta sesión ya quedó 'completed' — para volver a
+    // ser descubrible hace falta una nueva en cuanto se navegue otra vez.
+    setDriverOnlineTripId(null);
   }, [activeTripData, trip, multiTrip, tripPassengerHistory, totalTripCompensation, driverSim, nav, toast]);
 
   // Cierra el viaje solo al llegar de verdad (GPS) a tu destino — ya no
@@ -982,8 +1021,10 @@ const Index = () => {
       setShowVehicleManager(true);
     } else {
       setIsDriverMode(false);
+      trip.endOnlineSession();
+      setDriverOnlineTripId(null);
     }
-  }, [isDriverMode, vehicles.vehicles.length]);
+  }, [isDriverMode, vehicles.vehicles.length, trip]);
 
   const handleVehicleSelected = useCallback(() => {
     setShowVehicleManager(false);
@@ -1002,12 +1043,18 @@ const Index = () => {
     setIsPassengerMode(false);
     driverSim.clearDriver();
     setIsDriverMode(true);
+    // Crea (o reutiliza) la fila `trips` de esta sesión ahora mismo, no al
+    // aceptar al primer pasajero — para que un pasajero real pueda
+    // descubrirte desde el minuto uno.
+    trip.ensureActiveTrip().then((id) => {
+      if (id) setDriverOnlineTripId(id);
+    });
     toast({
       title: "Modo conductor activado",
       description: `Usando ${vehicles.activeVehicle.brand} ${vehicles.activeVehicle.model} · ${vehicles.activeVehicle.licensePlate}`,
       duration: 1800,
     });
-  }, [vehicles.activeVehicle, toast, driverSim]);
+  }, [vehicles.activeVehicle, toast, driverSim, trip]);
 
   const handleMenuNavigate = useCallback(
     (section: string) => {
@@ -1164,28 +1211,50 @@ const Index = () => {
     return () => clearInterval(id);
   }, [passengerTripSetup.scheduledAt]);
 
-  // ── Búsqueda de conductor en modo pasajero: el primero que acepta gana ─────
+  // ── Búsqueda de conductor en modo pasajero: conductores reales cercanos ────
   const driverSearchEnabled =
     isPassengerMode && nav.isNavigating && !trip.showActiveTrip && !isScheduledPending && !driverSim.currentDriver;
-  const { phase: searchPhase, radiusKm: searchRadiusKm, retry: retrySearch } = usePassengerMatch({
+  const { phase: searchPhase, radiusKm: searchRadiusKm, retry: retrySearch } = useRealDriverSearch({
     enabled: driverSearchEnabled,
-    requireDoorToDoor: isDoorToDoor,
-    attemptMatch: () => {
-      const driver = driverSim.searchDriver(undefined, passengerPreferences);
-      // Si exiges puerta a puerta, este conductor concreto tiene que hacerla
-      // de verdad — antes se aceptaba a cualquiera y la preferencia no
-      // descartaba a nadie.
-      if (isDoorToDoor && !driver.doorToDoor) {
-        driverSim.clearDriver();
-        return false;
-      }
-      trip.handleMatchAccept();
+    userLocation: realUserLocation,
+    destination: nav.destinationCoords,
+    originName: passengerTripSetup.originText || "Mi ubicación",
+    passengerName: profile?.fullName || authEmail || "Pasajero",
+    preferences: passengerPreferences,
+    onMatched: (realTripId, driver) => {
+      driverSim.setRealDriver(driver);
+      trip.confirmRealMatch(realTripId);
       toast({ title: "Conductor encontrado", description: "Tu conductor va hacia ti", duration: 2000 });
-      return true;
     },
   });
 
   const showDriverOnMap = trip.showActiveTrip && trip.activeTripRole === "passenger";
+
+  // Si el conductor cancela mientras le esperas, antes te quedabas
+  // esperando para siempre sin enterarte — esto vigila la fila `trips` de
+  // verdad (inerte para un emparejamiento simulado, que nunca tiene fila
+  // real que cambie).
+  useEffect(() => {
+    if (!showDriverOnMap || !trip.activeTripId) return;
+    const channel = supabase
+      .channel(`trip-status-${trip.activeTripId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'trips', filter: `id=eq.${trip.activeTripId}` },
+        (payload) => {
+          const row = payload.new as { status: string };
+          if (row.status === 'cancelled') {
+            toast({ title: 'El conductor canceló el viaje', variant: 'destructive', duration: 3000 });
+            driverSim.clearDriver();
+            trip.handleTripCancel();
+          }
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [showDriverOnMap, trip, driverSim, toast]);
 
   // Con un viaje activo siempre vas en coche, seas quien lo conduce o quien
   // va de pasajero — antes solo se forzaba "coche" para el conductor, así
@@ -1414,37 +1483,17 @@ const Index = () => {
             mientras se esperaba, ni manera de saber si se había ampliado el
             radio o si ya no había nadie cerca. */}
         {driverSearchEnabled &&
-          (searchPhase === "searching" || searchPhase === "not_found" || searchPhase === "door_to_door_unavailable") && (
+          (searchPhase === "searching" || searchPhase === "not_found") && (
           <div className="absolute top-28 left-3 right-3 z-20 flex justify-center pointer-events-none">
             <div className="glass-strong rounded-xl px-3 py-2 flex items-center gap-2 pointer-events-auto max-w-sm">
               {searchPhase === "searching" ? (
                 <>
                   <Loader2 className="w-4 h-4 text-primary animate-spin shrink-0" />
                   <p className="text-xs text-foreground flex-1">
-                    Buscando conductor cerca{searchRadiusKm > SEARCH_RADIUS_KM.initial ? " (radio ampliado)" : ""}…
+                    Buscando conductor cerca{searchRadiusKm > REAL_SEARCH_RADIUS_KM.initial ? " (radio ampliado)" : ""}…
                   </p>
                   <Button variant="ghost" size="sm" className="h-6 text-[11px] px-2 shrink-0" onClick={handleStopNavigation}>
                     Cancelar
-                  </Button>
-                </>
-              ) : searchPhase === "door_to_door_unavailable" ? (
-                <>
-                  <p className="text-xs text-foreground flex-1">
-                    No hemos encontrado conductores puerta a puerta en 5 min.
-                  </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-6 text-[11px] px-2 shrink-0"
-                    onClick={() => {
-                      setIsDoorToDoor(false);
-                      retrySearch();
-                    }}
-                  >
-                    Buscar sin puerta a puerta
-                  </Button>
-                  <Button variant="ghost" size="sm" className="h-6 text-[11px] px-2 shrink-0" onClick={retrySearch}>
-                    Seguir buscando
                   </Button>
                 </>
               ) : (

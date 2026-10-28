@@ -51,6 +51,16 @@ interface UseTripLifecycleReturn {
   meetingPoint: MeetingPoint | null;
 
   // Actions
+  /** Crea (o reutiliza) la fila `trips` en cuanto el conductor se pone
+   *  online, sin esperar al primer pasajero — necesario para que haya algo
+   *  que descubrir desde el minuto uno. */
+  ensureActiveTrip: () => Promise<string | null>;
+  /** Cancela la fila `trips` de "online sin pasajeros" al apagar el modo
+   *  conductor — no hace nada si ya hubo un pasajero de verdad. */
+  endOnlineSession: () => void;
+  /** Confirma un emparejamiento real ya aceptado por el conductor, con el
+   *  trip_id de verdad — ver useRealDriverSearch. */
+  confirmRealMatch: (realTripId: string) => void;
   handleMatchAccept: () => void;
   handlePickup: () => void;
   handleTripEnd: () => void;
@@ -91,6 +101,39 @@ export function useTripLifecycle({
   const [meetingPoint, setMeetingPoint] = useState<MeetingPoint | null>(null);
   const simToDbIdRef = useRef<Map<string, string>>(new Map());
 
+  // ── ensureActiveTrip ────────────────────────────────────────────────────────
+  // Crea la fila `trips` (si no existe ya) en cuanto el conductor se pone
+  // online — no esperando al primer pasajero aceptado como antes — para que
+  // haya algo que descubrir desde el minuto uno. Idempotente: si ya hay un
+  // viaje activo, devuelve ese mismo id sin tocar nada.
+  const ensureActiveTrip = useCallback(async (): Promise<string | null> => {
+    if (activeTripId) return activeTripId;
+    const { data: userData } = await supabase.auth.getUser();
+    const driverId = userData?.user?.id;
+    if (!driverId) return null;
+    const { data, error } = await supabase
+      .from('trips')
+      .insert({ driver_id: driverId, status: 'active' })
+      .select('id')
+      .single();
+    if (error || !data?.id) return null;
+    setActiveTripRole('driver');
+    setActiveTripId(data.id);
+    return data.id;
+  }, [activeTripId]);
+
+  // ── endOnlineSession ────────────────────────────────────────────────────────
+  // Al desactivar el modo conductor sin que nadie llegara a subirse, la
+  // fila `trips` creada solo para que te pudieran descubrir se marca
+  // cancelada — si ya hubo un pasajero de verdad, handleTripEnd/
+  // handleTripCancel ya se encargan de esa fila, esto no hace nada.
+  const endOnlineSession = useCallback(() => {
+    if (activeTripId && !showActiveTrip) {
+      supabase.from('trips').update({ status: 'cancelled' }).eq('id', activeTripId).then(() => {}, () => {});
+      setActiveTripId(null);
+    }
+  }, [activeTripId, showActiveTrip]);
+
   // ── handleMatchAccept ───────────────────────────────────────────────────────
   /**
    * Single entry-point for both driver and passenger match acceptance.
@@ -105,52 +148,57 @@ export function useTripLifecycle({
    *     can silently fall through without activating the trip view.
    */
   const handleMatchAccept = useCallback(async () => {
-    let newTripId: string = activeTripId ?? crypto.randomUUID();
-    // Si ya había un viaje activo, este es el 2º/3º pasajero de la misma
-    // sesión — antes se repetía el mismo "¡Viaje aceptado!" en cada uno, y
-    // si se aceptaban varios seguidos rápido, el aviso se sustituía a sí
-    // mismo antes de llegar a cerrarse solo, dando la sensación de que
-    // nunca desaparecía.
-    const isFirstPassengerOfSession = !activeTripId;
+    // isFirstPassengerOfSession: antes se basaba en si ya existía
+    // activeTripId, pero ahora la fila `trips` puede existir desde que el
+    // conductor se puso online, sin ningún pasajero todavía — la señal real
+    // de "primer pasajero de la sesión" es si ya se estaba mostrando el
+    // viaje activo, no si ya había fila en la BD.
+    const isFirstPassengerOfSession = !showActiveTrip;
 
     if (isDriverMode && simulatedPassenger) {
       // Un solo viaje (fila `trips`) por sesión de conducción, no uno por
       // pasajero aceptado — cada pasajero que se sube en el camino es una
       // fila en `trip_passengers`, todas apuntando al mismo trip_id.
+      let newTripId: string = activeTripId ?? crypto.randomUUID();
       try {
         const { data: userData } = await supabase.auth.getUser();
         const driverId = userData?.user?.id;
         if (driverId) {
-          if (!activeTripId) {
-            const { data, error } = await supabase
-              .from('trips')
-              .insert({ driver_id: driverId, status: 'active' })
+          const ensuredId = await ensureActiveTrip();
+          if (ensuredId) newTripId = ensuredId;
+          let tripPassengerId: string | null = null;
+          if (simulatedPassenger.realRequestId) {
+            // Petición real: el propio pasajero ya creó esta fila al
+            // pedirlo (está en 'requested'). Aceptar es pasarla a
+            // 'waiting_pickup', no insertar una segunda.
+            const { error } = await supabase
+              .from('trip_passengers')
+              .update({ price: simulatedPassenger.compensation, status: 'waiting_pickup' })
+              .eq('id', simulatedPassenger.realRequestId);
+            if (!error) tripPassengerId = simulatedPassenger.realRequestId;
+          } else {
+            // Simulado (o autocobro de prueba): passenger_id = el propio
+            // conductor, para poder probar el ciclo de dinero real de
+            // extremo a extremo sin un pasajero de verdad.
+            const { data: tripPassengerRow } = await supabase
+              .from('trip_passengers')
+              .insert({
+                trip_id: newTripId,
+                passenger_id: driverId,
+                passenger_name: simulatedPassenger.name,
+                origin_name: simulatedPassenger.origin.name,
+                origin_lat: simulatedPassenger.origin.lat,
+                origin_lng: simulatedPassenger.origin.lng,
+                destination_name: simulatedPassenger.destination.name,
+                destination_lat: simulatedPassenger.destination.lat,
+                destination_lng: simulatedPassenger.destination.lng,
+                price: simulatedPassenger.compensation,
+                status: 'waiting_pickup',
+              })
               .select('id')
               .single();
-            if (!error && data?.id) newTripId = data.id;
+            tripPassengerId = tripPassengerRow?.id ?? null;
           }
-          // passenger_id: driverId — el pasajero sigue siendo simulado (no
-          // hay modo pasajero real todavía), pero para poder probar el
-          // cobro de verdad de extremo a extremo, el propio conductor hace
-          // de las dos partes: paga con su tarjeta y cobra en su cuenta
-          // Connect. Cuando exista un pasajero real, esto apuntará a él.
-          const { data: tripPassengerRow } = await supabase
-            .from('trip_passengers')
-            .insert({
-              trip_id: newTripId,
-              passenger_id: driverId,
-              passenger_name: simulatedPassenger.name,
-              origin_name: simulatedPassenger.origin.name,
-              origin_lat: simulatedPassenger.origin.lat,
-              origin_lng: simulatedPassenger.origin.lng,
-              destination_name: simulatedPassenger.destination.name,
-              destination_lat: simulatedPassenger.destination.lat,
-              destination_lng: simulatedPassenger.destination.lng,
-              price: simulatedPassenger.compensation,
-              status: 'waiting_pickup',
-            })
-            .select('id')
-            .single();
 
           // Retiene el coste bruto de sus km (recogida→destino + su desvío)
           // SIN repartir entre nadie ni restar comisión — a propósito muy
@@ -159,15 +207,15 @@ export function useTripLifecycle({
           // conductor, más su comisión). Así nunca se corre el riesgo de
           // tener que pedir más de lo retenido; al bajarse se captura solo
           // el importe final real y lo que sobre se libera solo.
-          if (tripPassengerRow?.id) {
-            simToDbIdRef.current.set(simulatedPassenger.id, tripPassengerRow.id);
+          if (tripPassengerId) {
+            simToDbIdRef.current.set(simulatedPassenger.id, tripPassengerId);
             const holdKm = simulatedPassenger.tripDistanceKm + simulatedPassenger.detourKm;
             const holdAmountCents = Math.ceil(
               (holdKm * HOLD_RATE_PER_KM + simulatedPassenger.receipt.extrasSurcharge) * 100,
             );
             supabase.functions
               .invoke('stripe-authorize-trip', {
-                body: { tripPassengerId: tripPassengerRow.id, holdAmountCents },
+                body: { tripPassengerId, holdAmountCents },
               })
               .then(async ({ data, error }) => {
                 // supabase-js no vuelca el cuerpo JSON del error en
@@ -241,8 +289,10 @@ export function useTripLifecycle({
       dismissSimPassenger();
     } else {
       // ── Passenger branch ─────────────────────────────────────────────────
+      // Simulación local — no hay fila `trips` propia que crear aquí (el
+      // modo pasajero real usa su propio flujo, ver useRealDriverSearch).
       setActiveTripRole('passenger');
-      setActiveTripId(newTripId);
+      setActiveTripId(activeTripId ?? crypto.randomUUID());
 
       // El punto de recogida es siempre tu ubicación real — nunca uno
       // inventado. Antes, con "puerta a puerta" desactivado, se desplazaba
@@ -267,6 +317,8 @@ export function useTripLifecycle({
     addMeetingPointWaypoints,
     toast,
     activeTripId,
+    showActiveTrip,
+    ensureActiveTrip,
   ]);
 
   // ── handlePickup ────────────────────────────────────────────────────────────
@@ -335,6 +387,22 @@ export function useTripLifecycle({
     toast({ title: 'Viaje cancelado', duration: 1500 });
   }, [activeTripId, cancelTrip, toast]);
 
+  // ── confirmRealMatch ────────────────────────────────────────────────────────
+  // Pasajero real emparejado de verdad (useRealDriverSearch) — a diferencia
+  // de la rama pasajero de handleMatchAccept, aquí el trip_id es el de
+  // verdad (el conductor ya lo creó al ponerse online), no uno local
+  // inventado — así useDriverTracking puede suscribirse a su ubicación real.
+  const confirmRealMatch = useCallback(
+    (realTripId: string) => {
+      setActiveTripRole('passenger');
+      setActiveTripId(realTripId);
+      setTripStatus('waiting');
+      setShowActiveTrip(true);
+      toast({ title: '¡Viaje confirmado!', description: 'Tu conductor viene a recogerte.', duration: 1800 });
+    },
+    [toast],
+  );
+
   // ── closeRating ─────────────────────────────────────────────────────────────
   const closeRating = useCallback(() => setShowRating(false), []);
 
@@ -350,6 +418,9 @@ export function useTripLifecycle({
     tripStatus,
     activeTripId,
     meetingPoint,
+    ensureActiveTrip,
+    endOnlineSession,
+    confirmRealMatch,
     handleMatchAccept,
     handlePickup,
     handleTripEnd,
