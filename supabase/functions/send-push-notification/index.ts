@@ -23,15 +23,33 @@ function json(body: unknown, status = 200) {
   });
 }
 
+// Algunas claves se pegan en base64 "clásico" (con + y /) o con saltos de
+// línea, y web-push solo admite base64url: si no, revienta al validarlas.
+function base64Url(value: string | undefined) {
+  if (!value) return undefined;
+  const clean = value
+    .replace(/\s+/g, "")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+  return clean || undefined;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS_HEADERS });
-  if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
 
-  const vapidPublicKey = Deno.env.get("VAPID_PUBLIC_KEY");
-  const vapidPrivateKey = Deno.env.get("VAPID_PRIVATE_KEY");
+  const vapidPublicKey = base64Url(Deno.env.get("VAPID_PUBLIC_KEY"));
+  const vapidPrivateKey = base64Url(Deno.env.get("VAPID_PRIVATE_KEY"));
   if (!vapidPublicKey || !vapidPrivateKey) {
     return json({ error: "Push no configurado (faltan las claves VAPID)" }, 500);
   }
+
+  // La clave pública no es secreta: la app la pide aquí en vez de llevarla
+  // incrustada en el código.
+  if (req.method === "GET") return json({ publicKey: vapidPublicKey });
+
+  if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
+
   webpush.setVapidDetails("mailto:soporte@vimatch.app", vapidPublicKey, vapidPrivateKey);
 
   const authHeader = req.headers.get("Authorization") ?? "";
