@@ -10,6 +10,11 @@ import type { SimulatedPassenger } from '@/hooks/usePassengerSimulation';
 // para que la retención cubra de sobra cualquier precio final posible.
 const HOLD_RATE_PER_KM = 0.26;
 
+// Stripe rechaza cualquier cargo en EUR por debajo de 50 céntimos — un
+// tramo muy corto (pocos metros) podía calcular una retención por debajo
+// de eso y Stripe lo devolvía como error en vez de autorizar nada.
+const MIN_HOLD_AMOUNT_CENTS = 50;
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type TripRole = 'driver' | 'passenger';
@@ -225,8 +230,9 @@ export function useTripLifecycle({
           if (tripPassengerId) {
             simToDbIdRef.current.set(simulatedPassenger.id, tripPassengerId);
             const holdKm = simulatedPassenger.tripDistanceKm + simulatedPassenger.detourKm;
-            const holdAmountCents = Math.ceil(
-              (holdKm * HOLD_RATE_PER_KM + simulatedPassenger.receipt.extrasSurcharge) * 100,
+            const holdAmountCents = Math.max(
+              MIN_HOLD_AMOUNT_CENTS,
+              Math.ceil((holdKm * HOLD_RATE_PER_KM + simulatedPassenger.receipt.extrasSurcharge) * 100),
             );
             supabase.functions
               .invoke('stripe-authorize-trip', {

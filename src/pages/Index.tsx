@@ -310,7 +310,10 @@ const Index = () => {
   }, [toast]);
 
   const { currentPassenger: simulatedFakePassenger, dismissCurrent: dismissSimFakePassenger } = usePassengerSimulation({
-    enabled: passengerSimEnabled && !modals.showMatchPopup,
+    // Pasajeros ficticios desactivados: con el emparejamiento real ya
+    // funcionando, no tiene sentido que sigan apareciendo peticiones
+    // inventadas — solo deben llegar peticiones de pasajeros de verdad.
+    enabled: false,
     userLocation: realUserLocation,
     intervalMs: 5000,
     driverRoute: nav.currentRoute?.coordinates ?? null,
