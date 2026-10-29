@@ -176,9 +176,13 @@ export function useTripLifecycle({
             // Petición real: el propio pasajero ya creó esta fila al
             // pedirlo (está en 'requested'). Aceptar es pasarla a
             // 'waiting_pickup', no insertar una segunda.
+            // `price` guarda lo que PAGA el pasajero (mismo criterio que
+            // trips.price al cerrar el viaje) — antes guardaba lo que
+            // cobra el conductor, así que el pasajero nunca podía leer de
+            // ahí cuánto le iba a costar de verdad.
             const { error } = await supabase
               .from('trip_passengers')
-              .update({ price: simulatedPassenger.compensation, status: 'waiting_pickup' })
+              .update({ price: simulatedPassenger.receipt.passengerPrice, status: 'waiting_pickup' })
               .eq('id', simulatedPassenger.realRequestId);
             if (!error) {
               tripPassengerId = simulatedPassenger.realRequestId;

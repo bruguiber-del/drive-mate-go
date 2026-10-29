@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { haversineKm } from '@/lib/geo';
-import { calculatePrice } from '@/lib/priceCalculator';
 import type { SimulatedDriver, PassengerMatchPreferences } from '@/hooks/useDriverSimulation';
 
 export const REAL_SEARCH_RADIUS_KM = { initial: 3, expanded: 8 } as const;
@@ -60,7 +59,13 @@ export function useRealDriverSearch({
   const onMatchedRef = useRef(onMatched);
   useEffect(() => { onMatchedRef.current = onMatched; }, [onMatched]);
 
-  const resolveMatch = useCallback(async (tripId: string) => {
+  // `passengerPriceEur`: lo que de verdad va a pagar, calculado por el
+  // conductor con la ocupación real en el momento de aceptar (receipt.
+  // passengerPrice, guardado en trip_passengers.price) — antes aquí se
+  // inventaba un precio con un trayecto de 10km y un único pasajero fijos,
+  // así que el pasajero veía un número sin ninguna relación con su viaje
+  // real ni con cuánta gente más iba compartiéndolo.
+  const resolveMatch = useCallback(async (tripId: string, passengerPriceEur: number | null) => {
     const { data: trip } = await supabase.from('trips').select('driver_id').eq('id', tripId).maybeSingle();
     if (!trip) return;
     const [{ data: driverProfile }, { data: vehicle }] = await Promise.all([
@@ -73,7 +78,7 @@ export function useRealDriverSearch({
         .maybeSingle(),
     ]);
 
-    const pricing = calculatePrice({ distanceKm: 10, passengerCount: 1, traffic: 'normal' });
+    const price = passengerPriceEur ?? 0;
     const driver: SimulatedDriver = {
       id: trip.driver_id,
       name: driverProfile?.full_name ?? 'Conductor',
@@ -88,9 +93,9 @@ export function useRealDriverSearch({
       etaMinutes: 5,
       distanceLabel: '',
       pickupDistanceMeters: 0,
-      basePrice: pricing.driverIncome,
-      commission: pricing.commissionAmount,
-      totalPrice: pricing.passengerPrice,
+      basePrice: price,
+      commission: 0,
+      totalPrice: price,
       acceptsPets: true,
       hasChildSeat: true,
       doorToDoor: true,
@@ -111,9 +116,9 @@ export function useRealDriverSearch({
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'trip_passengers', filter: `id=eq.${rowId}` },
         (payload) => {
-          const row = payload.new as { status: string; trip_id: string };
+          const row = payload.new as { status: string; trip_id: string; price: number | null };
           if (row.status === 'waiting_pickup') {
-            resolveMatch(row.trip_id);
+            resolveMatch(row.trip_id, row.price);
           } else if (row.status === 'rejected') {
             pendingRowIdRef.current = null;
             setPendingRowId(null);
