@@ -71,6 +71,13 @@
       "when": 1793266387477,
       "tag": "0009_push_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793266438336,
+      "tag": "0010_passenger_reads_own_request",
+      "breakpoints": true
     }
   ]
 }
