@@ -86,11 +86,14 @@ export function useProfile() {
       if (cancelled) return;
 
       // Si por lo que sea el trigger de alta no creó la fila todavía, se crea
-      // aquí mismo en vez de dejar el perfil vacío para siempre.
+      // aquí mismo en vez de dejar el perfil vacío para siempre. Sin nombre
+      // por defecto: antes se usaba la parte del email antes de la @, así
+      // que quien nunca editaba su perfil acababa enseñándole su correo
+      // (disfrazado de "nombre") a cualquiera con quien se emparejara.
       if (!data) {
         const { data: created } = await supabase
           .from('profiles')
-          .insert({ id: userId, full_name: user?.email?.split('@')[0] ?? null, phone: user?.phone ?? null })
+          .insert({ id: userId, full_name: null, phone: user?.phone ?? null })
           .select('*')
           .maybeSingle();
         data = created;

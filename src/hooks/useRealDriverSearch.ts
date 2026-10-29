@@ -55,6 +55,11 @@ export function useRealDriverSearch({
   // ejecutar cuando se crea una petición nueva (una ref no dispara
   // renders), así que nunca llegaba a suscribirse a tiempo.
   const [pendingRowId, setPendingRowId] = useState<string | null>(null);
+  // El conductor más cercano visto en la última ronda de búsqueda — para
+  // que el pasajero vea en el mapa que hay alguien cerca mientras espera,
+  // no solo el punto de recogida. Antes no se enseñaba nada hasta
+  // emparejar de verdad.
+  const [nearestCandidate, setNearestCandidate] = useState<{ lat: number; lng: number } | null>(null);
   const elapsedMsRef = useRef(0);
   const onMatchedRef = useRef(onMatched);
   useEffect(() => { onMatchedRef.current = onMatched; }, [onMatched]);
@@ -149,6 +154,7 @@ export function useRealDriverSearch({
       attemptedTripIdsRef.current.clear();
       pendingRowIdRef.current = null;
       setPendingRowId(null);
+      setNearestCandidate(null);
       elapsedMsRef.current = 0;
       setRadiusKm(REAL_SEARCH_RADIUS_KM.initial);
       return;
@@ -158,13 +164,9 @@ export function useRealDriverSearch({
     let cancelled = false;
 
     const tick = async () => {
-      if (cancelled || pendingRowIdRef.current) return; // ya hay una petición en curso
+      if (cancelled) return;
       const loc = userLocation;
       if (!loc) return;
-
-      elapsedMsRef.current += POLL_INTERVAL_MS;
-      const currentRadius = elapsedMsRef.current >= 45_000 ? REAL_SEARCH_RADIUS_KM.expanded : REAL_SEARCH_RADIUS_KM.initial;
-      setRadiusKm(currentRadius);
 
       const { data: candidates } = await supabase
         .from('trips')
@@ -175,12 +177,27 @@ export function useRealDriverSearch({
 
       if (cancelled || !candidates) return;
 
-      const nearby = (candidates as TripCandidateRow[])
-        .filter((c) => !attemptedTripIdsRef.current.has(c.id))
-        .filter((c) => c.free_seats == null || c.free_seats > 0)
+      const withDistance = (candidates as TripCandidateRow[])
         .map((c) => ({ c, distanceKm: haversineKm(loc[0], loc[1], c.driver_lat!, c.driver_lng!) }))
-        .filter((x) => x.distanceKm <= currentRadius)
         .sort((a, b) => a.distanceKm - b.distanceKm);
+
+      // Se actualiza siempre, aunque ya haya una petición enviada a otro
+      // conductor — para que el mapa del pasajero no se quede congelado
+      // mientras espera respuesta.
+      setNearestCandidate(
+        withDistance.length > 0 ? { lat: withDistance[0].c.driver_lat!, lng: withDistance[0].c.driver_lng! } : null,
+      );
+
+      if (pendingRowIdRef.current) return; // ya hay una petición en curso
+
+      elapsedMsRef.current += POLL_INTERVAL_MS;
+      const currentRadius = elapsedMsRef.current >= 45_000 ? REAL_SEARCH_RADIUS_KM.expanded : REAL_SEARCH_RADIUS_KM.initial;
+      setRadiusKm(currentRadius);
+
+      const nearby = withDistance
+        .filter((x) => !attemptedTripIdsRef.current.has(x.c.id))
+        .filter((x) => x.c.free_seats == null || x.c.free_seats > 0)
+        .filter((x) => x.distanceKm <= currentRadius);
 
       if (nearby.length === 0) {
         if (elapsedMsRef.current >= 120_000) setPhase('not_found');
@@ -257,5 +274,5 @@ export function useRealDriverSearch({
     }
   }, []);
 
-  return { phase, radiusKm, retry, cancelPending };
+  return { phase, radiusKm, retry, cancelPending, nearestCandidate };
 }

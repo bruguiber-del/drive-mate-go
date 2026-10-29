@@ -78,19 +78,6 @@ const Index = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { profile, authEmail, isAuthenticated, emailConfirmed, phoneConfirmed, driverTripCount, passengerTripCount } = useProfile();
-  // Cualquiera puede ver el mapa sin cuenta; para publicar viaje o buscar uno
-  // sí hace falta estar registrado (si no, el insert en Supabase fallaría
-  // en silencio por RLS sin decir nunca por qué).
-  const requireAuthOrRedirect = useCallback(() => {
-    if (isAuthenticated) return true;
-    toast({
-      title: "Inicia sesión para continuar",
-      description: "Puedes mirar el mapa libremente, pero hace falta una cuenta para ser conductor o pasajero.",
-      duration: 3000,
-    });
-    navigate("/auth");
-    return false;
-  }, [isAuthenticated, toast, navigate]);
   // Carnet y matrícula todavía no se verifican de verdad: hasta que exista esa
   // comprobación, el perfil no puede marcarse como verificado.
   const DOCUMENTS_VERIFIED = false;
@@ -197,6 +184,35 @@ const Index = () => {
 
   // ── Modal / section visibility ──────────────────────────────────────────────
   const modals = useUIModals();
+
+  // Cualquiera puede ver el mapa sin cuenta; para publicar viaje o buscar uno
+  // sí hace falta estar registrado (si no, el insert en Supabase fallaría en
+  // silencio por RLS sin decir nunca por qué) Y tener puesto un nombre y
+  // apellido de verdad — antes, si no lo habías editado nunca, se usaba la
+  // parte del email antes de la @ como "nombre", y el otro usuario veía eso
+  // en vez de tu correo entero, pero seguía siendo tu correo disfrazado.
+  const requireAuthOrRedirect = useCallback(() => {
+    if (!isAuthenticated) {
+      toast({
+        title: "Inicia sesión para continuar",
+        description: "Puedes mirar el mapa libremente, pero hace falta una cuenta para ser conductor o pasajero.",
+        duration: 3000,
+      });
+      navigate("/auth");
+      return false;
+    }
+    const nameParts = (profile?.fullName ?? "").trim().split(/\s+/).filter(Boolean);
+    if (nameParts.length < 2) {
+      toast({
+        title: "Pon tu nombre y apellido",
+        description: "Para ser conductor o pasajero, la otra persona tiene que poder ver tu nombre real, no tu correo.",
+        duration: 3500,
+      });
+      modals.openProfile();
+      return false;
+    }
+    return true;
+  }, [isAuthenticated, profile?.fullName, toast, navigate, modals]);
 
   // ── Waypoints ───────────────────────────────────────────────────────────────
   const waypoints = useWaypoints();
@@ -1261,7 +1277,12 @@ const Index = () => {
   // ── Búsqueda de conductor en modo pasajero: conductores reales cercanos ────
   const driverSearchEnabled =
     isPassengerMode && nav.isNavigating && !trip.showActiveTrip && !isScheduledPending && !driverSim.currentDriver;
-  const { phase: searchPhase, radiusKm: searchRadiusKm, retry: retrySearch } = useRealDriverSearch({
+  const {
+    phase: searchPhase,
+    radiusKm: searchRadiusKm,
+    retry: retrySearch,
+    nearestCandidate: nearestSearchingDriver,
+  } = useRealDriverSearch({
     enabled: driverSearchEnabled,
     userLocation: realUserLocation,
     destination: nav.destinationCoords,
@@ -1278,6 +1299,17 @@ const Index = () => {
   });
 
   const showDriverOnMap = trip.showActiveTrip && trip.activeTripRole === "passenger";
+
+  // Mientras buscas conductor (todavía sin emparejar), enseña en el mapa al
+  // más cercano que se haya visto en la última ronda — antes, hasta que no
+  // te aceptaban, el mapa no mostraba a nadie más que a ti.
+  const nearbySearchingDriverPosition = useMemo(
+    () =>
+      searchPhase === "searching" && nearestSearchingDriver
+        ? { latitude: nearestSearchingDriver.lat, longitude: nearestSearchingDriver.lng }
+        : null,
+    [searchPhase, nearestSearchingDriver],
+  );
 
   // Si el conductor cancela mientras le esperas, antes te quedabas
   // esperando para siempre sin enterarte — esto vigila la fila `trips` de
@@ -1461,9 +1493,9 @@ const Index = () => {
       <MapView
         destination={mapDestination}
         showRoute={nav.isNavigating || (trip.showActiveTrip && trip.activeTripRole === "driver")}
-        driverLocation={driverLocation ?? simulatedDriverPosition}
+        driverLocation={driverLocation ?? simulatedDriverPosition ?? nearbySearchingDriverPosition}
         driverLocationHistory={locationHistory}
-        showDriverMarker={showDriverOnMap}
+        showDriverMarker={showDriverOnMap || !!nearbySearchingDriverPosition}
         isNavigating={nav.isNavigating}
         travelMode={effectiveTravelMode}
         waypointMarkers={mapWaypointMarkers}
@@ -1682,6 +1714,20 @@ const Index = () => {
           <div className="glass-strong rounded-full px-3 py-1.5 flex items-center gap-1.5 border border-success/30">
             <span className="text-[9px] text-muted-foreground">Compensado</span>
             <span className="text-sm font-bold text-success">+{totalTripCompensation.toFixed(2)}€</span>
+          </div>
+        </div>
+      )}
+
+      {/* Lo que te va a costar — el pasajero no tenía ningún equivalente a
+          la chapa "Compensado" del conductor, así que nunca veía cuánto le
+          iban a cobrar. Calculado por el conductor con la gente que vaya
+          de verdad a bordo en el momento de aceptarte: baja si ya hay más
+          pasajeros compartiendo el coche. */}
+      {trip.showActiveTrip && trip.activeTripRole === "passenger" && !!driverSim.currentDriver && driverSim.currentDriver.totalPrice > 0 && (
+        <div className="fixed left-1/2 -translate-x-1/2 z-30 pointer-events-none" style={{ bottom: overlayBottom(OVERLAY_BOTTOM_PX.compensatedBadge) }}>
+          <div className="glass-strong rounded-full px-3 py-1.5 flex items-center gap-1.5 border border-primary/30">
+            <span className="text-[9px] text-muted-foreground">Tu viaje</span>
+            <span className="text-sm font-bold text-primary">{driverSim.currentDriver.totalPrice.toFixed(2)}€</span>
           </div>
         </div>
       )}
