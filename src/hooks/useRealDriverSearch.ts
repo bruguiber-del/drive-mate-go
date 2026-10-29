@@ -50,6 +50,12 @@ export function useRealDriverSearch({
   const [radiusKm, setRadiusKm] = useState<number>(REAL_SEARCH_RADIUS_KM.initial);
   const attemptedTripIdsRef = useRef<Set<string>>(new Set());
   const pendingRowIdRef = useRef<string | null>(null);
+  // Además de la ref (para que el polling, que no depende de esto, siempre
+  // lea el valor último), hace falta este estado: sin él, el efecto de más
+  // abajo que escucha la respuesta del conductor nunca se vuelve a
+  // ejecutar cuando se crea una petición nueva (una ref no dispara
+  // renders), así que nunca llegaba a suscribirse a tiempo.
+  const [pendingRowId, setPendingRowId] = useState<string | null>(null);
   const elapsedMsRef = useRef(0);
   const onMatchedRef = useRef(onMatched);
   useEffect(() => { onMatchedRef.current = onMatched; }, [onMatched]);
@@ -96,8 +102,8 @@ export function useRealDriverSearch({
   // Vigila la fila pendiente hasta que el conductor la acepte o la
   // rechace, o hasta que pase demasiado tiempo sin respuesta.
   useEffect(() => {
-    if (!enabled || phase !== 'searching' || !pendingRowIdRef.current) return;
-    const rowId = pendingRowIdRef.current;
+    if (!enabled || phase !== 'searching' || !pendingRowId) return;
+    const rowId = pendingRowId;
 
     const channel = supabase
       .channel(`request-status-${rowId}`)
@@ -110,6 +116,7 @@ export function useRealDriverSearch({
             resolveMatch(row.trip_id);
           } else if (row.status === 'rejected') {
             pendingRowIdRef.current = null;
+            setPendingRowId(null);
           }
         },
       )
@@ -119,6 +126,7 @@ export function useRealDriverSearch({
       if (pendingRowIdRef.current === rowId) {
         supabase.from('trip_passengers').update({ status: 'cancelled' }).eq('id', rowId).then(() => {}, () => {});
         pendingRowIdRef.current = null;
+        setPendingRowId(null);
       }
     }, REQUEST_TIMEOUT_MS);
 
@@ -126,7 +134,7 @@ export function useRealDriverSearch({
       supabase.removeChannel(channel);
       clearTimeout(timeout);
     };
-  }, [enabled, phase, resolveMatch]);
+  }, [enabled, phase, pendingRowId, resolveMatch]);
 
   // Busca y pide subirse al conductor activo más cercano que no se haya
   // intentado ya.
@@ -135,6 +143,7 @@ export function useRealDriverSearch({
       setPhase('idle');
       attemptedTripIdsRef.current.clear();
       pendingRowIdRef.current = null;
+      setPendingRowId(null);
       elapsedMsRef.current = 0;
       setRadiusKm(REAL_SEARCH_RADIUS_KM.initial);
       return;
@@ -199,6 +208,7 @@ export function useRealDriverSearch({
 
       if (!error && row?.id) {
         pendingRowIdRef.current = row.id;
+        setPendingRowId(row.id);
         // Para que el conductor se entere aunque no tenga la app abierta
         // mirando la pantalla — si falla (p.ej. no tiene push activado),
         // no pasa nada, simplemente no le llega el aviso.
@@ -228,6 +238,7 @@ export function useRealDriverSearch({
   const retry = useCallback(() => {
     attemptedTripIdsRef.current.clear();
     pendingRowIdRef.current = null;
+    setPendingRowId(null);
     elapsedMsRef.current = 0;
     setRadiusKm(REAL_SEARCH_RADIUS_KM.initial);
     setPhase('searching');
@@ -237,6 +248,7 @@ export function useRealDriverSearch({
     if (pendingRowIdRef.current) {
       supabase.from('trip_passengers').update({ status: 'cancelled' }).eq('id', pendingRowIdRef.current).then(() => {}, () => {});
       pendingRowIdRef.current = null;
+      setPendingRowId(null);
     }
   }, []);
 
