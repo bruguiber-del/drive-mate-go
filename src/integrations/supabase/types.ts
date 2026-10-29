@@ -92,6 +92,71 @@ export type Database = {
         }
         Relationships: []
       }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          id: string
+          p256dh: string
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          p256dh: string
+          user_id: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          p256dh?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      ratings: {
+        Row: {
+          created_at: string
+          id: string
+          rated_user_id: string
+          rater_id: string
+          review: string | null
+          stars: number
+          trip_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          rated_user_id: string
+          rater_id: string
+          review?: string | null
+          stars: number
+          trip_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          rated_user_id?: string
+          rater_id?: string
+          review?: string | null
+          stars?: number
+          trip_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ratings_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       recurring_trips: {
         Row: {
           active: boolean
@@ -148,6 +213,7 @@ export type Database = {
           origin_lat: number | null
           origin_lng: number | null
           origin_name: string | null
+          passenger_id: string | null
           passenger_name: string | null
           picked_up_at: string | null
           price: number | null
@@ -165,6 +231,7 @@ export type Database = {
           origin_lat?: number | null
           origin_lng?: number | null
           origin_name?: string | null
+          passenger_id?: string | null
           passenger_name?: string | null
           picked_up_at?: string | null
           price?: number | null
@@ -182,6 +249,7 @@ export type Database = {
           origin_lat?: number | null
           origin_lng?: number | null
           origin_name?: string | null
+          passenger_id?: string | null
           passenger_name?: string | null
           picked_up_at?: string | null
           price?: number | null
@@ -207,7 +275,11 @@ export type Database = {
           destination_lng: number | null
           destination_name: string | null
           driver_id: string
+          driver_lat: number | null
+          driver_lng: number | null
+          free_seats: number | null
           id: string
+          location_updated_at: string | null
           origin_lat: number | null
           origin_lng: number | null
           origin_name: string | null
@@ -224,7 +296,11 @@ export type Database = {
           destination_lng?: number | null
           destination_name?: string | null
           driver_id: string
+          driver_lat?: number | null
+          driver_lng?: number | null
+          free_seats?: number | null
           id?: string
+          location_updated_at?: string | null
           origin_lat?: number | null
           origin_lng?: number | null
           origin_name?: string | null
@@ -241,7 +317,11 @@ export type Database = {
           destination_lng?: number | null
           destination_name?: string | null
           driver_id?: string
+          driver_lat?: number | null
+          driver_lng?: number | null
+          free_seats?: number | null
           id?: string
+          location_updated_at?: string | null
           origin_lat?: number | null
           origin_lng?: number | null
           origin_name?: string | null
