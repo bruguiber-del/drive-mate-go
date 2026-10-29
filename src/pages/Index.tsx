@@ -13,6 +13,7 @@ import { OVERLAY_BOTTOM_PX, overlayBottom } from "@/lib/overlayLayout";
 import { buildPassengerStopPills } from "@/lib/passengerStopPills";
 import type { PassengerStopPill } from "@/components/StopConfirmButtons";
 import { useState, useCallback, useMemo, useEffect, useRef, lazy, Suspense } from "react";
+import { useNavigate } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 import { X, Search, Loader2, CalendarClock } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -75,7 +76,21 @@ const FINAL_ARRIVAL_RADIUS_M = 60;
 
 const Index = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const { profile, authEmail, isAuthenticated, emailConfirmed, phoneConfirmed, driverTripCount, passengerTripCount } = useProfile();
+  // Cualquiera puede ver el mapa sin cuenta; para publicar viaje o buscar uno
+  // sí hace falta estar registrado (si no, el insert en Supabase fallaría
+  // en silencio por RLS sin decir nunca por qué).
+  const requireAuthOrRedirect = useCallback(() => {
+    if (isAuthenticated) return true;
+    toast({
+      title: "Inicia sesión para continuar",
+      description: "Puedes mirar el mapa libremente, pero hace falta una cuenta para ser conductor o pasajero.",
+      duration: 3000,
+    });
+    navigate("/auth");
+    return false;
+  }, [isAuthenticated, toast, navigate]);
   // Carnet y matrícula todavía no se verifican de verdad: hasta que exista esa
   // comprobación, el perfil no puede marcarse como verificado.
   const DOCUMENTS_VERIFIED = false;
@@ -1022,6 +1037,7 @@ const Index = () => {
 
   const handleDriverToggle = useCallback(() => {
     if (!isDriverMode) {
+      if (!requireAuthOrRedirect()) return;
       if (vehicles.vehicles.length === 0) {
         setVehicleSelectMode("manage");
         setShowVehicleManager(true);
@@ -1034,7 +1050,7 @@ const Index = () => {
       trip.endOnlineSession();
       setDriverOnlineTripId(null);
     }
-  }, [isDriverMode, vehicles.vehicles.length, trip]);
+  }, [isDriverMode, vehicles.vehicles.length, trip, requireAuthOrRedirect]);
 
   const handleVehicleSelected = useCallback(() => {
     setShowVehicleManager(false);
@@ -1131,6 +1147,7 @@ const Index = () => {
   }, [modals, dismissSimPassenger, toast]);
 
   const handlePassengerToggle = useCallback(() => {
+    if (!isPassengerMode && !requireAuthOrRedirect()) return;
     setIsPassengerMode((prev) => {
       const next = !prev;
       if (next) {
@@ -1145,7 +1162,7 @@ const Index = () => {
       }
       return next;
     });
-  }, [toast, driverSim]);
+  }, [isPassengerMode, requireAuthOrRedirect, toast, driverSim]);
 
   // ── Guardado de ajustes del pasajero (origen, para otra persona, programar) ─
   const handlePassengerSettingsSave = useCallback(
