@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { lovable } from '@/integrations/lovable/index';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -90,21 +89,20 @@ const Auth = () => {
     }
   };
 
+  // Supabase nativo, no el broker de Lovable (/~oauth/initiate): ese broker
+  // solo existe en los servidores de Lovable, así que rompía el login en
+  // cualquier otro dominio (p.ej. Netlify).
   const handleGoogle = async () => {
     setBusy(true);
-    try {
-      const result = await lovable.auth.signInWithOAuth('google', {
-        redirect_uri: `${window.location.origin}/auth?next=${encodeURIComponent(next)}`,
-      });
-      if (result.error) {
-        toast.error('No se pudo iniciar sesión con Google');
-        return;
-      }
-      if (result.redirected) return;
-      window.location.replace(next);
-    } finally {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/auth?next=${encodeURIComponent(next)}` },
+    });
+    if (error) {
+      toast.error('No se pudo iniciar sesión con Google');
       setBusy(false);
     }
+    // Si no hay error, el navegador ya está navegando hacia Google.
   };
 
   return (
