@@ -12,6 +12,19 @@ function urlBase64ToUint8Array(base64String: string) {
   return bytes;
 }
 
+// La clave pública de avisos puede venir incrustada en el build o pedirse a la
+// función de notificaciones; la clave pública no es secreta.
+async function resolveVapidKey(): Promise<string | undefined> {
+  const fromEnv = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined;
+  if (fromEnv) return fromEnv;
+  try {
+    const { data } = await supabase.functions.invoke('send-push-notification', { method: 'GET' });
+    return (data as { publicKey?: string } | null)?.publicKey;
+  } catch {
+    return undefined;
+  }
+}
+
 export type PushPermissionState = 'unsupported' | 'default' | 'granted' | 'denied';
 
 /**
@@ -33,7 +46,7 @@ export function usePushNotifications() {
 
   const subscribe = useCallback(async () => {
     if (permission === 'unsupported') return false;
-    const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined;
+    const vapidPublicKey = await resolveVapidKey();
     if (!vapidPublicKey) return false;
 
     setSubscribing(true);
