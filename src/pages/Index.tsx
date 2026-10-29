@@ -423,6 +423,23 @@ const Index = () => {
     tripEndRef.current = trip.handleTripEnd;
   }, [trip.handleTripEnd]);
 
+  // El precio de cada pasajero real a bordo se recalcula en memoria (ver
+  // recomputeCompensation en useMultiPassengerTrip) cada vez que sube o
+  // baja alguien, pero antes eso nunca se escribía en su fila de verdad —
+  // así que el pasajero nunca veía ese precio bajar aunque el conductor sí
+  // lo tuviera ya actualizado. Esto lo mantiene sincronizado en vivo.
+  useEffect(() => {
+    if (trip.activeTripRole !== "driver") return;
+    for (const { passenger } of multiTrip.passengers) {
+      if (!passenger.realRequestId) continue;
+      supabase
+        .from("trip_passengers")
+        .update({ price: passenger.receipt.passengerPrice })
+        .eq("id", passenger.realRequestId)
+        .then(() => {}, () => {});
+    }
+  }, [multiTrip.passengers, trip.activeTripRole]);
+
   // Listen for GPS permission denial and surface a toast
   useEffect(() => {
     const handler = () => {
@@ -1282,6 +1299,7 @@ const Index = () => {
     radiusKm: searchRadiusKm,
     retry: retrySearch,
     nearestCandidate: nearestSearchingDriver,
+    matchedRequestId,
   } = useRealDriverSearch({
     enabled: driverSearchEnabled,
     userLocation: realUserLocation,
@@ -1336,6 +1354,29 @@ const Index = () => {
       supabase.removeChannel(channel);
     };
   }, [showDriverOnMap, trip, driverSim, toast]);
+
+  // El precio que ves varía en vivo, no solo al emparejar: el conductor
+  // recalcula lo que paga cada uno cada vez que sube o baja alguien del
+  // coche (ver recomputeCompensation en useMultiPassengerTrip) y lo
+  // escribe en tu propia fila — esto es lo que te lo trae aquí sin que
+  // tengas que volver a emparejar ni recargar nada.
+  useEffect(() => {
+    if (!showDriverOnMap || !matchedRequestId) return;
+    const channel = supabase
+      .channel(`request-price-${matchedRequestId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'trip_passengers', filter: `id=eq.${matchedRequestId}` },
+        (payload) => {
+          const row = payload.new as { price: number | null };
+          if (row.price != null) driverSim.updateRealDriverPrice(row.price);
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [showDriverOnMap, matchedRequestId, driverSim]);
 
   // Con un viaje activo siempre vas en coche, seas quien lo conduce o quien
   // va de pasajero — antes solo se forzaba "coche" para el conductor, así

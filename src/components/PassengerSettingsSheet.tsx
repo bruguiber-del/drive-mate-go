@@ -20,7 +20,6 @@ import {
 } from '@/components/ui/tooltip';
 
 export interface PassengerSettingsData {
-  spacePreference: 'none' | 'spacious-car' | 'spacious-front';
   seatsNeeded: number;
   hasPet: boolean;
   needsChildSeat: boolean;
@@ -55,7 +54,6 @@ interface PassengerSettingsSheetProps {
 }
 
 const PassengerSettingsSheet = ({ isOpen, onClose, onSave, userLocation, initialPreferences }: PassengerSettingsSheetProps) => {
-  const [spacePreference, setSpacePreference] = useState<'none' | 'spacious-car' | 'spacious-front'>('none');
   const [seatsNeeded, setSeatsNeeded] = useState(1);
   const [hasPet, setHasPet] = useState(initialPreferences?.hasPet ?? false);
   const [needsChildSeat, setNeedsChildSeat] = useState(initialPreferences?.needsChildSeat ?? false);
@@ -87,7 +85,6 @@ const PassengerSettingsSheet = ({ isOpen, onClose, onSave, userLocation, initial
       if (!isNaN(parsed.getTime())) scheduledAt = parsed.toISOString();
     }
     onSave({
-      spacePreference,
       seatsNeeded,
       hasPet,
       needsChildSeat,
@@ -102,7 +99,7 @@ const PassengerSettingsSheet = ({ isOpen, onClose, onSave, userLocation, initial
     });
     onClose();
   }, [
-    spacePreference, seatsNeeded, hasPet, needsChildSeat, doorToDoor, genderPreference,
+    seatsNeeded, hasPet, needsChildSeat, doorToDoor, genderPreference,
     originText, isForOther, otherPersonName, otherPersonPickup, scheduleMode,
     scheduledDate, scheduledTime, onSave, onClose,
   ]);
@@ -217,41 +214,6 @@ const PassengerSettingsSheet = ({ isOpen, onClose, onSave, userLocation, initial
                 />
               </div>
             )}
-          </div>
-
-          {/* Section 1: Comfort Preferences */}
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Preferencias de comodidad</p>
-
-
-          <div className="flex flex-col gap-1.5 mb-4">
-            {[
-              { value: 'none' as const, label: 'Me da igual el espacio', surcharge: '+0€' },
-              { value: 'spacious-car' as const, label: 'Coche amplio', surcharge: '+0,50€' },
-              { value: 'spacious-front' as const, label: 'Asiento delantero amplio', surcharge: '+1€' },
-            ].map((option) => (
-              <button
-                key={option.value}
-                onClick={() => setSpacePreference(option.value)}
-                className={cn(
-                  "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all",
-                  spacePreference === option.value
-                    ? "bg-primary/10 border border-primary/30"
-                    : "bg-muted/50 border border-transparent"
-                )}
-              >
-                <div className={cn(
-                  "w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all",
-                  spacePreference === option.value ? "border-primary bg-primary" : "border-muted-foreground/40"
-                )}>
-                  {spacePreference === option.value && <div className="w-2.5 h-2.5 bg-primary-foreground rounded-full" />}
-                </div>
-                <span className="flex-1 text-left text-sm font-medium text-foreground">{option.label}</span>
-                <span className={cn(
-                  "text-xs font-semibold shrink-0",
-                  spacePreference === option.value ? "text-primary" : "text-muted-foreground"
-                )}>{option.surcharge}</span>
-              </button>
-            ))}
           </div>
 
           {/* Section 2: Seats needed */}

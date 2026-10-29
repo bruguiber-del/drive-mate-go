@@ -274,5 +274,5 @@ export function useRealDriverSearch({
     }
   }, []);
 
-  return { phase, radiusKm, retry, cancelPending, nearestCandidate };
+  return { phase, radiusKm, retry, cancelPending, nearestCandidate, matchedRequestId: pendingRowId };
 }

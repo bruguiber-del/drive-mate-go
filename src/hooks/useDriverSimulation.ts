@@ -132,5 +132,13 @@ export function useDriverSimulation() {
   // Index.tsx (el mapa, el ticket, el ETA...) funciona igual sin tocarlo.
   const setRealDriver = useCallback((driver: SimulatedDriver) => setCurrentDriver(driver), []);
 
-  return { currentDriver, isSearching, setIsSearching, searchDriver, setRealDriver, clearDriver };
+  // El conductor recalcula el precio de todos los que lleva a bordo cada
+  // vez que sube o baja alguien — esto es lo que deja que ese nuevo precio
+  // le llegue de verdad al pasajero mientras el viaje ya está en marcha,
+  // sin tener que volver a emparejar ni recargar nada.
+  const updateRealDriverPrice = useCallback((totalPrice: number) => {
+    setCurrentDriver((prev) => (prev ? { ...prev, totalPrice, basePrice: totalPrice } : prev));
+  }, []);
+
+  return { currentDriver, isSearching, setIsSearching, searchDriver, setRealDriver, updateRealDriverPrice, clearDriver };
 }
