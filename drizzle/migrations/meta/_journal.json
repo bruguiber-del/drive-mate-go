@@ -64,6 +64,13 @@
       "when": 1793266378616,
       "tag": "0008_ratings",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793266387477,
+      "tag": "0009_push_notifications",
+      "breakpoints": true
     }
   ]
 }
