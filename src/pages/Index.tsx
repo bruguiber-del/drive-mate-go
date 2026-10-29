@@ -1149,8 +1149,25 @@ const Index = () => {
     toast({ title: "Solicitud rechazada", description: "Seguirás recibiendo nuevas solicitudes", duration: 1800 });
   }, [modals, dismissSimPassenger, toast]);
 
-  const handlePassengerToggle = useCallback(() => {
-    if (!isPassengerMode && !requireAuthOrRedirect()) return;
+  const handlePassengerToggle = useCallback(async () => {
+    if (!isPassengerMode) {
+      if (!requireAuthOrRedirect()) return;
+      // Sin tarjeta guardada no hay forma de que el conductor cobre el
+      // viaje — antes esto no se comprobaba nunca y se dejaba pedir un
+      // viaje igualmente, así que al conductor le fallaba la retención.
+      const { data } = await supabase.functions.invoke("stripe-payment-method-status", { body: {} });
+      const hasCard = !!(data as { hasPaymentMethod?: boolean } | null)?.hasPaymentMethod;
+      if (!hasCard) {
+        toast({
+          title: "Añade una tarjeta antes de pedir un viaje",
+          description: "Sin una tarjeta guardada, el conductor no podría cobrar tu viaje.",
+          variant: "destructive",
+          duration: 3500,
+        });
+        modals.openPassengerSettings();
+        return;
+      }
+    }
     setIsPassengerMode((prev) => {
       const next = !prev;
       if (next) {
@@ -1165,7 +1182,7 @@ const Index = () => {
       }
       return next;
     });
-  }, [isPassengerMode, requireAuthOrRedirect, toast, driverSim]);
+  }, [isPassengerMode, requireAuthOrRedirect, toast, driverSim, modals]);
 
   // ── Guardado de ajustes del pasajero (origen, para otra persona, programar) ─
   const handlePassengerSettingsSave = useCallback(
@@ -1249,7 +1266,9 @@ const Index = () => {
     userLocation: realUserLocation,
     destination: nav.destinationCoords,
     originName: passengerTripSetup.originText || "Mi ubicación",
-    passengerName: profile?.fullName || authEmail || "Pasajero",
+    // Nunca el email como nombre visible para el conductor — si no ha
+    // puesto su nombre en el perfil, mejor "Pasajero" que su correo.
+    passengerName: profile?.fullName || "Pasajero",
     preferences: passengerPreferences,
     onMatched: (realTripId, driver) => {
       driverSim.setRealDriver(driver);

@@ -60,8 +60,10 @@ const MAPBOX_PROFILE: Record<TravelMode, string> = {
 
 /** Recalculate only when the user strays further than this from the route (m). */
 const OFF_ROUTE_THRESHOLD_M = 70;
-/** Never recalculate more often than this (ms). */
-const MIN_RECALC_INTERVAL_MS = 18000;
+/** Never recalculate more often than this (ms) — bajado de 18s a 7s: al
+ *  desviarte, se notaba demasiado tiempo yendo "a ciegas" antes de que la
+ *  ruta se actualizara. */
+const MIN_RECALC_INTERVAL_MS = 7000;
 
 const EARTH_R = 6371000;
 const toRad = (d: number) => (d * Math.PI) / 180;
