@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { User, CheckCircle, AlertCircle, Star, Car, Users, X, Armchair, Loader2 } from 'lucide-react';
+import { User, CheckCircle, AlertCircle, Star, Car, Users, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,8 +22,6 @@ interface ProfileSectionProps {
 // functions de revisión.
 const ADMIN_EMAIL = 'bruguiber@gmail.com';
 
-export type SpacePreference = 'none' | 'spacious-car' | 'spacious-front';
-
 const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
   const navigate = useNavigate();
   const {
@@ -31,7 +29,6 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
     driverTripCount, passengerTripCount, updateProfile,
   } = useProfile();
 
-  const [spacePreference, setSpacePreference] = useState<SpacePreference>('none');
   const [isEditing, setIsEditing] = useState(false);
   const [draftName, setDraftName] = useState('');
   const [draftPhone, setDraftPhone] = useState('');
@@ -143,104 +140,6 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">Como pasajero</p>
               </div>
-            </div>
-
-            {/* Passenger Comfort Preferences - Space */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Armchair className="w-5 h-5 text-secondary" />
-                <h4 className="font-semibold text-foreground">Preferencias de comodidad</h4>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Selecciona tu preferencia de espacio. Solo puedes elegir una opción.
-              </p>
-
-              <div className="space-y-2">
-                <button
-                  onClick={() => setSpacePreference('none')}
-                  className={cn(
-                    "w-full flex items-center justify-between p-4 rounded-xl transition-all",
-                    spacePreference === 'none'
-                      ? "bg-primary/20 border-2 border-primary"
-                      : "glass border-2 border-transparent"
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                    <Armchair className={cn("w-5 h-5", spacePreference === 'none' ? "text-primary" : "text-muted-foreground")} />
-                    <div className="text-left">
-                      <p className="font-medium text-foreground">Me da igual el espacio</p>
-                      <p className="text-sm text-muted-foreground">Sin coste adicional</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-success">+0€</span>
-                    <div className={cn(
-                      "w-5 h-5 rounded-full border-2 flex items-center justify-center",
-                      spacePreference === 'none' ? "border-primary bg-primary" : "border-muted-foreground"
-                    )}>
-                      {spacePreference === 'none' && <div className="w-2.5 h-2.5 bg-primary-foreground rounded-full" />}
-                    </div>
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => setSpacePreference('spacious-car')}
-                  className={cn(
-                    "w-full flex items-center justify-between p-4 rounded-xl transition-all",
-                    spacePreference === 'spacious-car'
-                      ? "bg-secondary/20 border-2 border-secondary"
-                      : "glass border-2 border-transparent"
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                    <Car className={cn("w-5 h-5", spacePreference === 'spacious-car' ? "text-secondary" : "text-muted-foreground")} />
-                    <div className="text-left">
-                      <p className="font-medium text-foreground">Coche amplio</p>
-                      <p className="text-sm text-muted-foreground">SUV, monovolumen o similar</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-warning">+0,50€</span>
-                    <div className={cn(
-                      "w-5 h-5 rounded-full border-2 flex items-center justify-center",
-                      spacePreference === 'spacious-car' ? "border-secondary bg-secondary" : "border-muted-foreground"
-                    )}>
-                      {spacePreference === 'spacious-car' && <div className="w-2.5 h-2.5 bg-secondary-foreground rounded-full" />}
-                    </div>
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => setSpacePreference('spacious-front')}
-                  className={cn(
-                    "w-full flex items-center justify-between p-4 rounded-xl transition-all",
-                    spacePreference === 'spacious-front'
-                      ? "bg-success/20 border-2 border-success"
-                      : "glass border-2 border-transparent"
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                    <Armchair className={cn("w-5 h-5", spacePreference === 'spacious-front' ? "text-success" : "text-muted-foreground")} />
-                    <div className="text-left">
-                      <p className="font-medium text-foreground">Asiento delantero amplio</p>
-                      <p className="text-sm text-muted-foreground">Reservar plaza delantera</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-warning">+1€</span>
-                    <div className={cn(
-                      "w-5 h-5 rounded-full border-2 flex items-center justify-center",
-                      spacePreference === 'spacious-front' ? "border-success bg-success" : "border-muted-foreground"
-                    )}>
-                      {spacePreference === 'spacious-front' && <div className="w-2.5 h-2.5 bg-success-foreground rounded-full" />}
-                    </div>
-                  </div>
-                </button>
-              </div>
-
-              <p className="text-xs text-muted-foreground px-2">
-                El recargo se aplica automáticamente al precio final del viaje.
-              </p>
             </div>
 
             <PushNotificationCard />
