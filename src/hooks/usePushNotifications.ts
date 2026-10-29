@@ -46,7 +46,7 @@ export function usePushNotifications() {
 
   const subscribe = useCallback(async () => {
     if (permission === 'unsupported') return false;
-    const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined;
+    const vapidPublicKey = await resolveVapidKey();
     if (!vapidPublicKey) return false;
 
     setSubscribing(true);
