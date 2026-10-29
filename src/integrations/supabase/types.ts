@@ -148,6 +148,7 @@ export type Database = {
           origin_lat: number | null
           origin_lng: number | null
           origin_name: string | null
+          passenger_id: string | null
           passenger_name: string | null
           picked_up_at: string | null
           price: number | null
@@ -165,6 +166,7 @@ export type Database = {
           origin_lat?: number | null
           origin_lng?: number | null
           origin_name?: string | null
+          passenger_id?: string | null
           passenger_name?: string | null
           picked_up_at?: string | null
           price?: number | null
@@ -182,6 +184,7 @@ export type Database = {
           origin_lat?: number | null
           origin_lng?: number | null
           origin_name?: string | null
+          passenger_id?: string | null
           passenger_name?: string | null
           picked_up_at?: string | null
           price?: number | null
@@ -207,7 +210,11 @@ export type Database = {
           destination_lng: number | null
           destination_name: string | null
           driver_id: string
+          driver_lat: number | null
+          driver_lng: number | null
+          free_seats: number | null
           id: string
+          location_updated_at: string | null
           origin_lat: number | null
           origin_lng: number | null
           origin_name: string | null
@@ -224,7 +231,11 @@ export type Database = {
           destination_lng?: number | null
           destination_name?: string | null
           driver_id: string
+          driver_lat?: number | null
+          driver_lng?: number | null
+          free_seats?: number | null
           id?: string
+          location_updated_at?: string | null
           origin_lat?: number | null
           origin_lng?: number | null
           origin_name?: string | null
@@ -241,7 +252,11 @@ export type Database = {
           destination_lng?: number | null
           destination_name?: string | null
           driver_id?: string
+          driver_lat?: number | null
+          driver_lng?: number | null
+          free_seats?: number | null
           id?: string
+          location_updated_at?: string | null
           origin_lat?: number | null
           origin_lng?: number | null
           origin_name?: string | null
