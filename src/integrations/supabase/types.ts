@@ -92,6 +92,44 @@ export type Database = {
         }
         Relationships: []
       }
+      ratings: {
+        Row: {
+          created_at: string
+          id: string
+          rated_user_id: string
+          rater_id: string
+          review: string | null
+          stars: number
+          trip_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          rated_user_id: string
+          rater_id: string
+          review?: string | null
+          stars: number
+          trip_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          rated_user_id?: string
+          rater_id?: string
+          review?: string | null
+          stars?: number
+          trip_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ratings_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       recurring_trips: {
         Row: {
           active: boolean

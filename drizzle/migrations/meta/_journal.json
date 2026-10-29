@@ -57,6 +57,13 @@
       "when": 1793266330265,
       "tag": "0007_real_matching",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793266378616,
+      "tag": "0008_ratings",
+      "breakpoints": true
     }
   ]
 }
