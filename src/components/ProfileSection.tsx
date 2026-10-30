@@ -1,12 +1,24 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { User, CheckCircle, AlertCircle, Star, Car, Users, X, Loader2 } from 'lucide-react';
+import { User, CheckCircle, AlertCircle, Star, Car, Users, X, Loader2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { useProfile } from '@/hooks/useProfile';
+import { useToast } from '@/components/ui/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import IdentityVerification from '@/components/IdentityVerification';
 import AdminVerificationReview from '@/components/AdminVerificationReview';
 import PushNotificationCard from '@/components/PushNotificationCard';
@@ -24,6 +36,7 @@ const ADMIN_EMAIL = 'bruguiber@gmail.com';
 
 const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const {
     profile, authEmail, emailConfirmed, phoneConfirmed, isAuthenticated, loading,
     driverTripCount, passengerTripCount, updateProfile,
@@ -35,6 +48,30 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
   const [draftCity, setDraftCity] = useState('');
   const [saving, setSaving] = useState(false);
   const [showAdminReview, setShowAdminReview] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDeleteAccount = async () => {
+    setDeleting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('delete-account', { body: {} });
+      const message = (data as { error?: string } | null)?.error;
+      if (error || message) {
+        toast({
+          title: 'No se pudo borrar la cuenta',
+          description: message ?? error?.message ?? 'Inténtalo de nuevo en un momento.',
+          variant: 'destructive',
+          duration: 3500,
+        });
+        return;
+      }
+      await supabase.auth.signOut();
+      navigate('/');
+    } finally {
+      setDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  };
 
   useEffect(() => {
     if (profile) {
@@ -239,6 +276,22 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
                 </div>
               )}
             </div>
+
+            {/* Zona peligrosa */}
+            <div className="space-y-2 pt-2">
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                className="w-full glass rounded-xl p-4 flex items-center gap-3 text-left border border-destructive/20 hover:bg-destructive/5 transition-colors"
+              >
+                <div className="w-10 h-10 rounded-lg bg-destructive/10 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-5 h-5 text-destructive" />
+                </div>
+                <div>
+                  <p className="font-medium text-destructive">Borrar mi cuenta</p>
+                  <p className="text-sm text-muted-foreground">Elimina tu cuenta y todos tus datos de forma permanente</p>
+                </div>
+              </button>
+            </div>
           </div>
           )}
         </div>
@@ -246,6 +299,30 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
       {authEmail === ADMIN_EMAIL && (
         <AdminVerificationReview isOpen={showAdminReview} onClose={() => setShowAdminReview(false)} />
       )}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={(open) => !deleting && setShowDeleteConfirm(open)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Borrar tu cuenta para siempre?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se eliminarán tu perfil, vehículos, historial de viajes, valoraciones, documentos de
+              verificación y cualquier otro dato asociado a tu cuenta. Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleDeleteAccount();
+              }}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Sí, borrar mi cuenta'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </motion.div>
   );
 };
