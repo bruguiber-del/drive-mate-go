@@ -47,6 +47,7 @@ import VehicleManager from "@/components/VehicleManager";
 // ── Hooks ─────────────────────────────────────────────────────────────────────
 import { useDriverTracking } from "@/hooks/useDriverTracking";
 import { useSimulatedDriverPosition } from "@/hooks/useSimulatedDriverPosition";
+import { useWakeLock } from "@/hooks/useWakeLock";
 import { useWaypoints, type Waypoint, type TripLeg } from "@/hooks/useWaypoints";
 import { usePassengerSimulation, type SimulatedPassenger, type PassengerReceipt } from "@/hooks/usePassengerSimulation";
 import { useIncomingRealRequests } from "@/hooks/useIncomingRealRequests";
@@ -247,6 +248,10 @@ const Index = () => {
     cancelTrip,
     onStop: () => tripEndRef.current(),
   });
+
+  // El móvil usado de verdad como navegador (apoyado en el salpicadero) no
+  // se puede apagar solo a media ruta por inactividad.
+  useWakeLock(nav.isNavigating);
 
   // ── Multi-passenger trip engine ─────────────────────────────────────────────
   // Lleva la cuenta de cuántos pasajeros van a bordo/aceptados a la vez (hasta
