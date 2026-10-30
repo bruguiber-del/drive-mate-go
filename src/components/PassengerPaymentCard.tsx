@@ -14,11 +14,23 @@ function getStripe() {
   return stripePromise;
 }
 
+// El campo de Stripe vive en un iframe aparte, que no hereda las variables
+// CSS de esta página — "hsl(var(--foreground))" no se resolvía ahí dentro
+// y Stripe caía en su negro por defecto, casi invisible sobre el fondo
+// oscuro de la tarjeta. Aquí se lee el valor real ya calculado.
+function resolveThemeColor(variable: string, fallback: string): string {
+  if (typeof window === 'undefined') return fallback;
+  const value = getComputedStyle(document.documentElement).getPropertyValue(variable).trim();
+  return value ? `hsl(${value})` : fallback;
+}
+
 const CardForm = ({ onSaved }: { onSaved: () => void }) => {
   const stripe = useStripe();
   const elements = useElements();
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
+  const textColor = resolveThemeColor('--foreground', '#f8fafc');
+  const placeholderColor = resolveThemeColor('--muted-foreground', '#94a3b8');
 
   const handleSubmit = useCallback(
     async (e: FormEvent) => {
@@ -59,7 +71,17 @@ const CardForm = ({ onSaved }: { onSaved: () => void }) => {
   return (
     <form onSubmit={handleSubmit} className="space-y-2">
       <div className="rounded-lg border border-border bg-background px-3 py-2.5">
-        <CardElement options={{ style: { base: { fontSize: '14px', color: 'hsl(var(--foreground))' } } }} />
+        <CardElement
+          options={{
+            style: {
+              base: {
+                fontSize: '14px',
+                color: textColor,
+                '::placeholder': { color: placeholderColor },
+              },
+            },
+          }}
+        />
       </div>
       <Button type="submit" size="sm" className="w-full" disabled={!stripe || saving}>
         {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Guardar tarjeta'}
