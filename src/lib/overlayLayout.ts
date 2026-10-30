@@ -2,8 +2,10 @@
  *  Un solo sitio donde ajustarlas: las columnas de cada esquina dependen unas
  *  de otras (p. ej. las chapas de pasajero no deben tapar el zoom). */
 export const OVERLAY_BOTTOM_PX = {
+  // 20 -> 60: la insignia "Powered by Netlify" que añaden los planes
+  // gratuitos tapaba el botón de centrar/zoom en esa esquina.
   /** Modo conductor/pasajero (izquierda) y zoom/centrar (derecha). */
-  cornerControls: 20,
+  cornerControls: 60,
   /** Lupa de añadir parada (izquierda), justo encima de los modos. */
   addStopButton: 130,
   /** Chapas de recogida/bajada de pasajeros (derecha), encima del zoom. */
