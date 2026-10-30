@@ -192,7 +192,7 @@ const Index = () => {
   // apellido de verdad — antes, si no lo habías editado nunca, se usaba la
   // parte del email antes de la @ como "nombre", y el otro usuario veía eso
   // en vez de tu correo entero, pero seguía siendo tu correo disfrazado.
-  const requireAuthOrRedirect = useCallback(() => {
+  const requireAuthOrRedirect = useCallback(async () => {
     if (!isAuthenticated) {
       toast({
         title: "Inicia sesión para continuar",
@@ -202,7 +202,19 @@ const Index = () => {
       navigate("/auth");
       return false;
     }
-    const nameParts = (profile?.fullName ?? "").trim().split(/\s+/).filter(Boolean);
+    // Se lee directamente de Supabase, no del `profile` ya cargado en este
+    // componente: ProfileSection tiene su propia copia del perfil (useProfile
+    // no comparte estado entre instancias), así que justo después de guardar
+    // el nombre ahí, esta copia todavía no se habría enterado y te seguiría
+    // pidiendo un nombre que ya habías puesto.
+    const { data: userData } = await supabase.auth.getUser();
+    const userId = userData.user?.id;
+    let fullName = profile?.fullName ?? null;
+    if (userId) {
+      const { data } = await supabase.from("profiles").select("full_name").eq("id", userId).maybeSingle();
+      if (data) fullName = data.full_name;
+    }
+    const nameParts = (fullName ?? "").trim().split(/\s+/).filter(Boolean);
     if (nameParts.length < 2) {
       toast({
         title: "Pon tu nombre y apellido",
@@ -1076,9 +1088,9 @@ const Index = () => {
     [toast],
   );
 
-  const handleDriverToggle = useCallback(() => {
+  const handleDriverToggle = useCallback(async () => {
     if (!isDriverMode) {
-      if (!requireAuthOrRedirect()) return;
+      if (!(await requireAuthOrRedirect())) return;
       if (vehicles.vehicles.length === 0) {
         setVehicleSelectMode("manage");
         setShowVehicleManager(true);
@@ -1189,7 +1201,7 @@ const Index = () => {
 
   const handlePassengerToggle = useCallback(async () => {
     if (!isPassengerMode) {
-      if (!requireAuthOrRedirect()) return;
+      if (!(await requireAuthOrRedirect())) return;
       // Sin tarjeta guardada no hay forma de que el conductor cobre el
       // viaje — antes esto no se comprobaba nunca y se dejaba pedir un
       // viaje igualmente, así que al conductor le fallaba la retención.
