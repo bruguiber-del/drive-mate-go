@@ -5,6 +5,8 @@ import {
   COMMISSION,
   PET_SURCHARGE,
   CHILD_SEAT_SURCHARGE,
+  MIN_PAIR_COMMISSION,
+  MIN_PASSENGER_PRICE,
 } from "./priceCalculator";
 
 describe("calculatePrice", () => {
@@ -26,9 +28,13 @@ describe("calculatePrice", () => {
     // Misma cifra a cada lado: ni el conductor ni el pasajero pagan el 12%
     // completo, cada uno paga la mitad (6 puntos).
     expect(r.driverCommissionShare).toBeCloseTo(r.commissionAmount, 2);
-    // Precisión a 1 decimal: cada mitad se redondea aparte a céntimos, así
-    // que la suma puede quedar a un céntimo del 12% exacto sin redondear.
-    expect(r.commissionAmount + r.driverCommissionShare).toBeCloseTo(r.tripShare * COMMISSION, 1);
+    // Por debajo de MIN_PAIR_COMMISSION manda el mínimo, no el 12% exacto
+    // (este trayecto es corto de sobra para que entre en juego). Precisión
+    // a 1 decimal: cada mitad se redondea aparte a céntimos.
+    expect(r.commissionAmount + r.driverCommissionShare).toBeCloseTo(
+      Math.max(r.tripShare * COMMISSION, MIN_PAIR_COMMISSION),
+      1,
+    );
     expect(r.driverTotalIncome).toBeCloseTo(r.driverIncome * 3, 1);
   });
 
@@ -48,7 +54,8 @@ describe("calculatePrice", () => {
 
   it("charges commission on top of the base price — half from each side", () => {
     const r = calculatePrice({ distanceKm: 10, passengerCount: 1 });
-    expect(r.commissionAmount).toBeCloseTo((r.tripShare * COMMISSION) / 2, 2);
+    // Trayecto corto: manda MIN_PAIR_COMMISSION, no el 12% exacto.
+    expect(r.commissionAmount).toBeCloseTo(Math.max(r.tripShare * COMMISSION, MIN_PAIR_COMMISSION) / 2, 2);
     expect(r.passengerPrice).toBeCloseTo(r.basePrice + r.commissionAmount, 2);
     expect(r.driverIncome).toBeCloseTo(r.basePrice - r.driverCommissionShare, 2);
   });
@@ -112,8 +119,31 @@ describe("calculatePrice", () => {
     // factor = 1 pasajero + 1 conductor = 2
     expect(r.basePrice).toBe(1.3);
     expect(r.driverGrossIncome).toBe(1.3);
-    expect(r.driverCommissionShare).toBe(0.08);
-    expect(r.driverTotalIncome).toBe(1.22);
+    // Trayecto corto: el 12% (0,08€) no llega a MIN_PAIR_COMMISSION, así
+    // que manda el mínimo (0,30€ cada lado).
+    expect(r.driverCommissionShare).toBe(MIN_PAIR_COMMISSION / 2);
+    expect(r.driverTotalIncome).toBeCloseTo(r.basePrice - MIN_PAIR_COMMISSION / 2, 2);
+  });
+
+  it("falls back to the minimum pair commission on short trips, where 12% would not cover Stripe's fees", () => {
+    const short = calculatePrice({ distanceKm: 10, passengerCount: 1, costPerKm: 0.26 });
+    expect(short.tripShare * COMMISSION).toBeLessThan(MIN_PAIR_COMMISSION);
+    expect(short.commissionAmount + short.driverCommissionShare).toBeCloseTo(MIN_PAIR_COMMISSION, 2);
+  });
+
+  it("still uses the plain 12% on long trips, where it already exceeds the minimum", () => {
+    const long = calculatePrice({ distanceKm: 75, passengerCount: 2 });
+    expect(long.tripShare * COMMISSION).toBeGreaterThan(MIN_PAIR_COMMISSION);
+    expect(long.commissionAmount + long.driverCommissionShare).toBeCloseTo(long.tripShare * COMMISSION, 2);
+  });
+
+  it("never prices a passenger below Stripe's own minimum chargeable amount", () => {
+    // Trayecto brevísimo: ni el tramo compartido ni el mínimo de comisión
+    // por sí solos llegarían a MIN_PASSENGER_PRICE sin el suelo absoluto.
+    const tiny = calculatePrice({ distanceKm: 1, passengerCount: 1, costPerKm: 0.1 });
+    expect(tiny.passengerPrice).toBeGreaterThanOrEqual(MIN_PASSENGER_PRICE);
+    // El suelo se mantiene consistente con el desglose: precio = base + comisión.
+    expect(tiny.passengerPrice).toBeCloseTo(tiny.basePrice + tiny.commissionAmount, 2);
   });
 
   it("applies traffic multipliers", () => {

@@ -1,11 +1,18 @@
-// Price calculator for VIMATCH — cost-sharing model (no profit)
+// Price calculator for VIMATCH — cost-sharing model (no profit for the driver;
+// VIMATCH sí se queda una comisión real)
 // Formula:
 //   tramo_compartido = (coste_real_del_trayecto) / (nº_pasajeros + 1)
-//   comisión_del_par = tramo_compartido × 12%, repartida a MEDIAS entre el
-//     conductor y ESE pasajero (6 puntos cada uno) — ninguno paga el 12%
-//     completo él solo. Ni el desvío ni los extras llevan comisión: son
-//     coste real de ese pasajero en concreto, sin margen.
-//   precio_pasajero = tramo_compartido + desvío + extras + su mitad de comisión
+//   comisión_del_par = MAYOR entre (tramo_compartido × 12%) y un mínimo fijo
+//     (MIN_PAIR_COMMISSION) — en trayectos cortos el 12% no llega a cubrir lo
+//     que cobra Stripe por procesar la tarjeta y transferir al conductor, así
+//     que por debajo de ese mínimo manda el importe fijo, no el porcentaje.
+//     Se reparte a MEDIAS entre el conductor y ESE pasajero (ninguno paga el
+//     100% él solo). Ni el desvío ni los extras llevan comisión: son coste
+//     real de ese pasajero en concreto, sin margen.
+//   precio_pasajero = MAYOR entre (tramo_compartido + desvío + extras + su
+//     mitad de comisión) y un suelo absoluto (MIN_PASSENGER_PRICE) — Stripe
+//     no deja cobrar menos de 0,50€ en ningún cargo; este suelo asegura que
+//     nunca se intenta cobrar por debajo de eso, con margen de sobra.
 //   conductor_recibe = tramo_compartido + desvío + extras − su mitad de comisión
 
 import { LEGAL_MAX_COST_PER_KM } from '@/lib/vehiclePricing';
@@ -19,6 +26,15 @@ export const FUEL_COST_PER_KM = 0.126;       // €/km (gasolina ~1,94€, 6,5L/
 export const MAINTENANCE_PER_KM = 0.10;      // €/km (ruedas, revisiones, etc.)
 export const TOTAL_COST_PER_KM = FUEL_COST_PER_KM + MAINTENANCE_PER_KM; // ≈0,226 €/km
 export const COMMISSION = 0.12;              // 12% VIMATCH
+
+// Suelo de la comisión (antes de repartir a medias) y del precio final al
+// pasajero — pensados contra el coste real de Stripe: cobrar la tarjeta
+// (1,5% + 0,25€, stripe.com/es/pricing) más transferir al conductor con
+// "Tú controlas las tarifas" (0,25% + 0,10€, stripe.com/es/connect/pricing)
+// suman ≈0,35-0,40€ fijos en un trayecto corto. 0,60€ cubre eso de sobra y
+// deja ~0,20€ de margen real para VIMATCH, no solo cubrir el gasto.
+export const MIN_PAIR_COMMISSION = 0.6;      // €, antes de repartir a medias
+export const MIN_PASSENGER_PRICE = 0.6;      // €, suelo absoluto (Stripe exige ≥0,50€ por cargo)
 
 // Aportaciones fijas por extras — justificadas como reparto de un coste real
 // del conductor (material de protección, limpieza, amortización del
@@ -159,12 +175,22 @@ export function calculatePrice({
 
   // La comisión del 12% es de ESTE PAR conductor-pasajero, sobre su tramo
   // compartido — y se reparte a MEDIAS entre los dos, nunca el 12% completo
-  // por cada lado (eso serían 24 puntos entre los dos, no 12).
-  const pairCommission = tripShare * COMMISSION;
-  const commissionAmount = pairCommission / 2;       // lo que aporta el pasajero
-  const driverCommissionShare = pairCommission / 2;  // lo que aporta el conductor — misma cifra
+  // por cada lado (eso serían 24 puntos entre los dos, no 12). Por debajo
+  // de MIN_PAIR_COMMISSION manda el mínimo, no el porcentaje: en trayectos
+  // cortos el 12% no cubriría ni lo que cobra Stripe.
+  const pairCommission = Math.max(tripShare * COMMISSION, MIN_PAIR_COMMISSION);
+  const driverCommissionShare = pairCommission / 2;  // lo que aporta el conductor
+  let commissionAmount = pairCommission / 2;         // lo que aporta el pasajero
 
   const basePrice = tripShare + detourCharge + extrasSurcharge;
+  // Suelo absoluto: si ni siquiera el mínimo de comisión basta para superar
+  // MIN_PASSENGER_PRICE (trayecto brevísimo), el extra que falta se suma a
+  // commissionAmount — sale del lado del pasajero, no del conductor, que
+  // sigue cobrando lo mismo de siempre por su parte real del trayecto —
+  // así passengerPrice y commissionAmount nunca se desajustan entre sí.
+  if (basePrice + commissionAmount < MIN_PASSENGER_PRICE) {
+    commissionAmount = MIN_PASSENGER_PRICE - basePrice;
+  }
   const passengerPrice = basePrice + commissionAmount;
   const driverIncome = basePrice - driverCommissionShare;
 

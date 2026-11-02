@@ -2,11 +2,15 @@ import { describe, it, expect } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import { useMultiPassengerTrip } from "./useMultiPassengerTrip";
 import type { SimulatedPassenger } from "./usePassengerSimulation";
-import { COMMISSION } from "@/lib/priceCalculator";
+import { COMMISSION, MIN_PAIR_COMMISSION } from "@/lib/priceCalculator";
 
 // compensation (= driverIncome) es tripShare ya descontada la mitad de la
-// comisión que paga el conductor por este pasajero: tripShare × (1 - 6%).
-const netFactor = 1 - COMMISSION / 2;
+// comisión que paga el conductor por este pasajero. Por debajo de
+// MIN_PAIR_COMMISSION manda el mínimo, no el 12% exacto — los trayectos
+// cortos de estas pruebas caen en ese caso.
+function driverCommissionShareFor(tripShare: number): number {
+  return Math.max(tripShare * COMMISSION, MIN_PAIR_COMMISSION) / 2;
+}
 
 function makePassenger(id: string, overrides: Partial<SimulatedPassenger> = {}): SimulatedPassenger {
   return {
@@ -106,12 +110,17 @@ describe("useMultiPassengerTrip", () => {
     const { result } = renderHook(() => useMultiPassengerTrip({ seats: 3 }));
     act(() => result.current.acceptPassenger(makePassenger("p1", { tripDistanceKm: 10, detourKm: 0, costPerKm: 0.26 })));
     // Solo: factor = 1 pasajero + 1 conductor = 2
-    expect(result.current.passengers[0].passenger.compensation).toBeCloseTo(((10 * 0.26) / 2) * netFactor, 2);
+    const soloTripShare = (10 * 0.26) / 2;
+    expect(result.current.passengers[0].passenger.compensation).toBeCloseTo(
+      soloTripShare - driverCommissionShareFor(soloTripShare),
+      2,
+    );
 
     act(() => result.current.acceptPassenger(makePassenger("p2", { tripDistanceKm: 5, detourKm: 0, costPerKm: 0.26 })));
     // Ahora van 2 pasajeros: factor = 2 + 1 = 3 — p1 se recalcula, no se queda con el precio de cuando iba solo.
+    const sharedTripShare = (10 * 0.26) / 3;
     const p1 = result.current.passengers.find((p) => p.passenger.id === "p1")!.passenger;
-    expect(p1.compensation).toBeCloseTo(((10 * 0.26) / 3) * netFactor, 2);
+    expect(p1.compensation).toBeCloseTo(sharedTripShare - driverCommissionShareFor(sharedTripShare), 2);
   });
 
   it("recalculates the remaining passengers' price after a dropoff frees a seat", () => {
@@ -124,6 +133,7 @@ describe("useMultiPassengerTrip", () => {
     const afterDropoff = result.current.passengers.find((p) => p.passenger.id === "p1")!.passenger.compensation;
     // Con menos gente compartiendo, a p1 le toca pagar/cobrar una porción mayor.
     expect(afterDropoff).toBeGreaterThan(beforeDropoff);
-    expect(afterDropoff).toBeCloseTo(((10 * 0.26) / 2) * netFactor, 2);
+    const soloTripShare = (10 * 0.26) / 2;
+    expect(afterDropoff).toBeCloseTo(soloTripShare - driverCommissionShareFor(soloTripShare), 2);
   });
 });
