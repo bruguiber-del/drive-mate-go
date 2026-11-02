@@ -127,11 +127,42 @@ const MapView = ({
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
 
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  // Para deslizar el punto azul entre una posición de GPS y la siguiente en
+  // vez de saltar de golpe — antes cada fix nuevo (aunque llegara con un
+  // hueco de 1-2s) se aplicaba con setLngLat directo, sin transición.
+  const userMarkerAnimRef = useRef<number | null>(null);
+  const userMarkerRenderedPosRef = useRef<[number, number] | null>(null);
   const destMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const meetingMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const driverMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const waypointMarkersRef = useRef<mapboxgl.Marker[]>([]);
   const previewMarkersRef = useRef<mapboxgl.Marker[]>([]);
+
+  // Desliza el punto azul desde su última posición dibujada hasta `target`
+  // en MARKER_SLIDE_MS, en vez de saltar de golpe en cuanto llega un fix de
+  // GPS nuevo. Si llega otro fix a mitad de la animación, se cancela la
+  // anterior y se continúa desde donde iba (no desde el destino a medias),
+  // así nunca hay un salto discontinuo.
+  const animateUserMarkerTo = useCallback((target: [number, number]) => {
+    const MARKER_SLIDE_MS = 900;
+    if (userMarkerAnimRef.current != null) cancelAnimationFrame(userMarkerAnimRef.current);
+    const start = userMarkerRenderedPosRef.current ?? target;
+    const startTime = performance.now();
+
+    const step = (now: number) => {
+      const t = Math.min(1, (now - startTime) / MARKER_SLIDE_MS);
+      const lat = start[0] + (target[0] - start[0]) * t;
+      const lng = start[1] + (target[1] - start[1]) * t;
+      userMarkerRef.current?.setLngLat([lng, lat]);
+      userMarkerRenderedPosRef.current = [lat, lng];
+      if (t < 1) {
+        userMarkerAnimRef.current = requestAnimationFrame(step);
+      } else {
+        userMarkerAnimRef.current = null;
+      }
+    };
+    userMarkerAnimRef.current = requestAnimationFrame(step);
+  }, []);
 
   const updateMarkerLabelVisibility = useCallback(() => {
     if (!map.current) return;
@@ -178,6 +209,12 @@ const MapView = ({
   const [gpsRetryTick, setGpsRetryTick] = useState(0);
 
   const [rawUserLocation, setRawUserLocation] = useState<[number, number] | null>(null);
+  // Para que el fix rápido de baja precisión (ver más abajo) sepa, de forma
+  // síncrona, si ya hay una posición real antes de aplicarse — rawUserLocation
+  // por sí solo no sirve dentro de un callback async, que vería el valor
+  // "congelado" del render en que se creó el efecto.
+  const rawUserLocationRef = useRef<[number, number] | null>(null);
+  useEffect(() => { rawUserLocationRef.current = rawUserLocation; }, [rawUserLocation]);
   const [userHeading, setUserHeading] = useState<number | null>(null);
   // Rumbo de brújula real del dispositivo — responde a girar el móvil en la
   // mano, esté parado o en movimiento (a diferencia del rumbo GPS de abajo).
@@ -235,16 +272,13 @@ const MapView = ({
   const getHeading = useCallback((): number => {
     if (simulatedHeading != null) return simulatedHeading;
 
-    // Brújula real del dispositivo — prioridad sobre todo lo demás, porque
-    // es la única fuente que responde a girar el móvil en la mano estando
-    // parado (el rumbo GPS y el de "apunta al destino" de abajo no).
-    if (compassHeading != null) return compassHeading;
-
-    // Con ruta activa hacia un destino: orienta SIEMPRE hacia él,
-    // haya movimiento o no — la app muestra la línea recta al destino.
-    if (showRoute && bearingToTarget !== null) return bearingToTarget;
-
-    // Sin ruta/destino activo: manda el rumbo real del GPS.
+    // Con movimiento real confirmado por GPS (conduciendo, en bici...) el
+    // rumbo de desplazamiento manda sobre la brújula — el imán del móvil
+    // dentro de un coche (soporte magnético, altavoces, chasis metálico)
+    // distorsiona la brújula justo cuando más se mueve, mientras que el
+    // rumbo GPS se vuelve más fiable cuanto más rápido vas. Antes la
+    // brújula ganaba siempre, así que conduciendo la flecha podía apuntar
+    // para cualquier lado.
     if (hasReliableMovement) {
       if (userHeading !== null) return userHeading;
       const prev = positionHistory[positionHistory.length - 2];
@@ -253,6 +287,14 @@ const MapView = ({
       const dLat = curr[0] - prev[0];
       return (Math.atan2(dLng, dLat) * 180) / Math.PI;
     }
+
+    // Sin movimiento fiable: la brújula real del dispositivo es la única
+    // fuente que responde a girar el móvil en la mano estando parado.
+    if (compassHeading != null) return compassHeading;
+
+    // Sin brújula ni movimiento, pero con ruta activa: orienta hacia el
+    // destino en línea recta.
+    if (showRoute && bearingToTarget !== null) return bearingToTarget;
 
     if (userHeading !== null) return userHeading;
     if (positionHistory.length >= 2) {
@@ -348,6 +390,7 @@ const MapView = ({
       }
       resizeObserverRef.current?.disconnect();
       resizeObserverRef.current = null;
+      if (userMarkerAnimRef.current != null) cancelAnimationFrame(userMarkerAnimRef.current);
       map.current?.remove();
       map.current = null;
     };
@@ -395,6 +438,24 @@ const MapView = ({
       reportGpsStatus('unavailable');
       return;
     }
+
+    // Petición rápida de baja precisión (red/wifi, casi instantánea) en
+    // paralelo al watchPosition de alta precisión de abajo — sin esto, al
+    // abrir la app se quedaba en "Buscando tu ubicación…" todo el rato que
+    // tardara el GPS en conseguir el primer punto preciso, que al aire
+    // libre suele ser rápido pero en interiores o con mala señal puede
+    // tardar bastante. En cuanto llega el punto preciso, lo sustituye.
+    let quickFixApplied = false;
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        if (quickFixApplied || rawUserLocationRef.current) return;
+        quickFixApplied = true;
+        setRawUserLocation([position.coords.latitude, position.coords.longitude]);
+        reportGpsStatus('ok');
+      },
+      () => { /* sin red/permiso: el watchPosition de abajo sigue intentándolo */ },
+      { enableHighAccuracy: false, timeout: 5000, maximumAge: 60000 },
+    );
 
     watchIdRef.current = navigator.geolocation.watchPosition(
       (position) => {
@@ -465,13 +526,14 @@ const MapView = ({
         userMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: 'center' })
           .setLngLat([markerLocation[1], markerLocation[0]])
           .addTo(m);
+        userMarkerRenderedPosRef.current = markerLocation;
         // Salto instantáneo la primera vez — antes se deslizaba con
         // animación desde la posición guardada/por defecto hasta la
         // ubicación real, y se notaba como un "salto" en vez de aparecer
         // ya centrado en el sitio correcto.
         m.jumpTo({ center: [markerLocation[1], markerLocation[0]], zoom: 15 });
       } else {
-        userMarkerRef.current.setLngLat([markerLocation[1], markerLocation[0]]);
+        animateUserMarkerTo(markerLocation);
         const cur = userMarkerRef.current.getElement();
         cur.innerHTML = el.innerHTML;
       }
@@ -502,7 +564,7 @@ const MapView = ({
       const id = setTimeout(tryMount, 500);
       return () => clearTimeout(id);
     }
-  }, [rawUserLocation, simulatedPosition, markerLocation, mapReady, showRoute, isNavigating, simulatedHeading, getHeading]);
+  }, [rawUserLocation, simulatedPosition, markerLocation, mapReady, showRoute, isNavigating, simulatedHeading, getHeading, animateUserMarkerTo]);
 
   // ── Trail line during navigation ──────────────────────────────────────────
   useEffect(() => {
