@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { getManeuverIcon } from "@/lib/maneuverIcons";
 import { useVoiceGuidance } from "@/hooks/useVoiceGuidance";
 import { useToast } from "@/components/ui/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 
 // ── UI Components ──────────────────────────────────────────────────────────────
 // Mapbox GL is heavy — load it lazily so the rest of the UI paints immediately.
@@ -209,6 +210,20 @@ const Index = () => {
     // pidiendo un nombre que ya habías puesto.
     const { data: userData } = await supabase.auth.getUser();
     const userId = userData.user?.id;
+
+    // Sin al menos un contacto verificado (email o teléfono), no hay forma
+    // de localizarte de verdad si pasa algo — antes esto era solo una
+    // insignia informativa en el perfil, no bloqueaba nada.
+    if (!userData.user?.email_confirmed_at && !userData.user?.phone_confirmed_at) {
+      toast({
+        title: "Verifica tu email o tu teléfono",
+        description: "Para ser conductor o pasajero hace falta tener al menos un contacto verificado.",
+        duration: 3500,
+      });
+      modals.openProfile();
+      return false;
+    }
+
     let fullName = profile?.fullName ?? null;
     if (userId) {
       const { data } = await supabase.from("profiles").select("full_name").eq("id", userId).maybeSingle();
@@ -383,6 +398,18 @@ const Index = () => {
     maxDetourMinutes: driverSettings.maxDetour,
     activeTrackedPassengers: activeSimTrackedPassengers,
     seats: driverSettings.seats,
+    // Un pasajero ya aceptado cancela su propio tramo mientras le esperas —
+    // antes se quedaba "a bordo" para siempre en multiTrip.passengers, sin
+    // que nada le liberase la plaza ni recalculase el precio de los demás.
+    onPassengerCancelled: (tripPassengerId) => {
+      const tracked = multiTrip.passengers.find((p) => p.passenger.id === tripPassengerId);
+      multiTrip.confirmDropoff([tripPassengerId]);
+      toast({
+        title: tracked ? `${tracked.passenger.name} canceló su viaje` : "Un pasajero canceló su viaje",
+        description: "Se ha liberado su plaza.",
+        duration: 2500,
+      });
+    },
   });
   const simulatedPassenger = incomingReal.currentRequest ?? simulatedFakePassenger;
   const dismissSimPassenger = incomingReal.currentRequest ? incomingReal.dismissCurrent : dismissSimFakePassenger;
@@ -1154,6 +1181,10 @@ const Index = () => {
   );
 
   const expectedRouteTotalRef = useRef<number | null>(null);
+  // Para avisar de un posible "no se presentó" — cuándo se aceptó a cada
+  // pasajero que todavía está esperando a que le recojan.
+  const passengerAcceptedAtRef = useRef<Map<string, number>>(new Map());
+  const noShowNotifiedRef = useRef<Set<string>>(new Set());
 
   const handleMatchAcceptAndClose = useCallback(() => {
     setShowPreview(false);
@@ -1164,6 +1195,7 @@ const Index = () => {
       // Se añade a la cola real de pasajeros a bordo — puede haber ya otro
       // camino a su parada, o incluso ya recogido, sin que esto lo pise.
       multiTrip.acceptPassenger(simulatedPassenger);
+      passengerAcceptedAtRef.current.set(simulatedPassenger.id, Date.now());
       setIsMultiPassengerTripActive(true);
       setTripPassengerHistory((prev) =>
         prev.some((p) => p.id === simulatedPassenger.id) ? prev : [...prev, simulatedPassenger],
@@ -1171,6 +1203,64 @@ const Index = () => {
     }
     trip.handleMatchAccept();
   }, [modals, trip, isDriverMode, simulatedPassenger, multiTrip]);
+
+  // El conductor cancela SOLO el tramo de ese pasajero (p. ej. no se
+  // presentó) — no toca su propio viaje ni al resto de pasajeros a bordo.
+  const handleNoShow = useCallback(
+    (passenger: SimulatedPassenger) => {
+      if (passenger.realRequestId) {
+        supabase.from("trip_passengers").update({ status: "cancelled" }).eq("id", passenger.realRequestId).then(() => {}, () => {});
+        supabase.functions
+          .invoke("stripe-void-trip", { body: { tripPassengerId: passenger.realRequestId } })
+          .then(() => {}, () => {});
+      }
+      multiTrip.confirmDropoff([passenger.id]);
+      if (passenger.realPassengerId && trip.activeTripId) {
+        supabase.functions
+          .invoke("send-push-notification", {
+            body: {
+              tripId: trip.activeTripId,
+              targetUserId: passenger.realPassengerId,
+              title: "Viaje cancelado",
+              body: "El conductor no pudo esperar más y canceló tu viaje",
+              tag: "no-show-cancelled",
+            },
+          })
+          .then(() => {}, () => {});
+      }
+      toast({ title: `Viaje de ${passenger.name} cancelado`, duration: 2000 });
+    },
+    [multiTrip, trip.activeTripId, toast],
+  );
+
+  // Sin esto, un pasajero que nunca aparece se quedaba "esperando" para
+  // siempre: nada avisaba al conductor de que llevaba ya mucho rato parado
+  // en el punto de recogida sin nadie subiéndose.
+  const NO_SHOW_TIMEOUT_MS = 10 * 60 * 1000;
+  useEffect(() => {
+    if (!isDriverMode) return;
+    const id = setInterval(() => {
+      const now = Date.now();
+      for (const { passenger, status } of multiTrip.passengers) {
+        if (status !== "waiting_pickup") continue;
+        const acceptedAt = passengerAcceptedAtRef.current.get(passenger.id);
+        if (!acceptedAt || now - acceptedAt < NO_SHOW_TIMEOUT_MS) continue;
+        if (noShowNotifiedRef.current.has(passenger.id)) continue;
+        noShowNotifiedRef.current.add(passenger.id);
+        toast({
+          title: `${passenger.name} lleva más de 10 min sin recoger`,
+          description: "¿No se ha presentado?",
+          duration: 15000,
+          action: (
+            <ToastAction altText="Cancelar su viaje" onClick={() => handleNoShow(passenger)}>
+              Cancelar su viaje
+            </ToastAction>
+          ),
+        });
+      }
+    }, 30000);
+    return () => clearInterval(id);
+  }, [isDriverMode, multiTrip.passengers, toast, handleNoShow]);
 
   // Compara la ruta real de navegación con la que se verificó al aceptar, más
   // lo que añade cada parada personal (medido aparte, con la misma ruta).
@@ -1508,10 +1598,32 @@ const Index = () => {
   // conductor simulado, pero como el destino sigue puesto, la búsqueda
   // vuelve a arrancar sola — justo lo que se espera de "cancelar y seguir
   // buscando otro conductor".
+  // Antes esto llamaba a trip.handleTripCancel(), que marca 'cancelled'
+  // TODA la fila `trips` — la del conductor, que puede llevar a más gente
+  // además de ti. Con un emparejamiento real, matchedRequestId es tu
+  // propia fila trip_passengers: solo se cancela esa, se libera tu propia
+  // retención, y se avisa al conductor aparte (no se toca su viaje entero).
   const handlePassengerCancel = useCallback(() => {
-    trip.handleTripCancel();
+    if (matchedRequestId) {
+      trip.cancelOwnPassengerLeg(matchedRequestId);
+      if (driverSim.currentDriver && trip.activeTripId) {
+        supabase.functions
+          .invoke("send-push-notification", {
+            body: {
+              tripId: trip.activeTripId,
+              targetUserId: driverSim.currentDriver.id,
+              title: "Un pasajero canceló",
+              body: "Ya no tienes que recogerlo",
+              tag: "passenger-cancelled",
+            },
+          })
+          .then(() => {}, () => {});
+      }
+    } else {
+      trip.handleTripCancel();
+    }
     driverSim.clearDriver();
-  }, [trip, driverSim]);
+  }, [trip, driverSim, matchedRequestId]);
 
 
   // Icono de flecha según la maniobra actual (tipo Waze)

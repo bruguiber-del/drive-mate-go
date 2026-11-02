@@ -11,6 +11,7 @@ import {
   computeBearing,
   markerScreenRotation,
   nextSpeedTier,
+  nearestPointOnRoute,
   TIER_CAMERA,
   type SpeedTier,
 } from '@/lib/mapGeo';
@@ -253,6 +254,17 @@ const MapView = ({
   useEffect(() => { onRouteUpdate?.(route); }, [route, onRouteUpdate]);
   useEffect(() => { onRouteError?.(routeError); }, [routeError, onRouteError]);
   useEffect(() => { onRouteLoadingChange?.(isRouteLoading); }, [isRouteLoading, onRouteLoadingChange]);
+
+  // Posición "visual" del marcador — enganchada a la carretera cuando el GPS
+  // crudo cae a pocos metros de la ruta ya calculada (reutiliza las mismas
+  // coordenadas de Directions, sin llamada extra). Solo afecta a dónde se
+  // DIBUJA el punto azul: toda la lógica de verdad (desvío de ruta, llegada
+  // a recogida/destino, rumbo...) sigue usando markerLocation/rawUserLocation
+  // crudos, para no enmascarar un desvío real detrás de un marcador "fiel".
+  const displayLocation = useMemo(() => {
+    if (!markerLocation || !route || route.coordinates.length < 2) return markerLocation;
+    return nearestPointOnRoute(markerLocation, route.coordinates) ?? markerLocation;
+  }, [markerLocation, route]);
 
   /** ¿Hay movimiento real suficiente para fiarse del rumbo del GPS? (~30 m) */
   const hasReliableMovement = useMemo(() => {
@@ -511,7 +523,7 @@ const MapView = ({
 
   // ── User marker + auto-follow during navigation ───────────────────────────
   useEffect(() => {
-    if (!map.current || !markerLocation) return;
+    if (!map.current || !displayLocation) return;
 
     const tryMount = () => {
       if (!map.current) return;
@@ -524,16 +536,16 @@ const MapView = ({
 
       if (!userMarkerRef.current) {
         userMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: 'center' })
-          .setLngLat([markerLocation[1], markerLocation[0]])
+          .setLngLat([displayLocation[1], displayLocation[0]])
           .addTo(m);
-        userMarkerRenderedPosRef.current = markerLocation;
+        userMarkerRenderedPosRef.current = displayLocation;
         // Salto instantáneo la primera vez — antes se deslizaba con
         // animación desde la posición guardada/por defecto hasta la
         // ubicación real, y se notaba como un "salto" en vez de aparecer
         // ya centrado en el sitio correcto.
-        m.jumpTo({ center: [markerLocation[1], markerLocation[0]], zoom: 15 });
+        m.jumpTo({ center: [displayLocation[1], displayLocation[0]], zoom: 15 });
       } else {
-        animateUserMarkerTo(markerLocation);
+        animateUserMarkerTo(displayLocation);
         const cur = userMarkerRef.current.getElement();
         cur.innerHTML = el.innerHTML;
       }
@@ -541,7 +553,7 @@ const MapView = ({
       if (isFollowingRef.current) {
         if (isNavigating) {
           m.easeTo({
-            center: [markerLocation[1], markerLocation[0]],
+            center: [displayLocation[1], displayLocation[0]],
             bearing: simulatedHeading ?? heading ?? 0,
             pitch: 45,
             zoom: Math.max(m.getZoom(), 16),
@@ -550,7 +562,7 @@ const MapView = ({
         } else {
           // Idle follow: keep the blue dot centred without forcing zoom/pitch/bearing.
           m.easeTo({
-            center: [markerLocation[1], markerLocation[0]],
+            center: [displayLocation[1], displayLocation[0]],
             duration: 500,
           });
         }
@@ -564,7 +576,7 @@ const MapView = ({
       const id = setTimeout(tryMount, 500);
       return () => clearTimeout(id);
     }
-  }, [rawUserLocation, simulatedPosition, markerLocation, mapReady, showRoute, isNavigating, simulatedHeading, getHeading, animateUserMarkerTo]);
+  }, [rawUserLocation, simulatedPosition, displayLocation, mapReady, showRoute, isNavigating, simulatedHeading, getHeading, animateUserMarkerTo]);
 
   // ── Trail line during navigation ──────────────────────────────────────────
   useEffect(() => {

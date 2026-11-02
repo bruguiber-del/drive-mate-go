@@ -5,7 +5,9 @@
 // Recibe: { tripId, targetUserId, title, body, tag? }. Por seguridad, solo
 // deja mandar el aviso si quien llama Y a quien va dirigido son los dos
 // participantes (driver_id / passenger_id) del MISMO viaje — evita que
-// cualquiera pueda mandarle notificaciones a cualquiera.
+// cualquiera pueda mandarle notificaciones a cualquiera. Excepción: si
+// targetUserId es el propio que llama (un aviso de prueba a uno mismo),
+// no hace falta tripId ni viaje en común — es inofensivo por definición.
 // Devuelve: { sent: number }.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -60,7 +62,7 @@ Deno.serve(async (req) => {
     body?: string;
     tag?: string;
   };
-  if (!tripId || !targetUserId || !title) return json({ error: "falta tripId, targetUserId o title" }, 400);
+  if (!targetUserId || !title) return json({ error: "falta targetUserId o title" }, 400);
 
   const url = Deno.env.get("SUPABASE_URL")!;
   const userClient = createClient(url, Deno.env.get("SUPABASE_ANON_KEY")!, {
@@ -72,6 +74,17 @@ Deno.serve(async (req) => {
   const caller = userData?.user;
   if (!caller) return json({ error: "no autenticado" }, 401);
 
+  // Mandarte un aviso de prueba a ti mismo (desde el botón de Perfil) es
+  // inofensivo por definición — nadie puede abusar de esto para avisar a
+  // otra persona, así que no hace falta el viaje en común. Sin esto, no
+  // había forma de comprobar que un aviso real llega al móvil sin esperar
+  // a tener dos cuentas haciendo un viaje de prueba a la vez.
+  if (targetUserId === caller.id) {
+    return json(await sendTo(admin, targetUserId, title, body, tag));
+  }
+
+  if (!tripId) return json({ error: "falta tripId" }, 400);
+
   const { data: trip } = await admin.from("trips").select("driver_id").eq("id", tripId).maybeSingle();
   if (!trip) return json({ error: "viaje no encontrado" }, 404);
 
@@ -82,6 +95,17 @@ Deno.serve(async (req) => {
   if (!participantIds.has(caller.id) || !participantIds.has(targetUserId)) {
     return json({ error: "no autorizado para este viaje" }, 403);
   }
+
+  return json(await sendTo(admin, targetUserId, title, body, tag));
+});
+
+async function sendTo(
+  admin: ReturnType<typeof createClient>,
+  targetUserId: string,
+  title: string,
+  body: string | undefined,
+  tag: string | undefined,
+) {
 
   const { data: subs } = await admin
     .from("push_subscriptions")
@@ -106,5 +130,5 @@ Deno.serve(async (req) => {
     }
   }
 
-  return json({ sent });
-});
+  return { sent };
+}

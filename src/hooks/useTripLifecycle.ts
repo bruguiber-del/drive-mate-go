@@ -70,6 +70,10 @@ interface UseTripLifecycleReturn {
   handlePickup: () => void;
   handleTripEnd: () => void;
   handleTripCancel: () => void;
+  /** Un pasajero real cancela SOLO su propio tramo, mientras espera a que
+   *  le recojan — a diferencia de handleTripCancel, no toca `trips` (la
+   *  fila es del conductor y puede llevar a otros pasajeros más). */
+  cancelOwnPassengerLeg: (tripPassengerId: string) => void;
   closeRating: () => void;
   /** id real de `trip_passengers` para un pasajero simulado, si llegó a
    *  persistirse — hace falta para capturar su cobro final al bajarse
@@ -412,6 +416,28 @@ export function useTripLifecycle({
     toast({ title: 'Viaje cancelado', duration: 1500 });
   }, [activeTripId, cancelTrip, toast]);
 
+  // Antes, un pasajero real que cancelaba mientras esperaba la recogida
+  // acababa llamando a handleTripCancel: eso marcaba 'cancelled' la fila
+  // `trips` entera (la del CONDUCTOR, que puede llevar a más gente), y
+  // además no liberaba nada porque simToDbIdRef solo lo rellena el
+  // conductor al aceptar — la propia retención del pasajero se quedaba
+  // bloqueada. Esto solo toca su fila trip_passengers y su propia
+  // retención; al conductor se le avisa y se le quita de su lista aparte
+  // (ver onPassengerCancelled en useIncomingRealRequests).
+  const cancelOwnPassengerLeg = useCallback(
+    (tripPassengerId: string) => {
+      supabase.from('trip_passengers').update({ status: 'cancelled' }).eq('id', tripPassengerId).then(() => {}, () => {});
+      supabase.functions.invoke('stripe-void-trip', { body: { tripPassengerId } }).then(() => {}, () => {});
+      setShowActiveTrip(false);
+      setTripStatus('waiting');
+      setActiveTripId(null);
+      setMeetingPoint(null);
+      cancelTrip();
+      toast({ title: 'Viaje cancelado', duration: 1500 });
+    },
+    [cancelTrip, toast],
+  );
+
   // ── confirmRealMatch ────────────────────────────────────────────────────────
   // Pasajero real emparejado de verdad (useRealDriverSearch) — a diferencia
   // de la rama pasajero de handleMatchAccept, aquí el trip_id es el de
@@ -450,6 +476,7 @@ export function useTripLifecycle({
     handlePickup,
     handleTripEnd,
     handleTripCancel,
+    cancelOwnPassengerLeg,
     closeRating,
     getTripPassengerDbId,
   };

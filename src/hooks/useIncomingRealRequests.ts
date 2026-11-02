@@ -32,6 +32,11 @@ interface UseIncomingRealRequestsOptions {
   maxDetourMinutes?: number;
   activeTrackedPassengers?: ActiveTrackedPassenger[];
   seats?: number;
+  /** Un pasajero ya aceptado cancela su propio tramo mientras le esperas —
+   *  recibe el mismo id que SimulatedPassenger.id para ese pasajero
+   *  (ambos son el id de su fila trip_passengers), así se puede quitar de
+   *  multiTrip.passengers directamente. */
+  onPassengerCancelled?: (tripPassengerId: string) => void;
 }
 
 /**
@@ -51,9 +56,12 @@ export function useIncomingRealRequests({
   maxDetourMinutes,
   activeTrackedPassengers,
   seats = 1,
+  onPassengerCancelled,
 }: UseIncomingRealRequestsOptions) {
   const [currentRequest, setCurrentRequest] = useState<SimulatedPassenger | null>(null);
   const processingRef = useRef<Set<string>>(new Set());
+  const onPassengerCancelledRef = useRef(onPassengerCancelled);
+  useEffect(() => { onPassengerCancelledRef.current = onPassengerCancelled; }, [onPassengerCancelled]);
 
   const locationRef = useRef(userLocation);
   useEffect(() => { locationRef.current = userLocation; }, [userLocation]);
@@ -174,6 +182,17 @@ export function useIncomingRealRequests({
         (payload) => {
           const row = payload.new as TripPassengerRow;
           if (row.status === 'requested') handleNewRow(row);
+        },
+      )
+      .on(
+        // Un pasajero ya aceptado cancela su propio tramo mientras le
+        // esperas — antes nada avisaba al conductor ni le quitaba su plaza,
+        // así que se quedaba "a bordo" para siempre en multiTrip.passengers.
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'trip_passengers', filter: `trip_id=eq.${tripId}` },
+        (payload) => {
+          const row = payload.new as TripPassengerRow;
+          if (row.status === 'cancelled') onPassengerCancelledRef.current?.(row.id);
         },
       )
       .subscribe();

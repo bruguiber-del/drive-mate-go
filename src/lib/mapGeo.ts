@@ -18,6 +18,55 @@ export function approxMetersBetween(a: [number, number], b: [number, number]): n
   return Math.hypot(dLat, dLng);
 }
 
+/** Máxima distancia (m) a la que se "engancha" el punto a la ruta — por
+ *  encima de esto se asume que es un desvío real, no ruido de GPS, y se
+ *  enseña la posición cruda. */
+export const SNAP_TO_ROUTE_MAX_M = 25;
+
+/**
+ * Punto más cercano a `point` sobre la polilínea `route` (proyectando
+ * sobre cada segmento, no solo sobre los vértices) — plano local en metros
+ * centrado en `point`, misma aproximación que approxMetersBetween, barata
+ * y de sobra para los tramos cortos de un segmento de carretera.
+ *
+ * Devuelve null si la ruta tiene menos de 2 puntos o si el más cercano
+ * queda a más de SNAP_TO_ROUTE_MAX_M — en ese caso el GPS crudo ya no es
+ * "ruido alrededor de la vía", sino un desvío real que no hay que ocultar.
+ */
+export function nearestPointOnRoute(
+  point: [number, number],
+  route: [number, number][],
+): [number, number] | null {
+  if (route.length < 2) return null;
+  const lngScale = Math.cos((point[0] * Math.PI) / 180);
+  const toXY = (p: [number, number]): [number, number] => [
+    (p[1] - point[1]) * 111320 * lngScale,
+    (p[0] - point[0]) * 111320,
+  ];
+  const fromXY = (xy: [number, number]): [number, number] => [
+    point[0] + xy[1] / 111320,
+    point[1] + xy[0] / (111320 * lngScale),
+  ];
+
+  let best: { distSq: number; xy: [number, number] } | null = null;
+  for (let i = 0; i < route.length - 1; i += 1) {
+    const a = toXY(route[i]);
+    const b = toXY(route[i + 1]);
+    const abx = b[0] - a[0];
+    const aby = b[1] - a[1];
+    const lenSq = abx * abx + aby * aby;
+    // t = proyección de (0,0) sobre el segmento a→b, acotada a [0,1] para
+    // no salirse del tramo cuando la perpendicular cae fuera de él.
+    const t = lenSq === 0 ? 0 : Math.max(0, Math.min(1, -(a[0] * abx + a[1] * aby) / lenSq));
+    const projX = a[0] + abx * t;
+    const projY = a[1] + aby * t;
+    const distSq = projX * projX + projY * projY;
+    if (!best || distSq < best.distSq) best = { distSq, xy: [projX, projY] };
+  }
+  if (!best || Math.sqrt(best.distSq) > SNAP_TO_ROUTE_MAX_M) return null;
+  return fromXY(best.xy);
+}
+
 /**
  * Walks a list of [lat, lng] points in order and returns true as soon as
  * the cumulative distance between consecutive points exceeds thresholdM.

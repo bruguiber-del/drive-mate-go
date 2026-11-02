@@ -5,6 +5,7 @@ import {
   computeBearing,
   markerScreenRotation,
   nextSpeedTier,
+  nearestPointOnRoute,
 } from './mapGeo';
 
 describe('approxMetersBetween', () => {
@@ -115,6 +116,45 @@ describe('markerScreenRotation', () => {
   it('always returns a value in [0, 360), even with negative differences', () => {
     expect(markerScreenRotation(10, 350)).toBe(20);
     expect(markerScreenRotation(0, 90)).toBe(270);
+  });
+});
+
+describe('nearestPointOnRoute', () => {
+  // Carretera recta hacia el norte, desde el origen.
+  const straightRoute: [number, number][] = [
+    [0, 0],
+    [1, 0],
+  ];
+
+  it('returns null when the route has fewer than 2 points', () => {
+    expect(nearestPointOnRoute([0.5, 0.0001], [[0, 0]])).toBeNull();
+    expect(nearestPointOnRoute([0.5, 0.0001], [])).toBeNull();
+  });
+
+  it('snaps a point just off to the side of the road onto it', () => {
+    // ~5m al este de la carretera, a medio camino — bien dentro del umbral.
+    const offRoad: [number, number] = [0.5, 0.00005];
+    const snapped = nearestPointOnRoute(offRoad, straightRoute);
+    expect(snapped).not.toBeNull();
+    expect(snapped![1]).toBeCloseTo(0, 4);
+    expect(snapped![0]).toBeCloseTo(0.5, 2);
+  });
+
+  it('projects onto the segment, not past its endpoints', () => {
+    // Un poco al norte-este del final de la carretera (~4m): el punto más
+    // cercano es el propio extremo final, no una extrapolación de la línea.
+    const beyondEnd: [number, number] = [1.00003, 0.00003];
+    const snapped = nearestPointOnRoute(beyondEnd, straightRoute);
+    expect(snapped).not.toBeNull();
+    expect(snapped![0]).toBeCloseTo(1, 4);
+    expect(snapped![1]).toBeCloseTo(0, 4);
+  });
+
+  it('returns null (no snap) when the point is a real detour, far from the route', () => {
+    // ~1km al este — muy por encima de SNAP_TO_ROUTE_MAX_M (25m): es un
+    // desvío real, no ruido de GPS, así que no debe ocultarse.
+    const farAway: [number, number] = [0.5, 0.01];
+    expect(nearestPointOnRoute(farAway, straightRoute)).toBeNull();
   });
 });
 
