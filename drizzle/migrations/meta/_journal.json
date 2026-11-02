@@ -85,6 +85,13 @@
       "when": 1793281572757,
       "tag": "0011_driver_locations_real_passengers",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793644963729,
+      "tag": "0012_one_pending_request_per_passenger",
+      "breakpoints": true
     }
   ]
 }
