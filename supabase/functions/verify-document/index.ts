@@ -7,6 +7,83 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
+// Algunas claves se pegan en base64 "clásico" (con + y /) o con saltos de
+// línea, y web-push solo admite base64url: si no, revienta al validarlas.
+function base64Url(value: string | undefined) {
+  if (!value) return undefined;
+  const clean = value
+    .replace(/\s+/g, "")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+  return clean || undefined;
+}
+
+// Avisa a quien revisa a mano (profiles.is_admin) cuando la IA deja una
+// solicitud en needs_review — sin esto, nadie se enteraba de que había algo
+// pendiente salvo entrando a mirar el panel de admin de vez en cuando.
+// Manda por los tres canales configurados (los que falten se saltan solos):
+// push (ya existente), email (Resend) y WhatsApp (CallMeBot).
+async function notifyAdminsNeedsReview(
+  admin: ReturnType<typeof createClient>,
+  kind: string,
+  reason: string,
+) {
+  const { data: admins } = await admin.from("profiles").select("id").eq("is_admin", true);
+  if (!admins?.length) return;
+
+  const label = kind === "driver_license" ? "un carnet de conducir" : "una matrícula/vehículo";
+  const title = "📋 Documento para revisar";
+  const body = `La IA no pudo verificar ${label}: ${reason}`;
+
+  const vapidPublicKey = base64Url(Deno.env.get("VAPID_PUBLIC_KEY"));
+  const vapidPrivateKey = base64Url(Deno.env.get("VAPID_PRIVATE_KEY"));
+  if (vapidPublicKey && vapidPrivateKey) {
+    const webpush = (await import("npm:web-push@3")).default;
+    webpush.setVapidDetails("mailto:soporte@vimatch.app", vapidPublicKey, vapidPrivateKey);
+    for (const a of admins) {
+      const { data: subs } = await admin
+        .from("push_subscriptions")
+        .select("id, endpoint, p256dh, auth")
+        .eq("user_id", a.id);
+      for (const sub of subs ?? []) {
+        await webpush
+          .sendNotification(
+            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+            JSON.stringify({ title, body, tag: "verification" }),
+          )
+          .catch(() => {});
+      }
+    }
+  }
+
+  const resendApiKey = Deno.env.get("RESEND_API_KEY");
+  if (resendApiKey) {
+    for (const a of admins) {
+      const { data: authUser } = await admin.auth.admin.getUserById(a.id);
+      const email = authUser?.user?.email;
+      if (!email) continue;
+      await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${resendApiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          from: "VIMATCH <onboarding@resend.dev>",
+          to: [email],
+          subject: title,
+          text: body,
+        }),
+      }).catch(() => {});
+    }
+  }
+
+  const whatsappPhone = Deno.env.get("ADMIN_WHATSAPP_PHONE");
+  const callMeBotKey = Deno.env.get("CALLMEBOT_APIKEY");
+  if (whatsappPhone && callMeBotKey) {
+    const text = encodeURIComponent(`${title}\n${body}`);
+    await fetch(`https://api.callmebot.com/whatsapp.php?phone=${whatsappPhone}&text=${text}&apikey=${callMeBotKey}`).catch(() => {});
+  }
+}
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -148,6 +225,10 @@ Deno.serve(async (req) => {
 
   if (status === "approved" && request.kind === "vehicle" && request.vehicle_id) {
     await admin.from("vehicles").update({ verification_status: "verified" }).eq("id", request.vehicle_id);
+  }
+
+  if (status === "needs_review") {
+    await notifyAdminsNeedsReview(admin, request.kind, reason).catch(() => {});
   }
 
   return json({ status, reason });
