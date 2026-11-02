@@ -440,6 +440,10 @@ export type Database = {
           speed: number
         }[]
       }
+      passenger_has_active_request: {
+        Args: { p_passenger: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
