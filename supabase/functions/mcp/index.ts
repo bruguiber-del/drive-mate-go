@@ -144,6 +144,8 @@ var FUEL_COST_PER_KM = 0.126;
 var MAINTENANCE_PER_KM = 0.1;
 var TOTAL_COST_PER_KM = FUEL_COST_PER_KM + MAINTENANCE_PER_KM;
 var COMMISSION = 0.12;
+var MIN_PAIR_COMMISSION = 0.6;
+var MIN_PASSENGER_PRICE = 0.6;
 var PET_SURCHARGE = 2;
 var CHILD_SEAT_SURCHARGE = 1;
 function occupancyFactor(passengerCount) {
@@ -171,10 +173,13 @@ function calculatePrice({
   const extrasSurcharge = (hasPet ? PET_SURCHARGE : 0) + (hasChildSeat ? CHILD_SEAT_SURCHARGE : 0);
   const tripShare = totalCost / factor * trafficMultiplier;
   const detourCharge = detourSurcharge * trafficMultiplier;
-  const pairCommission = tripShare * COMMISSION;
-  const commissionAmount = pairCommission / 2;
+  const pairCommission = Math.max(tripShare * COMMISSION, MIN_PAIR_COMMISSION);
   const driverCommissionShare = pairCommission / 2;
+  let commissionAmount = pairCommission / 2;
   const basePrice = tripShare + detourCharge + extrasSurcharge;
+  if (basePrice + commissionAmount < MIN_PASSENGER_PRICE) {
+    commissionAmount = MIN_PASSENGER_PRICE - basePrice;
+  }
   const passengerPrice = basePrice + commissionAmount;
   const driverIncome = basePrice - driverCommissionShare;
   const driverGrossIncome = basePrice * passengerCount;
