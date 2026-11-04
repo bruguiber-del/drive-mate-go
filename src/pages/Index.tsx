@@ -1185,6 +1185,10 @@ const Index = () => {
   // pasajero que todavía está esperando a que le recojan.
   const passengerAcceptedAtRef = useRef<Map<string, number>>(new Map());
   const noShowNotifiedRef = useRef<Set<string>>(new Set());
+  // Lo mismo pero al revés: cuándo te emparejaron con un conductor, para
+  // avisarte a ti si lleva ya mucho rato sin aparecer.
+  const driverAcceptedAtRef = useRef<number | null>(null);
+  const driverNoShowNotifiedRef = useRef(false);
 
   const handleMatchAcceptAndClose = useCallback(() => {
     setShowPreview(false);
@@ -1419,6 +1423,8 @@ const Index = () => {
     onMatched: (realTripId, driver) => {
       driverSim.setRealDriver(driver);
       trip.confirmRealMatch(realTripId);
+      driverAcceptedAtRef.current = Date.now();
+      driverNoShowNotifiedRef.current = false;
       toast({ title: "Conductor encontrado", description: "Tu conductor va hacia ti", duration: 2000 });
     },
   });
@@ -1625,6 +1631,30 @@ const Index = () => {
     driverSim.clearDriver();
   }, [trip, driverSim, matchedRequestId]);
 
+  // Simétrico al aviso de "pasajero no se presentó" del conductor: si el
+  // conductor lleva ya mucho rato sin aparecer, antes nadie te lo sugería —
+  // podías cancelar a mano en cualquier momento, pero tenías que pensarlo tú.
+  useEffect(() => {
+    if (trip.activeTripRole !== "passenger" || !trip.showActiveTrip) return;
+    const id = setInterval(() => {
+      if (trip.tripStatus !== "waiting" || !driverSim.currentDriver) return;
+      const acceptedAt = driverAcceptedAtRef.current;
+      if (!acceptedAt || Date.now() - acceptedAt < NO_SHOW_TIMEOUT_MS) return;
+      if (driverNoShowNotifiedRef.current) return;
+      driverNoShowNotifiedRef.current = true;
+      toast({
+        title: `${driverSim.currentDriver.name} lleva más de 10 min sin aparecer`,
+        description: "¿No se ha presentado?",
+        duration: 15000,
+        action: (
+          <ToastAction altText="Cancelar mi viaje" onClick={handlePassengerCancel}>
+            Cancelar mi viaje
+          </ToastAction>
+        ),
+      });
+    }, 30000);
+    return () => clearInterval(id);
+  }, [trip.activeTripRole, trip.showActiveTrip, trip.tripStatus, driverSim.currentDriver, toast, handlePassengerCancel, NO_SHOW_TIMEOUT_MS]);
 
   // Icono de flecha según la maniobra actual (tipo Waze)
   const ManeuverIcon = useMemo(
