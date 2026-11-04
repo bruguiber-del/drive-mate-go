@@ -5,28 +5,27 @@
 -- añade una nueva: dos políticas permisivas para el mismo comando se unen
 -- con OR, así que una política nueva más estricta sola no restringiría nada.
 --
--- La comprobación "¿ya tiene otra petición pendiente?" va en una función
--- aparte, no como subconsulta directa dentro del with check: consultar
--- trip_passengers desde dentro de su propia política de insert reevalúa
--- las políticas de select de esa misma tabla, y eso entra en recursión
--- infinita contra la política de select ya existente — Postgres rechaza
--- TODAS las inserciones (no solo las duplicadas) con un error de
--- recursión. SECURITY DEFINER hace que la función consulte la tabla sin
--- pasar por RLS, rompiendo el ciclo.
+-- La política anterior se consultaba a sí misma (trip_passengers dentro del
+-- check de trip_passengers) y Postgres la rechazaba con recursión infinita
+-- (42P17): cualquier intento de pedir un viaje fallaba, no solo los
+-- duplicados. La comprobación se mueve a una función SECURITY DEFINER, que
+-- lee la tabla sin pasar por RLS y rompe el ciclo.
 
-create or replace function public.passenger_has_pending_request(p_passenger_id uuid)
+create or replace function public.passenger_has_active_request(p_passenger uuid)
 returns boolean
 language sql
+stable
 security definer
 set search_path = public
-stable
 as $$
   select exists (
-    select 1 from public.trip_passengers tp
-    where tp.passenger_id = p_passenger_id
-      and tp.status in ('requested', 'waiting_pickup')
-  );
+    select 1 from public.trip_passengers
+    where passenger_id = p_passenger
+      and status in ('requested', 'waiting_pickup')
+  )
 $$;
+
+grant execute on function public.passenger_has_active_request(uuid) to authenticated;
 
 drop policy if exists "un pasajero real pide subirse a un viaje activo" on public.trip_passengers;
 
@@ -36,5 +35,5 @@ create policy "un pasajero real pide subirse a un viaje activo"
     passenger_id = auth.uid()
     and status = 'requested'
     and exists (select 1 from public.trips t where t.id = trip_id and t.status = 'active')
-    and not public.passenger_has_pending_request(auth.uid())
+    and not public.passenger_has_active_request(auth.uid())
   );
