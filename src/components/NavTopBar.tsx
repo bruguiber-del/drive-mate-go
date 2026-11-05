@@ -1,4 +1,3 @@
-import { motion } from "framer-motion";
 import { Menu, Volume2, VolumeX, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import SearchBar from "@/components/SearchBar";
@@ -45,11 +44,13 @@ const NavTopBar = ({
 
   return (
     <div className="absolute top-0 left-0 right-0 p-3 safe-area-inset-top pointer-events-none">
-      <motion.div
-        initial={{ y: -20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        className="flex items-center gap-2"
-      >
+      {/* Sin animación de entrada a propósito: es un control que SIEMPRE
+          tiene que estar disponible (el menú y el buscador), y una
+          animación de montaje puede quedarse congelada a mitad — p. ej. si
+          el navegador manda la pestaña a segundo plano justo entonces, al
+          abrir un enlace externo (Stripe) en una pestaña nueva — dejando
+          esto invisible (opacity:0) para siempre sin ningún aviso. */}
+      <div className="flex items-center gap-2">
         <Button variant="glass" size="icon-sm" className="shrink-0 pointer-events-auto" onClick={onOpenMenu}>
           <Menu className="w-4 h-4" />
         </Button>
@@ -65,11 +66,7 @@ const NavTopBar = ({
         </div>
 
         {isNavigating && (
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            className="pointer-events-auto flex shrink-0 items-center gap-1.5"
-          >
+          <div className="pointer-events-auto flex shrink-0 items-center gap-1.5">
             <Button
               variant="glass"
               size="icon-sm"
@@ -86,9 +83,9 @@ const NavTopBar = ({
             <Button className="shrink-0" variant="destructive" size="icon-sm" onClick={onStopNavigation}>
               <X className="w-4 h-4" />
             </Button>
-          </motion.div>
+          </div>
         )}
-      </motion.div>
+      </div>
     </div>
   );
 };
