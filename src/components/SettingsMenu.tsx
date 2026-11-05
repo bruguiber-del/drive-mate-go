@@ -23,7 +23,7 @@ const menuItems = [
   { id: 'schedule', icon: CalendarClock, label: 'Programar viaje', description: 'Viajes habituales, como ir cada día al mismo sitio', badge: null },
   { id: 'vehicles', icon: Car, label: 'Mis vehículos', description: 'Gestiona tus coches y su coste/km', badge: null },
   { id: 'history', icon: History, label: 'Historial', description: 'Viajes anteriores', badge: 'trips' },
-  { id: 'wallet', icon: Wallet, label: 'Pagos', description: 'Cartera y métodos de pago', badge: null },
+  { id: 'wallet', icon: Wallet, label: 'Pagos', description: 'Tu tarjeta y tus cobros', badge: null },
   { id: 'security', icon: Shield, label: 'Seguridad', description: 'Verificación DNI', badge: null },
   { id: 'help', icon: HelpCircle, label: 'Ayuda', description: 'Soporte y FAQ', badge: null },
 ];

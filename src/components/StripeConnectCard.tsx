@@ -14,6 +14,7 @@ const StripeConnectCard = () => {
   const [checking, setChecking] = useState(true);
   const [onboarded, setOnboarded] = useState(false);
   const [connecting, setConnecting] = useState(false);
+  const [openingDashboard, setOpeningDashboard] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [errorText, setErrorText] = useState('');
   const [explaining, setExplaining] = useState(false);
@@ -84,6 +85,28 @@ const StripeConnectCard = () => {
     }
   };
 
+  // Lo que de verdad cobras y cuándo te lo paga Stripe a tu banco solo
+  // existe en el Dashboard Express de Stripe — en VIMATCH no se guarda
+  // ningún saldo propio, así que esto no es un atajo, es la única fuente.
+  const handleOpenDashboard = async () => {
+    setOpeningDashboard(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('stripe-connect-dashboard-link', { body: {} });
+      if (error || !data?.url) {
+        toast({
+          title: 'No se pudo abrir el panel de Stripe',
+          description: data?.error ?? error?.message ?? 'Inténtalo de nuevo en un momento.',
+          variant: 'destructive',
+          duration: 3000,
+        });
+        return;
+      }
+      window.open(data.url, '_blank');
+    } finally {
+      setOpeningDashboard(false);
+    }
+  };
+
   return (
     <div className="glass rounded-xl p-3 mb-4">
       <div className="flex items-center gap-3">
@@ -108,9 +131,16 @@ const StripeConnectCard = () => {
                 : 'Completa el alta para poder cobrar de verdad'}
           </p>
         </div>
-        <Button size="sm" variant={onboarded ? 'ghost' : 'outline'} onClick={handleConnect} disabled={connecting || checking}>
-          {connecting ? <Loader2 className="w-4 h-4 animate-spin" /> : onboarded ? 'Revisar' : 'Conectar'}
-        </Button>
+        <div className="flex flex-col gap-1.5 items-stretch">
+          {onboarded && (
+            <Button size="sm" variant="outline" onClick={handleOpenDashboard} disabled={openingDashboard}>
+              {openingDashboard ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Ver pagos'}
+            </Button>
+          )}
+          <Button size="sm" variant={onboarded ? 'ghost' : 'outline'} onClick={handleConnect} disabled={connecting || checking}>
+            {connecting ? <Loader2 className="w-4 h-4 animate-spin" /> : onboarded ? 'Revisar' : 'Conectar'}
+          </Button>
+        </div>
       </div>
       <button
         type="button"
