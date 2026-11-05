@@ -7,8 +7,17 @@ import { Label } from '@/components/ui/label';
 import { Combobox } from '@/components/ui/combobox';
 import { Vehicle, FUEL_LABELS, CATEGORY_LABELS, calculateCostPerKm } from '@/lib/vehiclePricing';
 import { VEHICLE_BRANDS } from '@/lib/vehicleBrands';
+import { VEHICLE_MODELS_BY_BRAND } from '@/lib/vehicleModels';
 
 const BRAND_OPTIONS = VEHICLE_BRANDS.map((b) => ({ value: b, label: b }));
+const OTHER_MODEL = 'Otro modelo';
+const CURRENT_YEAR = new Date().getFullYear();
+// Años más recientes primero — la mayoría de coches que se dan de alta son
+// de los últimos años, así no hay que desplazarse hasta el final.
+const YEAR_OPTIONS = Array.from({ length: CURRENT_YEAR - 1989 }, (_, i) => {
+  const y = String(CURRENT_YEAR - i);
+  return { value: y, label: y };
+});
 
 interface VehicleManagerProps {
   isOpen: boolean;
@@ -63,21 +72,27 @@ const VehicleManager = ({
   // desplegable (poco habitual, pero pasa con marcas muy nuevas o raras).
   const [customBrand, setCustomBrand] = useState('');
   const [model, setModel] = useState('');
-  const [year, setYear] = useState('2020');
+  // Solo cuando se elige "Otro modelo" en la lista (o la marca no tiene
+  // lista de modelos conocida, en cuyo caso "model" ya es el texto libre).
+  const [customModel, setCustomModel] = useState('');
+  const [year, setYear] = useState(String(CURRENT_YEAR));
   const [plate, setPlate] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pendingVerifyId = useRef<string | null>(null);
 
   const resetForm = () => {
-    setBrand(''); setCustomBrand(''); setModel(''); setYear('2020'); setPlate(''); setShowForm(false);
+    setBrand(''); setCustomBrand(''); setModel(''); setCustomModel('');
+    setYear(String(CURRENT_YEAR)); setPlate(''); setShowForm(false);
   };
 
   const effectiveBrand = brand === 'Otra' ? customBrand : brand;
+  const modelOptionsForBrand = VEHICLE_MODELS_BY_BRAND[effectiveBrand];
+  const effectiveModel = model === OTHER_MODEL ? customModel : model;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!plate.trim() || !effectiveBrand.trim() || !model.trim()) return;
-    onAdd(effectiveBrand.trim(), model.trim(), Number(year), plate.trim().toUpperCase());
+    if (!plate.trim() || !effectiveBrand.trim() || !effectiveModel.trim()) return;
+    onAdd(effectiveBrand.trim(), effectiveModel.trim(), Number(year), plate.trim().toUpperCase());
     resetForm();
   };
 
@@ -145,7 +160,12 @@ const VehicleManager = ({
                         id="v-brand"
                         options={BRAND_OPTIONS}
                         value={brand}
-                        onChange={setBrand}
+                        onChange={(next) => {
+                          setBrand(next);
+                          // El modelo depende de la marca — si cambia la
+                          // marca, el modelo elegido antes ya no pinta nada.
+                          setModel(''); setCustomModel('');
+                        }}
                         placeholder="Elige una marca"
                         searchPlaceholder="Buscar marca..."
                         emptyText="Ninguna marca coincide."
@@ -162,11 +182,42 @@ const VehicleManager = ({
                     </div>
                     <div className="space-y-1">
                       <Label htmlFor="v-model" className="text-xs">Modelo</Label>
-                      <Input id="v-model" value={model} onChange={e => setModel(e.target.value)} placeholder="Ibiza TDI" required />
+                      {modelOptionsForBrand ? (
+                        <>
+                          <Combobox
+                            id="v-model"
+                            options={[...modelOptionsForBrand.map(m => ({ value: m, label: m })), { value: OTHER_MODEL, label: OTHER_MODEL }]}
+                            value={model}
+                            onChange={setModel}
+                            placeholder="Elige un modelo"
+                            searchPlaceholder="Buscar modelo..."
+                            emptyText="Ningún modelo coincide."
+                          />
+                          {model === OTHER_MODEL && (
+                            <Input
+                              value={customModel}
+                              onChange={e => setCustomModel(e.target.value)}
+                              placeholder="Escribe el modelo"
+                              className="mt-1.5"
+                              required
+                            />
+                          )}
+                        </>
+                      ) : (
+                        <Input value={model} onChange={e => setModel(e.target.value)} placeholder="Ibiza TDI" required />
+                      )}
                     </div>
                     <div className="space-y-1">
                       <Label htmlFor="v-year" className="text-xs">Año</Label>
-                      <Input id="v-year" type="number" min={1990} max={2025} value={year} onChange={e => setYear(e.target.value)} required />
+                      <Combobox
+                        id="v-year"
+                        options={YEAR_OPTIONS}
+                        value={year}
+                        onChange={setYear}
+                        placeholder="Año"
+                        searchPlaceholder="Buscar año..."
+                        emptyText="Ningún año coincide."
+                      />
                     </div>
                     <div className="space-y-1">
                       <Label htmlFor="v-plate" className="text-xs">Matrícula</Label>

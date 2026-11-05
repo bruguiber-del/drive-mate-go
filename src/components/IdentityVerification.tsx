@@ -48,7 +48,18 @@ const IdentityVerification = ({ phoneConfirmed }: { phoneConfirmed: boolean }) =
     const { error } = await supabase.auth.updateUser({ phone });
     setBusy(false);
     if (error) {
-      toast({ title: "No se pudo enviar el código", description: error.message, duration: 4000 });
+      // Error típico: ese número ya quedó asociado a OTRA cuenta — p. ej.
+      // si antes se usó ese mismo número para entrar por SMS (login crea su
+      // propia cuenta por teléfono, distinta de la cuenta por email). El
+      // mensaje de Supabase llega en inglés y no explica el porqué.
+      const alreadyRegistered = /already been registered|already exists/i.test(error.message);
+      toast({
+        title: "No se pudo enviar el código",
+        description: alreadyRegistered
+          ? "Ese número ya está vinculado a otra cuenta de VIMATCH — puede que lo usaras antes para entrar por SMS. Prueba con otro número, o inicia sesión directamente con ese número."
+          : error.message,
+        duration: alreadyRegistered ? 6000 : 4000,
+      });
       return;
     }
     setCodeSent(true);
