@@ -55,7 +55,6 @@ export type Database = {
           avatar_url: string | null
           average_rating: number
           city: string | null
-          country: string | null
           created_at: string
           full_name: string | null
           id: string
@@ -69,7 +68,6 @@ export type Database = {
           avatar_url?: string | null
           average_rating?: number
           city?: string | null
-          country?: string | null
           created_at?: string
           full_name?: string | null
           id: string
@@ -83,7 +81,6 @@ export type Database = {
           avatar_url?: string | null
           average_rating?: number
           city?: string | null
-          country?: string | null
           created_at?: string
           full_name?: string | null
           id?: string
