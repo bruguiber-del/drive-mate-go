@@ -4,7 +4,11 @@ import { X, Plus, Car, Trash2, ShieldCheck, Camera, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Combobox } from '@/components/ui/combobox';
 import { Vehicle, FUEL_LABELS, CATEGORY_LABELS, calculateCostPerKm } from '@/lib/vehiclePricing';
+import { VEHICLE_BRANDS } from '@/lib/vehicleBrands';
+
+const BRAND_OPTIONS = VEHICLE_BRANDS.map((b) => ({ value: b, label: b }));
 
 interface VehicleManagerProps {
   isOpen: boolean;
@@ -55,6 +59,9 @@ const VehicleManager = ({
 }: VehicleManagerProps) => {
   const [showForm, setShowForm] = useState(false);
   const [brand, setBrand] = useState('');
+  // Solo cuando se elige "Otra" en la lista — una marca que no está en el
+  // desplegable (poco habitual, pero pasa con marcas muy nuevas o raras).
+  const [customBrand, setCustomBrand] = useState('');
   const [model, setModel] = useState('');
   const [year, setYear] = useState('2020');
   const [plate, setPlate] = useState('');
@@ -62,13 +69,15 @@ const VehicleManager = ({
   const pendingVerifyId = useRef<string | null>(null);
 
   const resetForm = () => {
-    setBrand(''); setModel(''); setYear('2020'); setPlate(''); setShowForm(false);
+    setBrand(''); setCustomBrand(''); setModel(''); setYear('2020'); setPlate(''); setShowForm(false);
   };
+
+  const effectiveBrand = brand === 'Otra' ? customBrand : brand;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!plate.trim() || !brand.trim() || !model.trim()) return;
-    onAdd(brand.trim(), model.trim(), Number(year), plate.trim().toUpperCase());
+    if (!plate.trim() || !effectiveBrand.trim() || !model.trim()) return;
+    onAdd(effectiveBrand.trim(), model.trim(), Number(year), plate.trim().toUpperCase());
     resetForm();
   };
 
@@ -132,7 +141,24 @@ const VehicleManager = ({
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <Label htmlFor="v-brand" className="text-xs">Marca</Label>
-                      <Input id="v-brand" value={brand} onChange={e => setBrand(e.target.value)} placeholder="Seat" required />
+                      <Combobox
+                        id="v-brand"
+                        options={BRAND_OPTIONS}
+                        value={brand}
+                        onChange={setBrand}
+                        placeholder="Elige una marca"
+                        searchPlaceholder="Buscar marca..."
+                        emptyText="Ninguna marca coincide."
+                      />
+                      {brand === 'Otra' && (
+                        <Input
+                          value={customBrand}
+                          onChange={e => setCustomBrand(e.target.value)}
+                          placeholder="Escribe la marca"
+                          className="mt-1.5"
+                          required
+                        />
+                      )}
                     </div>
                     <div className="space-y-1">
                       <Label htmlFor="v-model" className="text-xs">Modelo</Label>

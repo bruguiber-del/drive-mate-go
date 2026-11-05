@@ -20,6 +20,7 @@ import { useProfile } from '@/hooks/useProfile';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import IdentityVerification from '@/components/IdentityVerification';
+import { PhoneNumberInput } from '@/components/PhoneNumberInput';
 import AdminVerificationReview from '@/components/AdminVerificationReview';
 import PushNotificationCard from '@/components/PushNotificationCard';
 
@@ -244,7 +245,7 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="profile-phone">Teléfono</Label>
-                    <Input id="profile-phone" value={draftPhone} onChange={(e) => setDraftPhone(e.target.value)} placeholder="+34 600 000 000" />
+                    <PhoneNumberInput id="profile-phone" value={draftPhone} onChange={setDraftPhone} />
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="profile-city">Ciudad</Label>

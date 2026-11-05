@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PhoneNumberInput } from "@/components/PhoneNumberInput";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { pickPhoto, submitDocumentForVerification } from "@/lib/documentVerification";
@@ -85,7 +86,7 @@ const IdentityVerification = ({ phoneConfirmed }: { phoneConfirmed: boolean }) =
           <p className="font-medium text-foreground">Verificar teléfono</p>
           {!codeSent ? (
             <>
-              <Input placeholder="+34600111222" value={phone} onChange={(e) => setPhone(e.target.value.trim())} />
+              <PhoneNumberInput value={phone} onChange={setPhone} />
               <Button size="sm" className="w-full" disabled={busy} onClick={sendCode}>Enviar código por SMS</Button>
             </>
           ) : (

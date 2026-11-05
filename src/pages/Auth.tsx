@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PhoneNumberInput } from '@/components/PhoneNumberInput';
 import { toast } from 'sonner';
 
 /** Only same-origin relative paths are accepted as post-login targets. */
@@ -154,15 +155,7 @@ const Auth = () => {
           <form onSubmit={handleSendOtp} className="space-y-3">
             <div className="space-y-1.5">
               <Label htmlFor="phone">Número de teléfono</Label>
-              <Input
-                id="phone"
-                type="tel"
-                required
-                placeholder="+34600000000"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-              />
-              <p className="text-[11px] text-muted-foreground">Incluye el prefijo del país, por ejemplo +34.</p>
+              <PhoneNumberInput id="phone" value={phone} onChange={setPhone} />
             </div>
             <Button type="submit" className="w-full" disabled={busy}>
               Enviarme el código
