@@ -23,6 +23,29 @@ import IdentityVerification from '@/components/IdentityVerification';
 import { PhoneNumberInput } from '@/components/PhoneNumberInput';
 import AdminVerificationReview from '@/components/AdminVerificationReview';
 import PushNotificationCard from '@/components/PushNotificationCard';
+import { Combobox } from '@/components/ui/combobox';
+import { COUNTRY_CALLING_CODES } from '@/lib/countryCallingCodes';
+import { SPANISH_CITIES } from '@/lib/spanishCities';
+
+const COUNTRY_OPTIONS = COUNTRY_CALLING_CODES.map((c) => ({ value: c.iso2, label: c.name }));
+const CITY_OPTIONS = SPANISH_CITIES.map((c) => ({ value: c, label: c }));
+const OTHER_CITY = 'Otra';
+
+function countryName(iso2: string | null): string {
+  if (!iso2) return 'Sin especificar';
+  return COUNTRY_CALLING_CODES.find((c) => c.iso2 === iso2)?.name ?? iso2;
+}
+
+/** Al cargar un perfil guardado, separa la ciudad en lo que va en el
+ *  desplegable y lo que va en el campo libre (según el país y si la
+ *  ciudad guardada está en la lista curada de España). */
+function splitCityForCountry(country: string, city: string | null): { city: string; customCity: string } {
+  if (!city) return { city: '', customCity: '' };
+  if (country === 'ES') {
+    return SPANISH_CITIES.includes(city) ? { city, customCity: '' } : { city: OTHER_CITY, customCity: city };
+  }
+  return { city: '', customCity: city };
+}
 
 interface ProfileSectionProps {
   isOpen: boolean;
@@ -46,7 +69,11 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
   const [isEditing, setIsEditing] = useState(false);
   const [draftName, setDraftName] = useState('');
   const [draftPhone, setDraftPhone] = useState('');
+  const [draftCountry, setDraftCountry] = useState('ES');
   const [draftCity, setDraftCity] = useState('');
+  // Solo cuando la ciudad elegida en la lista es "Otra" (o el país no es
+  // España, que no tiene lista curada de ciudades todavía).
+  const [draftCustomCity, setDraftCustomCity] = useState('');
   const [saving, setSaving] = useState(false);
   const [showAdminReview, setShowAdminReview] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -78,7 +105,11 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
     if (profile) {
       setDraftName(profile.fullName ?? '');
       setDraftPhone(profile.phone ?? '');
-      setDraftCity(profile.city ?? '');
+      const country = profile.country ?? 'ES';
+      setDraftCountry(country);
+      const split = splitCityForCountry(country, profile.city);
+      setDraftCity(split.city);
+      setDraftCustomCity(split.customCity);
     }
   }, [profile]);
 
@@ -87,13 +118,26 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
   const startEditing = () => {
     setDraftName(profile?.fullName ?? '');
     setDraftPhone(profile?.phone ?? '');
-    setDraftCity(profile?.city ?? '');
+    const country = profile?.country ?? 'ES';
+    setDraftCountry(country);
+    const split = splitCityForCountry(country, profile?.city ?? null);
+    setDraftCity(split.city);
+    setDraftCustomCity(split.customCity);
     setIsEditing(true);
   };
 
+  const effectiveCity = draftCountry === 'ES'
+    ? (draftCity === OTHER_CITY ? draftCustomCity : draftCity)
+    : draftCustomCity;
+
   const handleSave = async () => {
     setSaving(true);
-    const ok = await updateProfile({ fullName: draftName || null, phone: draftPhone || null, city: draftCity || null });
+    const ok = await updateProfile({
+      fullName: draftName || null,
+      phone: draftPhone || null,
+      country: draftCountry || null,
+      city: effectiveCity || null,
+    });
     setSaving(false);
     if (ok) setIsEditing(false);
   };
@@ -248,8 +292,52 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
                     <PhoneNumberInput id="profile-phone" value={draftPhone} onChange={setDraftPhone} />
                   </div>
                   <div className="space-y-1.5">
+                    <Label htmlFor="profile-country">País</Label>
+                    <Combobox
+                      id="profile-country"
+                      options={COUNTRY_OPTIONS}
+                      value={draftCountry}
+                      onChange={(next) => {
+                        setDraftCountry(next);
+                        // La ciudad depende del país (de momento solo España
+                        // tiene lista curada) — si cambia el país, limpia.
+                        setDraftCity(''); setDraftCustomCity('');
+                      }}
+                      placeholder="Elige un país"
+                      searchPlaceholder="Buscar país..."
+                      emptyText="Ningún país coincide."
+                    />
+                  </div>
+                  <div className="space-y-1.5">
                     <Label htmlFor="profile-city">Ciudad</Label>
-                    <Input id="profile-city" value={draftCity} onChange={(e) => setDraftCity(e.target.value)} placeholder="Tu ciudad" />
+                    {draftCountry === 'ES' ? (
+                      <>
+                        <Combobox
+                          id="profile-city"
+                          options={CITY_OPTIONS}
+                          value={draftCity}
+                          onChange={setDraftCity}
+                          placeholder="Elige una ciudad"
+                          searchPlaceholder="Buscar ciudad..."
+                          emptyText="Ninguna ciudad coincide."
+                        />
+                        {draftCity === OTHER_CITY && (
+                          <Input
+                            value={draftCustomCity}
+                            onChange={(e) => setDraftCustomCity(e.target.value)}
+                            placeholder="Escribe tu ciudad"
+                            className="mt-1.5"
+                          />
+                        )}
+                      </>
+                    ) : (
+                      <Input
+                        id="profile-city"
+                        value={draftCustomCity}
+                        onChange={(e) => setDraftCustomCity(e.target.value)}
+                        placeholder="Tu ciudad"
+                      />
+                    )}
                   </div>
                   <div className="flex gap-2 pt-1">
                     <Button variant="ghost" className="flex-1" onClick={() => setIsEditing(false)} disabled={saving}>
@@ -269,6 +357,10 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
                   <div className="glass rounded-xl p-4">
                     <label className="text-sm text-muted-foreground">Teléfono</label>
                     <p className="font-medium text-foreground">{profile?.phone || 'Sin especificar'}</p>
+                  </div>
+                  <div className="glass rounded-xl p-4">
+                    <label className="text-sm text-muted-foreground">País</label>
+                    <p className="font-medium text-foreground">{countryName(profile?.country ?? null)}</p>
                   </div>
                   <div className="glass rounded-xl p-4">
                     <label className="text-sm text-muted-foreground">Ciudad</label>

@@ -5,6 +5,7 @@ export interface Profile {
   fullName: string | null;
   phone: string | null;
   city: string | null;
+  country: string | null;
   avatarUrl: string | null;
   averageRating: number;
 }
@@ -13,6 +14,7 @@ interface ProfileRow {
   full_name: string | null;
   phone: string | null;
   city: string | null;
+  country: string | null;
   avatar_url: string | null;
   average_rating: number;
 }
@@ -22,6 +24,7 @@ function rowToProfile(row: ProfileRow): Profile {
     fullName: row.full_name,
     phone: row.phone,
     city: row.city,
+    country: row.country,
     avatarUrl: row.avatar_url,
     averageRating: row.average_rating,
   };
@@ -117,7 +120,7 @@ export function useProfile() {
   }, [loadCounts]);
 
   const updateProfile = useCallback(
-    async (fields: Partial<Pick<Profile, 'fullName' | 'phone' | 'city'>>): Promise<boolean> => {
+    async (fields: Partial<Pick<Profile, 'fullName' | 'phone' | 'city' | 'country'>>): Promise<boolean> => {
       const userId = userIdRef.current;
       if (!userId) return false;
 
@@ -125,6 +128,7 @@ export function useProfile() {
       if (fields.fullName !== undefined) patch.full_name = fields.fullName;
       if (fields.phone !== undefined) patch.phone = fields.phone;
       if (fields.city !== undefined) patch.city = fields.city;
+      if (fields.country !== undefined) patch.country = fields.country;
 
       const { error } = await supabase.from('profiles').update(patch).eq('id', userId);
       if (error) return false;
