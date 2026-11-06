@@ -45,19 +45,14 @@ const PushNotificationCard = () => {
           tag: 'test',
         },
       });
-      const result = data as { sent?: number; subscriptions?: number; errors?: { statusCode?: number }[] } | null;
-      const sent = result?.sent ?? 0;
+      const sent = (data as { sent?: number } | null)?.sent ?? 0;
       if (error || sent === 0) {
-        // Da un motivo concreto en vez de "pruébalo de nuevo" a secas —
-        // si no hay ninguna suscripción guardada es un problema distinto a
-        // que el envío lo rechace el servicio de avisos de Apple/Google.
-        const description =
-          result?.subscriptions === 0
-            ? 'No hay ninguna suscripción guardada para esta cuenta en este dispositivo. Pulsa "Renovar" e inténtalo otra vez.'
-            : result?.errors?.length
-              ? `El servicio de avisos lo rechazó (código ${result.errors[0].statusCode ?? '?'}). Prueba a pulsar "Renovar" primero.`
-              : 'Comprueba que las notificaciones siguen permitidas para este sitio.';
-        toast({ title: 'No llegó ningún aviso', description, variant: 'destructive', duration: 4500 });
+        toast({
+          title: 'No llegó ningún aviso',
+          description: 'Comprueba que las notificaciones siguen permitidas para este sitio.',
+          variant: 'destructive',
+          duration: 3500,
+        });
       } else {
         toast({ title: 'Aviso de prueba enviado', description: 'Debería llegarte en unos segundos.', duration: 2500 });
       }

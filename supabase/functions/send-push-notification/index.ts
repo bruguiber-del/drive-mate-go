@@ -113,7 +113,6 @@ async function sendTo(
     .eq("user_id", targetUserId);
 
   let sent = 0;
-  const errors: { endpoint: string; statusCode?: number; body?: string }[] = [];
   for (const sub of subs ?? []) {
     try {
       await webpush.sendNotification(
@@ -123,23 +122,13 @@ async function sendTo(
       sent++;
     } catch (err) {
       // Suscripción caducada/inválida (410/404) — se borra para no
-      // reintentarla siempre y fallar en vano. Cualquier otro fallo (p. ej.
-      // un rechazo de web.push.apple.com) se deja, pero se registra entero
-      // para poder diagnosticarlo en los logs — antes se descartaba en
-      // silencio y "sent: 0" no decía nada de por qué.
-      const e = err as { statusCode?: number; body?: string; message?: string };
-      console.error("[send-push-notification] fallo al enviar", {
-        endpoint: sub.endpoint,
-        statusCode: e.statusCode,
-        body: e.body,
-        message: e.message,
-      });
-      errors.push({ endpoint: sub.endpoint, statusCode: e.statusCode, body: e.body });
-      if (e.statusCode === 404 || e.statusCode === 410) {
+      // reintentarla siempre y fallar en vano.
+      const statusCode = (err as { statusCode?: number }).statusCode;
+      if (statusCode === 404 || statusCode === 410) {
         await admin.from("push_subscriptions").delete().eq("id", sub.id);
       }
     }
   }
 
-  return { sent, subscriptions: subs?.length ?? 0, errors };
+  return { sent };
 }
