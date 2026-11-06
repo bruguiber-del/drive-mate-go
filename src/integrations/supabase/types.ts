@@ -260,34 +260,34 @@ export type Database = {
       }
       road_alerts: {
         Row: {
-          id: string
+          confirmations: number
+          created_at: string
           creator_id: string
+          expires_at: string
+          id: string
           kind: string
           lat: number
           lng: number
-          created_at: string
-          expires_at: string
-          confirmations: number
         }
         Insert: {
-          id?: string
+          confirmations?: number
+          created_at?: string
           creator_id: string
+          expires_at: string
+          id?: string
           kind: string
           lat: number
           lng: number
-          created_at?: string
-          expires_at: string
-          confirmations?: number
         }
         Update: {
-          id?: string
+          confirmations?: number
+          created_at?: string
           creator_id?: string
+          expires_at?: string
+          id?: string
           kind?: string
           lat?: number
           lng?: number
-          created_at?: string
-          expires_at?: string
-          confirmations?: number
         }
         Relationships: []
       }
@@ -512,7 +512,11 @@ export type Database = {
     }
     Functions: {
       confirm_road_alert: {
-        Args: { p_alert_id: string; p_still_there: boolean; p_extend_seconds: number }
+        Args: {
+          p_alert_id: string
+          p_extend_seconds: number
+          p_still_there: boolean
+        }
         Returns: undefined
       }
       get_driver_position_history: {

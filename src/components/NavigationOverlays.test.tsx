@@ -11,6 +11,7 @@ const baseProps = {
   hasPassenger: false,
   hasStartedDriving: false,
   currentStep: null,
+  distanceToManeuver: null as number | null,
   ManeuverIcon: Navigation,
   currentLeg: 'to_destination' as const,
   currentTargetName: null,
