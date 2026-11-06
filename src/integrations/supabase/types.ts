@@ -64,9 +64,6 @@ export type Database = {
           stripe_connect_account_id: string | null
           stripe_connect_onboarded: boolean
           stripe_customer_id: string | null
-          suspended_at: string | null
-          suspension_reason: string | null
-          terms_accepted_at: string | null
         }
         Insert: {
           avatar_url?: string | null
@@ -81,9 +78,6 @@ export type Database = {
           stripe_connect_account_id?: string | null
           stripe_connect_onboarded?: boolean
           stripe_customer_id?: string | null
-          suspended_at?: string | null
-          suspension_reason?: string | null
-          terms_accepted_at?: string | null
         }
         Update: {
           avatar_url?: string | null
@@ -98,45 +92,6 @@ export type Database = {
           stripe_connect_account_id?: string | null
           stripe_connect_onboarded?: boolean
           stripe_customer_id?: string | null
-          suspended_at?: string | null
-          suspension_reason?: string | null
-          terms_accepted_at?: string | null
-        }
-        Relationships: []
-      }
-      reports: {
-        Row: {
-          id: string
-          reporter_id: string
-          reported_user_id: string | null
-          trip_id: string | null
-          kind: string
-          description: string
-          status: string
-          created_at: string
-          reviewed_at: string | null
-        }
-        Insert: {
-          id?: string
-          reporter_id: string
-          reported_user_id?: string | null
-          trip_id?: string | null
-          kind: string
-          description: string
-          status?: string
-          created_at?: string
-          reviewed_at?: string | null
-        }
-        Update: {
-          id?: string
-          reporter_id?: string
-          reported_user_id?: string | null
-          trip_id?: string | null
-          kind?: string
-          description?: string
-          status?: string
-          created_at?: string
-          reviewed_at?: string | null
         }
         Relationships: []
       }
