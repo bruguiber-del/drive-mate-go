@@ -64,6 +64,8 @@ export type Database = {
           stripe_connect_account_id: string | null
           stripe_connect_onboarded: boolean
           stripe_customer_id: string | null
+          suspended_at: string | null
+          suspension_reason: string | null
           terms_accepted_at: string | null
         }
         Insert: {
@@ -79,6 +81,8 @@ export type Database = {
           stripe_connect_account_id?: string | null
           stripe_connect_onboarded?: boolean
           stripe_customer_id?: string | null
+          suspended_at?: string | null
+          suspension_reason?: string | null
           terms_accepted_at?: string | null
         }
         Update: {
@@ -94,6 +98,8 @@ export type Database = {
           stripe_connect_account_id?: string | null
           stripe_connect_onboarded?: boolean
           stripe_customer_id?: string | null
+          suspended_at?: string | null
+          suspension_reason?: string | null
           terms_accepted_at?: string | null
         }
         Relationships: []
@@ -207,6 +213,50 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      reports: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          kind: string
+          reported_user_id: string | null
+          reporter_id: string
+          reviewed_at: string | null
+          status: string
+          trip_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: string
+          kind: string
+          reported_user_id?: string | null
+          reporter_id: string
+          reviewed_at?: string | null
+          status?: string
+          trip_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          kind?: string
+          reported_user_id?: string | null
+          reporter_id?: string
+          reviewed_at?: string | null
+          status?: string
+          trip_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reports_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       trip_passengers: {
         Row: {
