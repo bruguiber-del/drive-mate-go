@@ -271,10 +271,13 @@ const MapView = ({
     return nearestPointOnRoute(markerLocation, route.coordinates) ?? markerLocation;
   }, [markerLocation, route]);
 
-  /** ¿Hay movimiento real suficiente para fiarse del rumbo del GPS? (~30 m) */
+  /** ¿Hay movimiento real suficiente para fiarse del rumbo del GPS? (~15 m)
+   *  Antes eran 30m — se orientaba bien pero tardaba en notarse al
+   *  arrancar. Bajado a petición explícita, sabiendo que a tan poca
+   *  distancia el propio ruido del GPS pesa más. */
   const hasReliableMovement = useMemo(() => {
     if (positionHistory.length < 3) return false;
-    return cumulativeDistanceExceeds(positionHistory, 30);
+    return cumulativeDistanceExceeds(positionHistory, 15);
   }, [positionHistory]);
 
   /** Rumbo inicial (great-circle) en línea recta hacia el próximo destino. */
