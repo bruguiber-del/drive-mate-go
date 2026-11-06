@@ -120,6 +120,13 @@
       "when": 1793924127945,
       "tag": "0016_reports_and_suspension",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793983398350,
+      "tag": "0017_road_alerts",
+      "breakpoints": true
     }
   ]
 }
