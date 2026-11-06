@@ -19,6 +19,8 @@ import { X, Search, Loader2, CalendarClock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getManeuverIcon } from "@/lib/maneuverIcons";
 import { useVoiceGuidance } from "@/hooks/useVoiceGuidance";
+import { useRoadAlerts } from "@/hooks/useRoadAlerts";
+import { ROAD_ALERT_LABEL, ROAD_ALERT_WARN_DISTANCE_M } from "@/lib/roadAlerts";
 import { useToast } from "@/components/ui/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 
@@ -1739,6 +1741,32 @@ const Index = () => {
     });
   }, [nav.isNavigating, voice.isMuted, toast]);
 
+  // ── Avisos de carretera (radar, policía, accidente...) estilo Waze ────────
+  const roadAlerts = useRoadAlerts(!!realUserLocation);
+
+  // Avisa (voz + banner) al acercarte a uno — antes no había nada de esto,
+  // solo la ruta y el tráfico que ya da Mapbox. Aproximación sencilla a
+  // propósito: distancia recta a tu posición actual, no proyectada sobre
+  // la ruta — a la distancia a la que esto avisa (600m) es buena suficiente
+  // y evita tener que repetir el cálculo de nearestPointOnRoute aquí.
+  const warnedAlertIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!nav.isNavigating || !realUserLocation) return;
+    for (const alert of roadAlerts.alerts) {
+      if (warnedAlertIdsRef.current.has(alert.id)) continue;
+      const dist = approxMetersBetween(realUserLocation, [alert.lat, alert.lng]);
+      if (dist > ROAD_ALERT_WARN_DISTANCE_M) continue;
+      warnedAlertIdsRef.current.add(alert.id);
+      const label = ROAD_ALERT_LABEL[alert.kind];
+      toast({ title: `${label} a ${Math.round(dist)}m`, duration: 4000 });
+      if (!voice.isMuted) {
+        const utter = new SpeechSynthesisUtterance(`${label} cerca`);
+        utter.lang = 'es-ES';
+        try { window.speechSynthesis?.speak(utter); } catch { /* noop */ }
+      }
+    }
+  }, [nav.isNavigating, realUserLocation, roadAlerts.alerts, toast, voice.isMuted]);
+
   // Parar desde el botón rojo cierra el viaje igual que el fin normal (con
   // valoración de los pasajeros) si lo había; luego corta la navegación.
   const handleStopNavigation = useCallback(() => {
@@ -1782,6 +1810,8 @@ const Index = () => {
         onUserLocationUpdate={setRealUserLocation}
         onGpsStatusChange={setGpsStatus}
         previewWaypoints={previewWaypoints}
+        roadAlerts={roadAlerts.alerts}
+        onConfirmRoadAlert={roadAlerts.confirmAlert}
       >
         {/* Top Bar */}
         <GpsStatusBanner status={gpsStatus} />
@@ -1944,6 +1974,8 @@ const Index = () => {
                 ? [{ id: driverSim.currentDriver.id, name: driverSim.currentDriver.name }]
                 : []
           }
+          roadAlertLocation={realUserLocation}
+          onReportRoadAlert={roadAlerts.reportAlert}
         />
       </MapView>
       </Suspense>

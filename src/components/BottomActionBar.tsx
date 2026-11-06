@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import DriverToggle from "@/components/DriverToggle";
 import PassengerToggle from "@/components/PassengerToggle";
 import SosButton from "@/components/SosButton";
+import RoadAlertButton from "@/components/RoadAlertButton";
+import type { RoadAlertKind } from "@/lib/roadAlerts";
 import { OVERLAY_BOTTOM_PX, overlayBottom } from "@/lib/overlayLayout";
 
 interface BottomActionBarProps {
@@ -20,6 +22,9 @@ interface BottomActionBarProps {
   sosTripId?: string | null;
   /** A quién podría estar señalando una denuncia del botón SOS. */
   sosOtherParty?: { id: string; name: string }[];
+  /** Posición real actual — para marcar dónde se avisa de un radar/policía/etc. */
+  roadAlertLocation?: [number, number] | null;
+  onReportRoadAlert?: (kind: RoadAlertKind, lat: number, lng: number) => Promise<boolean>;
 }
 
 /** Bottom overlay: the "start driving" CTA; the driver/passenger mode
@@ -37,6 +42,8 @@ const BottomActionBar = ({
   onOpenPassengerSettings,
   sosTripId,
   sosOtherParty,
+  roadAlertLocation,
+  onReportRoadAlert,
 }: BottomActionBarProps) => {
   return (
     <>
@@ -92,6 +99,9 @@ const BottomActionBar = ({
           {/* SOS — siempre visible, igual que el resto de esta columna, por
               si hace falta denunciar algo en cualquier momento del viaje. */}
           <SosButton tripId={sosTripId} otherParty={sosOtherParty} />
+          {onReportRoadAlert && (
+            <RoadAlertButton location={roadAlertLocation ?? null} onReport={onReportRoadAlert} />
+          )}
           <div className="flex flex-col gap-1">
             <Button variant="glass" size="icon" className="w-8 h-8" onClick={() => (window as any).__mapZoomIn?.()}>
               <span className="text-sm font-bold text-foreground">+</span>

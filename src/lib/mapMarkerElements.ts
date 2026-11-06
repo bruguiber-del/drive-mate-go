@@ -93,6 +93,14 @@ export const buildUserMarkerEl = (showRoute: boolean, heading: number) => {
   return el;
 };
 
+// Aviso de carretera (radar, policía, accidente...) — un solo icono
+// genérico (triángulo de aviso) para todos los tipos; el texto del label
+// ya distingue de cuál se trata, sin tener que dibujar un SVG por tipo.
+const ROAD_ALERT_COLOR = 'hsl(38, 92%, 50%)';
+const WARNING_ICON_PATH = '<path d="M12 2L1 21h22L12 2zm0 15h-2v-2h2v2zm0-4h-2V9h2v4z"/>';
+
+export const buildRoadAlertMarkerEl = (label: string) => buildMarkerEl(ROAD_ALERT_COLOR, WARNING_ICON_PATH, label);
+
 export const buildDriverMarkerEl = () => {
   const el = document.createElement('div');
   el.innerHTML = `

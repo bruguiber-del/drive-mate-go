@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { useRouting, RouteData, TravelMode } from '@/hooks/useRouting';
+import type { RoadAlert } from '@/hooks/useRoadAlerts';
+import { ROAD_ALERT_LABEL } from '@/lib/roadAlerts';
 import { useDeviceHeading } from '@/hooks/useDeviceHeading';
 import { MAPBOX_TOKEN, MAPBOX_STYLE } from '@/lib/mapboxConfig';
 import {
@@ -32,6 +34,7 @@ import {
   buildMarkerEl,
   buildUserMarkerEl,
   buildDriverMarkerEl,
+  buildRoadAlertMarkerEl,
 } from '@/lib/mapMarkerElements';
 
 mapboxgl.accessToken = MAPBOX_TOKEN;
@@ -77,6 +80,10 @@ interface MapViewProps {
    *  posición real si es puerta a puerta) — para dibujar su ruta real hacia
    *  ti y para encuadrar la cámara en vosotros dos, no en todo el trayecto. */
   driverPickupPoint?: { lat: number; lng: number } | null;
+  /** Avisos de carretera (radar, policía, accidente...) cerca, para pintar
+   *  en el mapa — estilo Waze. */
+  roadAlerts?: RoadAlert[];
+  onConfirmRoadAlert?: (alert: RoadAlert, stillThere: boolean) => void;
 }
 
 // ── Visual constants ─────────────────────────────────────────────────────────
@@ -123,6 +130,8 @@ const MapView = ({
   purpleUntilStop,
   meetingPoint,
   driverPickupPoint,
+  roadAlerts,
+  onConfirmRoadAlert,
 }: MapViewProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -139,6 +148,7 @@ const MapView = ({
   const driverMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const waypointMarkersRef = useRef<mapboxgl.Marker[]>([]);
   const previewMarkersRef = useRef<mapboxgl.Marker[]>([]);
+  const roadAlertMarkersRef = useRef<mapboxgl.Marker[]>([]);
 
   // Desliza el punto azul desde su última posición dibujada hasta `target`
   // en MARKER_SLIDE_MS, en vez de saltar de golpe en cuanto llega un fix de
@@ -173,7 +183,7 @@ const MapView = ({
   const updateMarkerLabelVisibility = useCallback(() => {
     if (!map.current) return;
 
-    const markers = [...waypointMarkersRef.current, ...previewMarkersRef.current];
+    const markers = [...waypointMarkersRef.current, ...previewMarkersRef.current, ...roadAlertMarkersRef.current];
     const positioned = markers.map(marker => ({
       marker,
       point: map.current?.project(marker.getLngLat()),
@@ -858,6 +868,51 @@ const MapView = ({
       }
     }
   }, [waypointMarkers, mapReady, updateMarkerLabelVisibility]);
+
+  // ── Avisos de carretera (radar, policía, accidente...) ────────────────────
+  useEffect(() => {
+    if (!map.current || !mapReady) return;
+    const m = map.current;
+
+    roadAlertMarkersRef.current.forEach(mk => mk.remove());
+    roadAlertMarkersRef.current = [];
+
+    if (!roadAlerts?.length) return;
+
+    for (const alert of roadAlerts) {
+      const label = ROAD_ALERT_LABEL[alert.kind];
+      const el = buildRoadAlertMarkerEl(label);
+
+      const popupEl = document.createElement('div');
+      popupEl.style.cssText = 'display:flex;flex-direction:column;gap:6px;min-width:150px;';
+      const title = document.createElement('p');
+      title.textContent = `${label} — ¿sigue ahí?`;
+      title.style.cssText = 'font-size:12px;font-weight:600;color:#111;margin:0;';
+      popupEl.appendChild(title);
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;gap:6px;';
+      const yesBtn = document.createElement('button');
+      yesBtn.textContent = 'Sigue ahí';
+      yesBtn.style.cssText = 'flex:1;font-size:11px;padding:4px 8px;border-radius:8px;background:#16a34a;color:white;border:none;';
+      yesBtn.onclick = () => onConfirmRoadAlert?.(alert, true);
+      const noBtn = document.createElement('button');
+      noBtn.textContent = 'Ya no está';
+      noBtn.style.cssText = 'flex:1;font-size:11px;padding:4px 8px;border-radius:8px;background:#dc2626;color:white;border:none;';
+      noBtn.onclick = () => onConfirmRoadAlert?.(alert, false);
+      row.appendChild(yesBtn);
+      row.appendChild(noBtn);
+      popupEl.appendChild(row);
+
+      const popup = new mapboxgl.Popup({ offset: 20, closeButton: true }).setDOMContent(popupEl);
+
+      const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
+        .setLngLat([alert.lng, alert.lat])
+        .setPopup(popup)
+        .addTo(m);
+      roadAlertMarkersRef.current.push(marker);
+    }
+    requestAnimationFrame(updateMarkerLabelVisibility);
+  }, [roadAlerts, mapReady, onConfirmRoadAlert, updateMarkerLabelVisibility]);
 
   // ── Google-Maps-like 3D camera when navigating ────────────────────────────
   useEffect(() => {
