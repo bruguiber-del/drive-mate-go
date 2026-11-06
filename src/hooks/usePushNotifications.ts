@@ -12,11 +12,13 @@ function urlBase64ToUint8Array(base64String: string) {
   return bytes;
 }
 
-// La clave pública de avisos puede venir incrustada en el build o pedirse a la
-// función de notificaciones; la clave pública no es secreta.
+// Siempre se pregunta al servidor, nunca a una copia incrustada en el build
+// — una copia local de la clave pública queda congelada en el momento de
+// compilar, así que si la clave del servidor rota más tarde (p. ej. tras
+// filtrarse), el sitio ya desplegado sigue firmando/suscribiendo con la
+// vieja hasta volver a compilar y desplegar a mano. Es exactamente lo que
+// pasó: la rotación en Supabase nunca llegaba a la app ya publicada.
 async function resolveVapidKey(): Promise<string | undefined> {
-  const fromEnv = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined;
-  if (fromEnv) return fromEnv;
   try {
     const { data } = await supabase.functions.invoke('send-push-notification', { method: 'GET' });
     return (data as { publicKey?: string } | null)?.publicKey;
