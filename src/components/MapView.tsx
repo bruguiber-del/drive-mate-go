@@ -143,6 +143,7 @@ const MapView = ({
   // hueco de 1-2s) se aplicaba con setLngLat directo, sin transición.
   const userMarkerAnimRef = useRef<number | null>(null);
   const userMarkerRenderedPosRef = useRef<[number, number] | null>(null);
+  const userMarkerShowRouteRef = useRef<boolean | null>(null);
   const destMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const meetingMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const driverMarkerRef = useRef<mapboxgl.Marker | null>(null);
@@ -582,6 +583,7 @@ const MapView = ({
           .setLngLat([displayLocation[1], displayLocation[0]])
           .addTo(m);
         userMarkerRenderedPosRef.current = displayLocation;
+        userMarkerShowRouteRef.current = !!showRoute;
         // Salto instantáneo la primera vez — antes se deslizaba con
         // animación desde la posición guardada/por defecto hasta la
         // ubicación real, y se notaba como un "salto" en vez de aparecer
@@ -590,7 +592,20 @@ const MapView = ({
       } else {
         animateUserMarkerTo(displayLocation);
         const cur = userMarkerRef.current.getElement();
-        cur.innerHTML = el.innerHTML;
+        if (userMarkerShowRouteRef.current !== !!showRoute) {
+          // El tamaño del icono cambia según showRoute — ahí sí hace falta
+          // reconstruir el marcado entero.
+          cur.innerHTML = el.innerHTML;
+          userMarkerShowRouteRef.current = !!showRoute;
+        } else {
+          // Solo tocar el transform del wrapper existente, no todo el
+          // innerHTML: reemplazar el nodo entero en cada posición GPS
+          // (varias veces por segundo) crea un elemento nuevo sin rotación
+          // de partida, así que el "transition" CSS nunca tiene nada desde
+          // donde animar y la flecha salta en vez de girar con suavidad.
+          const wrapper = cur.firstElementChild as HTMLElement | null;
+          if (wrapper) wrapper.style.transform = `rotate(${markerRotation}deg)`;
+        }
       }
 
       if (isFollowingRef.current) {
