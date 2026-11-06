@@ -66,7 +66,7 @@ const SosButton = ({ tripId = null, otherParty = [] }: SosButtonProps) => {
       if (error || !data?.ok) {
         toast({
           title: "No se pudo enviar la denuncia",
-          description: (data as { error?: string } | null)?.error ?? "Inténtalo de nuevo en un momento.",
+          description: (data as { error?: string } | null)?.error ?? error?.message ?? "Inténtalo de nuevo en un momento.",
           variant: "destructive",
           duration: 3500,
         });

@@ -91,6 +91,37 @@ async function notifyAdminsOfReport(
   }
 }
 
+// ¿Han compartido alguna vez un viaje de verdad (uno de driver, el otro de
+// pasajero, en cualquier orden)? Sin esto, se podía denunciar a cualquier
+// id de usuario sin haber coincidido nunca con él/ella.
+async function haveSharedTrip(admin: ReturnType<typeof createClient>, userId: string, otherUserId: string): Promise<boolean> {
+  const { data: tripsAsDriver } = await admin.from("trips").select("id").eq("driver_id", userId);
+  const driverTripIds = (tripsAsDriver ?? []).map((t) => t.id);
+  if (driverTripIds.length > 0) {
+    const { data: match } = await admin
+      .from("trip_passengers")
+      .select("id")
+      .eq("passenger_id", otherUserId)
+      .in("trip_id", driverTripIds)
+      .limit(1);
+    if (match && match.length > 0) return true;
+  }
+
+  const { data: tripsAsOtherDriver } = await admin.from("trips").select("id").eq("driver_id", otherUserId);
+  const otherDriverTripIds = (tripsAsOtherDriver ?? []).map((t) => t.id);
+  if (otherDriverTripIds.length > 0) {
+    const { data: match } = await admin
+      .from("trip_passengers")
+      .select("id")
+      .eq("passenger_id", userId)
+      .in("trip_id", otherDriverTripIds)
+      .limit(1);
+    if (match && match.length > 0) return true;
+  }
+
+  return false;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS_HEADERS });
   if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
@@ -119,6 +150,34 @@ Deno.serve(async (req) => {
   const { data: userData } = await userClient.auth.getUser();
   const user = userData?.user;
   if (!user) return json({ error: "no autenticado" }, 401);
+
+  // Una cuenta suspendida no puede seguir usando el SOS para acosar a
+  // otros mientras espera revisión manual.
+  const { data: callerProfile } = await admin.from("profiles").select("suspended_at").eq("id", user.id).maybeSingle();
+  if (callerProfile?.suspended_at) {
+    return json({ error: "Tu cuenta está suspendida y no puede enviar denuncias" }, 403);
+  }
+
+  if (reportedUserId && !(await haveSharedTrip(admin, user.id, reportedUserId))) {
+    return json({ error: "Solo puedes denunciar a alguien con quien hayas compartido un viaje de verdad" }, 403);
+  }
+
+  // Cada denuncia manda push+email+WhatsApp de verdad a los admins (dinero
+  // real por Resend/CallMeBot) — sin esto, cualquiera podía mandarlas en
+  // bucle. El SOS no tiene coordenadas (a diferencia de los avisos de
+  // carretera, que se limitan por distancia), así que aquí el límite es
+  // por tiempo: una cada 5 minutos como mucho.
+  const COOLDOWN_MS = 5 * 60 * 1000;
+  const { data: recentReport } = await admin
+    .from("reports")
+    .select("created_at")
+    .eq("reporter_id", user.id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (recentReport && Date.now() - new Date(recentReport.created_at).getTime() < COOLDOWN_MS) {
+    return json({ error: "Espera unos minutos antes de enviar otra denuncia" }, 429);
+  }
 
   const { error: insertError } = await admin.from("reports").insert({
     reporter_id: user.id,

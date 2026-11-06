@@ -24,7 +24,7 @@ interface BottomActionBarProps {
   sosOtherParty?: { id: string; name: string }[];
   /** Posición real actual — para marcar dónde se avisa de un radar/policía/etc. */
   roadAlertLocation?: [number, number] | null;
-  onReportRoadAlert?: (kind: RoadAlertKind, lat: number, lng: number) => Promise<boolean>;
+  onReportRoadAlert?: (kind: RoadAlertKind, lat: number, lng: number) => Promise<{ ok: boolean; reason?: string }>;
 }
 
 /** Bottom overlay: the "start driving" CTA; the driver/passenger mode

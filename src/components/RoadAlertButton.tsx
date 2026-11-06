@@ -17,7 +17,7 @@ const KIND_ICON: Record<RoadAlertKind, typeof Camera> = {
 interface RoadAlertButtonProps {
   /** Dónde se marca el aviso — tu posición real ahora mismo. */
   location: [number, number] | null;
-  onReport: (kind: RoadAlertKind, lat: number, lng: number) => Promise<boolean>;
+  onReport: (kind: RoadAlertKind, lat: number, lng: number) => Promise<{ ok: boolean; reason?: string }>;
 }
 
 /**
@@ -35,12 +35,12 @@ const RoadAlertButton = ({ location, onReport }: RoadAlertButtonProps) => {
     if (!location || sending) return;
     setSending(true);
     try {
-      const ok = await onReport(kind, location[0], location[1]);
+      const { ok, reason } = await onReport(kind, location[0], location[1]);
       toast({
         title: ok ? `${ROAD_ALERT_LABEL[kind]} avisado` : "No se pudo avisar",
-        description: ok ? "Gracias — se enseña a los demás en el mapa." : "Inténtalo de nuevo en un momento.",
+        description: ok ? "Gracias — se enseña a los demás en el mapa." : (reason ?? "Inténtalo de nuevo en un momento."),
         variant: ok ? undefined : "destructive",
-        duration: 2000,
+        duration: 3000,
       });
       if (ok) setOpen(false);
     } finally {

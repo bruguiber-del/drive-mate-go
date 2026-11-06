@@ -51,8 +51,20 @@ async function pushTo(admin: ReturnType<typeof createClient>, userId: string, ti
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS_HEADERS });
 
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+  // Esta función no la llama ningún usuario con sesión — la lanza pg_cron
+  // solo, por horario. Sin esta comprobación, cualquiera que viera la URL
+  // en el repo (público en GitHub) podía invocarla directamente las veces
+  // que quisiera y suspender cuentas reales sin pasar por el cron ni por
+  // ningún admin.
+  const authHeader = req.headers.get("Authorization") ?? "";
+  if (authHeader !== `Bearer ${serviceRoleKey}`) {
+    return json({ error: "no autorizado" }, 401);
+  }
+
   const url = Deno.env.get("SUPABASE_URL")!;
-  const admin = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+  const admin = createClient(url, serviceRoleKey);
 
   // Quién tiene suficientes valoraciones como para que su media signifique
   // algo — menos de MIN_RATINGS no entra en la revisión en absoluto.
