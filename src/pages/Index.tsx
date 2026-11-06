@@ -1132,7 +1132,7 @@ const Index = () => {
     }
   }, [isDriverMode, vehicles.vehicles.length, trip, requireAuthOrRedirect]);
 
-  const handleVehicleSelected = useCallback(() => {
+  const handleVehicleSelected = useCallback(async () => {
     setShowVehicleManager(false);
     // Sin esto, cualquiera podía activar el modo conductor y aceptar
     // pasajeros con un vehículo sin verificar — antes solo subía el precio
@@ -1144,6 +1144,23 @@ const Index = () => {
         variant: "destructive",
         duration: 3500,
       });
+      return;
+    }
+    // Sin esto, un conductor podía activarse y que le aceptaran pasajeros
+    // reales sin haber terminado el alta de cobros en Stripe — el único
+    // aviso llegaba DESPUÉS de aceptar, como un toast fácil de perder con
+    // el viaje ya en marcha, y podía completar el trayecto entero sin
+    // poder cobrar nunca.
+    const { data: connectData } = await supabase.functions.invoke("stripe-connect-status", { body: {} });
+    const onboarded = !!(connectData as { onboarded?: boolean } | null)?.onboarded;
+    if (!onboarded) {
+      toast({
+        title: "Completa el alta de cobros antes de activarte",
+        description: "Sin ella, Stripe no te puede pagar lo que cobres a tus pasajeros.",
+        variant: "destructive",
+        duration: 4000,
+      });
+      modals.openDriverSettings();
       return;
     }
     setIsPassengerMode(false);
@@ -1160,7 +1177,7 @@ const Index = () => {
       description: `Usando ${vehicles.activeVehicle.brand} ${vehicles.activeVehicle.model} · ${vehicles.activeVehicle.licensePlate}`,
       duration: 1800,
     });
-  }, [vehicles.activeVehicle, toast, driverSim, trip]);
+  }, [vehicles.activeVehicle, toast, driverSim, trip, modals]);
 
   const handleMenuNavigate = useCallback(
     (section: string) => {
@@ -1458,7 +1475,16 @@ const Index = () => {
           if (row.status === 'cancelled') {
             toast({ title: 'El conductor canceló el viaje', variant: 'destructive', duration: 3000 });
             driverSim.clearDriver();
-            trip.handleTripCancel();
+            // cancelOwnPassengerLeg (no handleTripCancel): este último solo
+            // libera las retenciones que tenga guardadas simToDbIdRef, una
+            // ref en memoria que vive en el dispositivo del CONDUCTOR — en
+            // el tuyo está siempre vacía, así que tu propia retención no se
+            // soltaba nunca hasta que Stripe lo hacía solo a los 7 días.
+            if (matchedRequestId) {
+              trip.cancelOwnPassengerLeg(matchedRequestId);
+            } else {
+              trip.handleTripCancel();
+            }
           }
         },
       )
@@ -1466,7 +1492,7 @@ const Index = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [showDriverOnMap, trip, driverSim, toast]);
+  }, [showDriverOnMap, trip, driverSim, toast, matchedRequestId]);
 
   // El precio que ves varía en vivo, no solo al emparejar: el conductor
   // recalcula lo que paga cada uno cada vez que sube o baja alguien del

@@ -1,11 +1,26 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { PhoneNumberInput } from '@/components/PhoneNumberInput';
 import { toast } from 'sonner';
+
+// Marca en el perfil que aceptó los términos/privacidad vigentes AHORA —
+// antes no quedaba ningún rastro de esto, ni checkbox ni columna donde
+// guardarlo. Se llama después de cualquier inicio de sesión real (email,
+// teléfono o Google) mientras la casilla esté marcada; sin await explícito
+// en quien la llama porque nunca debe bloquear la navegación tras el login.
+async function recordTermsAcceptance() {
+  const { data } = await supabase.auth.getUser();
+  const userId = data.user?.id;
+  if (!userId) return;
+  await supabase.from('profiles').update({ terms_accepted_at: new Date().toISOString() }).eq('id', userId);
+}
+
+const PENDING_TERMS_KEY = 'vimatch_terms_accepted_pending';
 
 /** Only same-origin relative paths are accepted as post-login targets. */
 function safeNext(raw: string | null): string {
@@ -26,9 +41,17 @@ const Auth = () => {
   const [otp, setOtp] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+
+  const requireTerms = () => {
+    if (acceptedTerms) return true;
+    toast.error('Tienes que aceptar los Términos y la Política de Privacidad para continuar');
+    return false;
+  };
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!requireTerms()) return;
     setBusy(true);
     try {
       const { error } = await supabase.auth.signInWithOtp({ phone });
@@ -48,6 +71,7 @@ const Auth = () => {
     try {
       const { error } = await supabase.auth.verifyOtp({ phone, token: otp, type: 'sms' });
       if (error) throw error;
+      await recordTermsAcceptance();
       window.location.replace(next);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Código incorrecto');
@@ -58,7 +82,15 @@ const Auth = () => {
 
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      if (session) window.location.replace(next);
+      if (!session) return;
+      // Vuelve de Google: la casilla se marcó ANTES de salir hacia Google,
+      // así que se lee de localStorage, no del estado (se perdió al navegar).
+      if (localStorage.getItem(PENDING_TERMS_KEY) === '1') {
+        localStorage.removeItem(PENDING_TERMS_KEY);
+        recordTermsAcceptance().finally(() => window.location.replace(next));
+        return;
+      }
+      window.location.replace(next);
     });
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) window.location.replace(next);
@@ -68,9 +100,14 @@ const Auth = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!requireTerms()) return;
     setBusy(true);
     try {
       if (mode === 'signup') {
+        // El enlace de confirmación del correo trae de vuelta aquí mismo
+        // más tarde, con sesión nueva — localStorage sobrevive esa espera,
+        // el estado de React no.
+        localStorage.setItem(PENDING_TERMS_KEY, '1');
         const { error } = await supabase.auth.signUp({
           email,
           password,
@@ -81,6 +118,7 @@ const Auth = () => {
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        await recordTermsAcceptance();
         window.location.replace(next);
       }
     } catch (err) {
@@ -94,12 +132,17 @@ const Auth = () => {
   // solo existe en los servidores de Lovable, así que rompía el login en
   // cualquier otro dominio (p.ej. Netlify).
   const handleGoogle = async () => {
+    if (!requireTerms()) return;
     setBusy(true);
+    // Google aleja de esta página — localStorage sobrevive el viaje de ida
+    // y vuelta, el estado de React no.
+    localStorage.setItem(PENDING_TERMS_KEY, '1');
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: `${window.location.origin}/auth?next=${encodeURIComponent(next)}` },
     });
     if (error) {
+      localStorage.removeItem(PENDING_TERMS_KEY);
       toast.error('No se pudo iniciar sesión con Google');
       setBusy(false);
     }
@@ -137,6 +180,25 @@ const Auth = () => {
           ))}
         </div>
 
+        <label className="flex items-start gap-2 mb-4 text-xs text-muted-foreground cursor-pointer">
+          <Checkbox
+            checked={acceptedTerms}
+            onCheckedChange={(checked) => setAcceptedTerms(checked === true)}
+            className="mt-0.5"
+          />
+          <span>
+            Acepto los{' '}
+            <Link to="/legal/terminos" target="_blank" className="underline hover:text-foreground">
+              Términos
+            </Link>{' '}
+            y la{' '}
+            <Link to="/legal/privacidad" target="_blank" className="underline hover:text-foreground">
+              Política de Privacidad
+            </Link>
+            .
+          </span>
+        </label>
+
         {method === 'email' ? (
           <form onSubmit={handleSubmit} className="space-y-3">
             <div className="space-y-1.5">
@@ -147,7 +209,7 @@ const Auth = () => {
               <Label htmlFor="password">Contraseña</Label>
               <Input id="password" type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} />
             </div>
-            <Button type="submit" className="w-full" disabled={busy}>
+            <Button type="submit" className="w-full" disabled={busy || !acceptedTerms}>
               {mode === 'signin' ? 'Entrar' : 'Registrarme'}
             </Button>
           </form>
@@ -157,7 +219,7 @@ const Auth = () => {
               <Label htmlFor="phone">Número de teléfono</Label>
               <PhoneNumberInput id="phone" value={phone} onChange={setPhone} />
             </div>
-            <Button type="submit" className="w-full" disabled={busy}>
+            <Button type="submit" className="w-full" disabled={busy || !acceptedTerms}>
               Enviarme el código
             </Button>
           </form>
@@ -188,7 +250,7 @@ const Auth = () => {
           </form>
         )}
 
-        <Button variant="outline" className="w-full mt-3" onClick={handleGoogle} disabled={busy}>
+        <Button variant="outline" className="w-full mt-3" onClick={handleGoogle} disabled={busy || !acceptedTerms}>
           Continuar con Google
         </Button>
 

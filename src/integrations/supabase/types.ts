@@ -64,6 +64,7 @@ export type Database = {
           stripe_connect_account_id: string | null
           stripe_connect_onboarded: boolean
           stripe_customer_id: string | null
+          terms_accepted_at: string | null
         }
         Insert: {
           avatar_url?: string | null
@@ -78,6 +79,7 @@ export type Database = {
           stripe_connect_account_id?: string | null
           stripe_connect_onboarded?: boolean
           stripe_customer_id?: string | null
+          terms_accepted_at?: string | null
         }
         Update: {
           avatar_url?: string | null
@@ -92,6 +94,7 @@ export type Database = {
           stripe_connect_account_id?: string | null
           stripe_connect_onboarded?: boolean
           stripe_customer_id?: string | null
+          terms_accepted_at?: string | null
         }
         Relationships: []
       }
