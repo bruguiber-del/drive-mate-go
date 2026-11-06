@@ -35,7 +35,7 @@ async function saveSubscription(subscription: PushSubscription) {
   const json = subscription.toJSON();
   if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) return false;
 
-  await supabase.from('push_subscriptions').upsert(
+  const { error } = await supabase.from('push_subscriptions').upsert(
     {
       user_id: userId,
       endpoint: json.endpoint,
@@ -44,7 +44,7 @@ async function saveSubscription(subscription: PushSubscription) {
     },
     { onConflict: 'endpoint' },
   );
-  return true;
+  return !error;
 }
 
 /**
