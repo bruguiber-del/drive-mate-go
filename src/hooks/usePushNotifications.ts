@@ -27,6 +27,26 @@ async function resolveVapidKey(): Promise<string | undefined> {
 
 export type PushPermissionState = 'unsupported' | 'default' | 'granted' | 'denied';
 
+async function saveSubscription(subscription: PushSubscription) {
+  const { data: userData } = await supabase.auth.getUser();
+  const userId = userData?.user?.id;
+  if (!userId) return false;
+
+  const json = subscription.toJSON();
+  if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) return false;
+
+  await supabase.from('push_subscriptions').upsert(
+    {
+      user_id: userId,
+      endpoint: json.endpoint,
+      p256dh: json.keys.p256dh,
+      auth: json.keys.auth,
+    },
+    { onConflict: 'endpoint' },
+  );
+  return true;
+}
+
 /**
  * Pide permiso de notificaciones push y guarda la suscripción — sin esto,
  * enterarse de una petición nueva o de que te han aceptado dependía de
@@ -66,23 +86,7 @@ export function usePushNotifications() {
           applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
         }));
 
-      const { data: userData } = await supabase.auth.getUser();
-      const userId = userData?.user?.id;
-      if (!userId) return false;
-
-      const json = subscription.toJSON();
-      if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) return false;
-
-      await supabase.from('push_subscriptions').upsert(
-        {
-          user_id: userId,
-          endpoint: json.endpoint,
-          p256dh: json.keys.p256dh,
-          auth: json.keys.auth,
-        },
-        { onConflict: 'endpoint' },
-      );
-      return true;
+      return await saveSubscription(subscription);
     } catch {
       return false;
     } finally {
@@ -90,5 +94,39 @@ export function usePushNotifications() {
     }
   }, [permission]);
 
-  return { permission, subscribing, subscribe };
+  // El navegador recuerda el permiso para siempre una vez concedido, pero la
+  // suscripción en sí sigue atada a la clave VAPID con la que se creó — si
+  // esa clave cambia (p. ej. tras rotarla), la suscripción vieja deja de
+  // servir y no hay forma de volver a "Activar" porque el permiso ya está
+  // concedido. Esto fuerza a tirar la suscripción vieja y crear una nueva
+  // con la clave pública actual.
+  const resubscribe = useCallback(async () => {
+    if (permission !== 'granted') return false;
+    const vapidPublicKey = await resolveVapidKey();
+    if (!vapidPublicKey) return false;
+
+    setSubscribing(true);
+    try {
+      const registration = await navigator.serviceWorker.register('/push-sw.js');
+      await navigator.serviceWorker.ready;
+
+      const existing = await registration.pushManager.getSubscription();
+      if (existing) {
+        await supabase.from('push_subscriptions').delete().eq('endpoint', existing.endpoint);
+        await existing.unsubscribe();
+      }
+
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+      });
+      return await saveSubscription(subscription);
+    } catch {
+      return false;
+    } finally {
+      setSubscribing(false);
+    }
+  }, [permission]);
+
+  return { permission, subscribing, subscribe, resubscribe };
 }

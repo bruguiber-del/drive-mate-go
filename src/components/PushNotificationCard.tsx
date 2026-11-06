@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Bell, BellOff, BellRing, Loader2 } from 'lucide-react';
+import { Bell, BellOff, BellRing, Loader2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { supabase } from '@/integrations/supabase/client';
@@ -11,9 +11,22 @@ import { useToast } from '@/components/ui/use-toast';
  * pantalla.
  */
 const PushNotificationCard = () => {
-  const { permission, subscribing, subscribe } = usePushNotifications();
+  const { permission, subscribing, subscribe, resubscribe } = usePushNotifications();
   const { toast } = useToast();
   const [sendingTest, setSendingTest] = useState(false);
+
+  // El navegador no vuelve a pedir permiso una vez concedido, así que si la
+  // clave VAPID del servidor cambia (p. ej. al rotarla), la única forma de
+  // que este dispositivo vuelva a quedar suscrito correctamente es forzarlo
+  // desde aquí — de lo contrario "Probar" seguiría fallando sin más pista.
+  const handleResubscribe = async () => {
+    const ok = await resubscribe();
+    toast(
+      ok
+        ? { title: 'Suscripción renovada', description: 'Prueba ahora a mandarte un aviso.', duration: 2500 }
+        : { title: 'No se pudo renovar', description: 'Inténtalo de nuevo en un momento.', variant: 'destructive', duration: 3500 },
+    );
+  };
 
   // Sin esto, comprobar que un aviso de verdad llega al móvil dependía de
   // tener dos cuentas haciendo un viaje real a la vez — con este botón
@@ -76,9 +89,14 @@ const PushNotificationCard = () => {
         </p>
       </div>
       {permission === 'granted' && (
-        <Button size="sm" variant="ghost" disabled={sendingTest} onClick={sendTestNotification}>
-          {sendingTest ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Probar'}
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button size="sm" variant="ghost" disabled={subscribing} onClick={handleResubscribe} title="Renovar suscripción">
+            {subscribing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+          </Button>
+          <Button size="sm" variant="ghost" disabled={sendingTest} onClick={sendTestNotification}>
+            {sendingTest ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Probar'}
+          </Button>
+        </div>
       )}
       {permission !== 'granted' && permission !== 'denied' && (
         <Button size="sm" disabled={subscribing} onClick={subscribe}>
