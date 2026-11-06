@@ -145,8 +145,12 @@ const MapView = ({
   // GPS nuevo. Si llega otro fix a mitad de la animación, se cancela la
   // anterior y se continúa desde donde iba (no desde el destino a medias),
   // así nunca hay un salto discontinuo.
+  // Antes eran 900ms — suficiente para que no se notaran saltos, pero con
+  // el punto notablemente por detrás de la posición real a velocidad de
+  // coche. Se baja a 450ms: sigue absorbiendo el ruido normal del GPS sin
+  // verse a trompicones, pero con mucho menos retraso.
   const animateUserMarkerTo = useCallback((target: [number, number]) => {
-    const MARKER_SLIDE_MS = 900;
+    const MARKER_SLIDE_MS = 450;
     if (userMarkerAnimRef.current != null) cancelAnimationFrame(userMarkerAnimRef.current);
     const start = userMarkerRenderedPosRef.current ?? target;
     const startTime = performance.now();
@@ -393,8 +397,29 @@ const MapView = ({
       setMapReady(true);
     });
 
-    // Stop following when user manually pans
-    map.current.on('dragstart', () => { isFollowingRef.current = false; });
+    // Stop following when user manually pans — pero solo un rato: antes
+    // esto se quedaba desactivado para SIEMPRE hasta que se tocaba a mano
+    // el botón de centrar, así que arrastrar el mapa sin querer (un golpe
+    // en el soporte del móvil, sin ir más lejos) dejaba el mapa sin seguir
+    // la posición el resto del viaje, sin ningún aviso de que eso había
+    // pasado. Ahora, tras soltar, se reanuda solo a los pocos segundos si
+    // no se vuelve a tocar — igual que Google Maps/Waze.
+    map.current.on('dragstart', () => {
+      isFollowingRef.current = false;
+      if (resumeFollowTimerRef.current !== null) {
+        window.clearTimeout(resumeFollowTimerRef.current);
+        resumeFollowTimerRef.current = null;
+      }
+    });
+    map.current.on('dragend', () => {
+      if (resumeFollowTimerRef.current !== null) {
+        window.clearTimeout(resumeFollowTimerRef.current);
+      }
+      resumeFollowTimerRef.current = window.setTimeout(() => {
+        isFollowingRef.current = true;
+        resumeFollowTimerRef.current = null;
+      }, 8000);
+    });
 
     return () => {
       if (resumeFollowTimerRef.current !== null) {
