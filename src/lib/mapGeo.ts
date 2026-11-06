@@ -67,6 +67,69 @@ export function nearestPointOnRoute(
   return fromXY(best.xy);
 }
 
+/** Por debajo de esto no merece la pena recortar la ruta ya recorrida —
+ *  más allá, el desvío real ya dispara un recálculo de ruta aparte (ver
+ *  useRouting), así que la línea vieja se sustituye entera pronto de
+ *  todos modos y recortarla aquí solo añadiría ruido visual. */
+const TRIM_ROUTE_MAX_M = 100;
+
+/**
+ * Recorta la polilínea de la ruta a partir del punto más cercano a `point`
+ * — antes la línea azul se dibujaba entera una sola vez y se quedaba ahí
+ * fija aunque se fuera avanzando por ella, sin "borrarse" el tramo ya
+ * recorrido como en cualquier app de navegación normal.
+ *
+ * Si se pasa `congestion` (un valor por segmento, alineado con `route`), se
+ * recorta exactamente igual para que cada color de tráfico se quede con el
+ * tramo que de verdad le corresponde — si no, al quitar segmentos del
+ * principio el tráfico pintado se desplazaría y no cuadraría con la calle.
+ *
+ * Devuelve la ruta (y congestion) sin tocar si tiene menos de 2 puntos o si
+ * el punto queda a más de TRIM_ROUTE_MAX_M (desvío real, no ruido de GPS).
+ */
+export function remainingRouteFrom(
+  point: [number, number],
+  route: [number, number][],
+  congestion?: string[],
+): { coordinates: [number, number][]; congestion?: string[] } {
+  if (route.length < 2) return { coordinates: route, congestion };
+  const lngScale = Math.cos((point[0] * Math.PI) / 180);
+  const toXY = (p: [number, number]): [number, number] => [
+    (p[1] - point[1]) * 111320 * lngScale,
+    (p[0] - point[0]) * 111320,
+  ];
+  const fromXY = (xy: [number, number]): [number, number] => [
+    point[0] + xy[1] / 111320,
+    point[1] + xy[0] / (111320 * lngScale),
+  ];
+
+  let best: { distSq: number; xy: [number, number]; segment: number; t: number } | null = null;
+  for (let i = 0; i < route.length - 1; i += 1) {
+    const a = toXY(route[i]);
+    const b = toXY(route[i + 1]);
+    const abx = b[0] - a[0];
+    const aby = b[1] - a[1];
+    const lenSq = abx * abx + aby * aby;
+    const t = lenSq === 0 ? 0 : Math.max(0, Math.min(1, -(a[0] * abx + a[1] * aby) / lenSq));
+    const projX = a[0] + abx * t;
+    const projY = a[1] + aby * t;
+    const distSq = projX * projX + projY * projY;
+    if (!best || distSq < best.distSq) best = { distSq, xy: [projX, projY], segment: i, t };
+  }
+  if (!best || Math.sqrt(best.distSq) > TRIM_ROUTE_MAX_M) return { coordinates: route, congestion };
+
+  const projected = fromXY(best.xy);
+  const rest = route.slice(best.segment + 1);
+  // t≈1 significa que el punto proyectado prácticamente coincide con el
+  // siguiente vértice — no hace falta duplicarlo al principio del resto,
+  // y en ese caso el primer segmento que queda ya es el siguiente original
+  // (best.segment + 1), no el que se acaba de dejar atrás.
+  const snapsToNextVertex = best.t >= 0.999 && rest.length > 0;
+  const coordinates = snapsToNextVertex ? rest : rest.length > 0 ? [projected, ...rest] : [projected];
+  const trimmedCongestion = congestion?.slice(snapsToNextVertex ? best.segment + 1 : best.segment);
+  return { coordinates, congestion: trimmedCongestion };
+}
+
 /**
  * Walks a list of [lat, lng] points in order and returns true as soon as
  * the cumulative distance between consecutive points exceeds thresholdM.

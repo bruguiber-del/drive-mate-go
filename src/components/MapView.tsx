@@ -12,6 +12,7 @@ import {
   markerScreenRotation,
   nextSpeedTier,
   nearestPointOnRoute,
+  remainingRouteFrom,
   TIER_CAMERA,
   type SpeedTier,
 } from '@/lib/mapGeo';
@@ -692,9 +693,18 @@ const MapView = ({
       return;
     }
 
+    // Mientras se navega de verdad, recorta lo ya recorrido — antes la
+    // línea se quedaba fija desde el origen aunque ya se hubiera avanzado
+    // la mitad del trayecto, sin "borrarse" como en cualquier app de
+    // navegación normal.
+    const { coordinates: visibleCoordinates, congestion: visibleCongestion } =
+      isNavigating && rawUserLocation
+        ? remainingRouteFrom(rawUserLocation, route.coordinates, route.congestion)
+        : { coordinates: route.coordinates, congestion: route.congestion };
+
     // Morado hasta la parada añadida desde el buscador, azul después.
-    const splitIndex = purpleUntilStop ? nearestCoordIndex(route.coordinates, purpleUntilStop) : null;
-    const data = toRouteGeoJSON(route.coordinates, route.congestion, splitIndex);
+    const splitIndex = purpleUntilStop ? nearestCoordIndex(visibleCoordinates, purpleUntilStop) : null;
+    const data = toRouteGeoJSON(visibleCoordinates, visibleCongestion, splitIndex);
     try {
       const src = m.getSource(SRC_ROUTE) as mapboxgl.GeoJSONSource | undefined;
       if (src) {
@@ -748,7 +758,7 @@ const MapView = ({
       console.error('MapView: fallo al dibujar la ruta', err);
       removeRouteLayers();
     }
-  }, [route, showRoute, mapReady, styleRetryTick, purpleUntilStop]);
+  }, [route, showRoute, mapReady, styleRetryTick, purpleUntilStop, isNavigating, rawUserLocation]);
 
   useEffect(() => {
     if (!map.current || !mapReady) return;

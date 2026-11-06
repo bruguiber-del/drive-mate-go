@@ -1,5 +1,5 @@
 import { haversineMeters } from "@/lib/geo";
-import { computeBearing } from "@/lib/mapGeo";
+import { computeBearing, approxMetersBetween } from "@/lib/mapGeo";
 import { useErrandStops } from "@/hooks/useErrandStops";
 import { useDriverSettings } from "@/hooks/useDriverSettings";
 import { useRecurringTripReminder } from "@/hooks/useRecurringTripReminder";
@@ -1603,6 +1603,16 @@ const Index = () => {
     return steps[currentStepIndex];
   }, [nav.currentRoute, currentStepIndex]);
 
+  // Antes el aviso enseñaba currentStep.distance — la longitud TOTAL y fija
+  // de ese tramo, la misma desde que se entra en él hasta que se sale, sin
+  // bajar aunque ya casi se haya llegado a la maniobra. Esto es lo que de
+  // verdad cuenta: cuánto queda desde donde estás ahora mismo.
+  const distanceToManeuver = useMemo(() => {
+    if (!currentStep?.maneuver?.location || !realUserLocation) return currentStep?.distance ?? null;
+    const [lng, lat] = currentStep.maneuver.location;
+    return approxMetersBetween(realUserLocation, [lat, lng]);
+  }, [currentStep, realUserLocation]);
+
   // ── ETA en vivo ──────────────────────────────────────────────────────────
   // nav.dynamicETA es la duración TOTAL calculada la primera vez que se pidió
   // la ruta, y solo se refresca si te desvías >70m del trazado — o sea que
@@ -1714,6 +1724,21 @@ const Index = () => {
     enabled: nav.isNavigating && nav.hasStartedDriving,
   });
 
+  // La voz empieza silenciada por defecto (los navegadores bloquean el
+  // audio automático) — sin este aviso, quien nunca haya tocado el
+  // altavoz de arriba no tiene forma de enterarse de que existe, y vive la
+  // navegación entera sin ningún "gira a la derecha en 100 metros" hablado.
+  const voiceHintShownRef = useRef(false);
+  useEffect(() => {
+    if (!nav.isNavigating || !voice.isMuted || voiceHintShownRef.current) return;
+    voiceHintShownRef.current = true;
+    toast({
+      title: "¿Sabías que hay indicaciones habladas?",
+      description: "Toca el icono de altavoz arriba a la derecha para activarlas.",
+      duration: 5000,
+    });
+  }, [nav.isNavigating, voice.isMuted, toast]);
+
   // Parar desde el botón rojo cierra el viaje igual que el fin normal (con
   // valoración de los pasajeros) si lo había; luego corta la navegación.
   const handleStopNavigation = useCallback(() => {
@@ -1726,6 +1751,7 @@ const Index = () => {
     driverSim.clearDriver();
     setAcceptedPassenger(null);
     setExtraStops([]);
+    voiceHintShownRef.current = false;
     (window as any).__mapCenterOnUser?.();
   }, [voice, nav, trip.showActiveTrip, tripPassengerHistory.length, handleTripEndWithSummary, dismissSimPassenger, driverSim]);
 
@@ -1887,6 +1913,7 @@ const Index = () => {
           hasPassenger={effectiveHasPassenger}
           hasStartedDriving={nav.hasStartedDriving}
           currentStep={currentStep}
+          distanceToManeuver={distanceToManeuver}
           ManeuverIcon={ManeuverIcon}
           currentLeg={effectiveCurrentLeg}
           currentTargetName={effectiveCurrentTarget?.name ?? null}

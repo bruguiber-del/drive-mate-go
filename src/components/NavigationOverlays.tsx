@@ -48,6 +48,9 @@ interface NavigationOverlaysProps {
   hasPassenger: boolean;
   hasStartedDriving: boolean;
   currentStep: RouteStep | null;
+  /** Distancia en vivo desde la posición actual hasta la maniobra — baja
+   *  de verdad según te acercas, no la longitud fija del tramo. */
+  distanceToManeuver: number | null;
   ManeuverIcon: LucideIcon;
   currentLeg: TripLeg;
   currentTargetName: string | null;
@@ -70,6 +73,7 @@ const NavigationOverlays = ({
   hasPassenger,
   hasStartedDriving,
   currentStep,
+  distanceToManeuver,
   ManeuverIcon,
   currentLeg,
   currentTargetName,
@@ -159,7 +163,7 @@ const NavigationOverlays = ({
             <ManeuverBadge ManeuverIcon={ManeuverIcon} step={currentStep} size="lg" />
             <div className="flex-1 min-w-0">
               <p className="text-2xl font-extrabold text-foreground leading-none tabular-nums">
-                {formatDistance(currentStep.distance)}
+                {formatDistance(distanceToManeuver ?? currentStep.distance)}
               </p>
               <p className="text-xs font-medium text-muted-foreground leading-tight line-clamp-2 mt-1">
                 {currentStep.instruction}
@@ -192,7 +196,7 @@ const NavigationOverlays = ({
             <div className="flex-1 min-w-0">
               <div className="flex items-baseline gap-1.5">
                 <p className="text-lg font-extrabold text-foreground leading-none tabular-nums">
-                  {formatDistance(currentStep.distance)}
+                  {formatDistance(distanceToManeuver ?? currentStep.distance)}
                 </p>
                 {dynamicETA && (
                   <span className="text-[10px] text-primary font-semibold shrink-0">
