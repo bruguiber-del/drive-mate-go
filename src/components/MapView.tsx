@@ -400,31 +400,35 @@ const MapView = ({
       setMapReady(true);
     });
 
-    // Stop following when user manually pans — pero solo un rato: antes
-    // esto se quedaba desactivado para SIEMPRE hasta que se tocaba a mano
-    // el botón de centrar, así que arrastrar el mapa sin querer (un golpe
-    // en el soporte del móvil, sin ir más lejos) dejaba el mapa sin seguir
-    // la posición el resto del viaje, sin ningún aviso de que eso había
-    // pasado. Ahora, tras soltar, se reanuda solo a los pocos segundos si
-    // no se vuelve a tocar — igual que Google Maps/Waze.
-    map.current.on('dragstart', () => {
+    // Pausa el seguimiento automático y programa su reanudación en RESUME_MS
+    // — antes esto se quedaba desactivado para SIEMPRE hasta tocar a mano el
+    // botón de centrar, así que arrastrar el mapa sin querer (un golpe en el
+    // soporte del móvil) o simplemente tocar cualquier otro control (zoom,
+    // ajustes, SOS...) lo dejaba sin seguir la posición el resto del viaje.
+    // Cualquier toque nuevo reinicia la cuenta — solo se reanuda tras un
+    // rato sin tocar NADA, igual que Google Maps/Waze.
+    const RESUME_FOLLOW_MS = 45000;
+    const pauseFollowAndScheduleResume = () => {
       isFollowingRef.current = false;
-      if (resumeFollowTimerRef.current !== null) {
-        window.clearTimeout(resumeFollowTimerRef.current);
-        resumeFollowTimerRef.current = null;
-      }
-    });
-    map.current.on('dragend', () => {
       if (resumeFollowTimerRef.current !== null) {
         window.clearTimeout(resumeFollowTimerRef.current);
       }
       resumeFollowTimerRef.current = window.setTimeout(() => {
         isFollowingRef.current = true;
         resumeFollowTimerRef.current = null;
-      }, 8000);
-    });
+      }, RESUME_FOLLOW_MS);
+    };
+
+    map.current.on('dragstart', pauseFollowAndScheduleResume);
+    map.current.on('dragend', pauseFollowAndScheduleResume);
+
+    // Lo mismo pero para cualquier otro elemento de la pantalla, no solo el
+    // mapa — a nivel de window porque los botones (zoom, SOS, ajustes...)
+    // los pinta el padre de MapView, no este componente.
+    window.addEventListener('pointerdown', pauseFollowAndScheduleResume);
 
     return () => {
+      window.removeEventListener('pointerdown', pauseFollowAndScheduleResume);
       if (resumeFollowTimerRef.current !== null) {
         window.clearTimeout(resumeFollowTimerRef.current);
         resumeFollowTimerRef.current = null;
