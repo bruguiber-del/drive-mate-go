@@ -127,6 +127,20 @@
       "when": 1793983398350,
       "tag": "0017_road_alerts",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793984561251,
+      "tag": "0018_abuse_hardening",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793984563412,
+      "tag": "0019_support_messages",
+      "breakpoints": true
     }
   ]
 }

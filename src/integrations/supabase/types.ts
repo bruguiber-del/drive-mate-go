@@ -291,6 +291,30 @@ export type Database = {
         }
         Relationships: []
       }
+      support_messages: {
+        Row: {
+          context: string | null
+          created_at: string
+          id: string
+          message: string
+          user_id: string | null
+        }
+        Insert: {
+          context?: string | null
+          created_at?: string
+          id?: string
+          message: string
+          user_id?: string | null
+        }
+        Update: {
+          context?: string | null
+          created_at?: string
+          id?: string
+          message?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       trip_passengers: {
         Row: {
           created_at: string
@@ -536,6 +560,19 @@ export type Database = {
           longitude: number
           speed: number
         }[]
+      }
+      has_nearby_road_alert: {
+        Args: {
+          p_lat: number
+          p_lng: number
+          p_radius_m: number
+          p_user: string
+        }
+        Returns: boolean
+      }
+      have_shared_trip: {
+        Args: { p_other: string; p_user: string }
+        Returns: boolean
       }
       passenger_has_active_request: {
         Args: { p_passenger: string }
