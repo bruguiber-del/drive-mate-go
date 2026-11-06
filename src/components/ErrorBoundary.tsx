@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Props {
   children: ReactNode;
@@ -8,10 +9,16 @@ interface Props {
 interface State {
   error: Error | null;
   info: string | null;
+  sent: boolean;
+  sending: boolean;
 }
 
+// Antes, si la app se caía de verdad, la única forma de enterarse era que
+// la persona afectada lo contara ella misma — ahora se puede avisar al
+// admin en un toque, con el error de verdad adjunto (no hace falta que
+// nadie lo copie ni lo describa a mano).
 export class ErrorBoundary extends Component<Props, State> {
-  state: State = { error: null, info: null };
+  state: State = { error: null, info: null, sent: false, sending: false };
 
   static getDerivedStateFromError(error: Error): Partial<State> {
     return { error };
@@ -22,8 +29,28 @@ export class ErrorBoundary extends Component<Props, State> {
     this.setState({ info: info.componentStack ?? null });
   }
 
-  render() {
+  handleNotifySupport = async () => {
     const { error, info } = this.state;
+    if (!error || this.state.sending) return;
+    this.setState({ sending: true });
+    try {
+      await supabase.functions.invoke('contact-support', {
+        body: {
+          message: `La app se ha caído con este error: ${error.message}`,
+          context: info ? `Componente: ${info.slice(0, 300)}` : undefined,
+        },
+      });
+      this.setState({ sent: true });
+    } catch {
+      // Sin esto no hay nada más que intentar desde aquí — si el propio
+      // aviso de fallo falla al mandarse, no hay un plan C.
+    } finally {
+      this.setState({ sending: false });
+    }
+  };
+
+  render() {
+    const { error, info, sent, sending } = this.state;
     if (!error) return this.props.children;
 
     return (
@@ -35,12 +62,21 @@ export class ErrorBoundary extends Component<Props, State> {
           {error.message}
           {info ? `\n${info}` : ''}
         </pre>
-        <button
-          onClick={() => window.location.reload()}
-          className="rounded-full bg-primary px-6 py-2 text-sm font-medium text-primary-foreground"
-        >
-          Recargar
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={() => window.location.reload()}
+            className="rounded-full bg-primary px-6 py-2 text-sm font-medium text-primary-foreground"
+          >
+            Recargar
+          </button>
+          <button
+            onClick={this.handleNotifySupport}
+            disabled={sending || sent}
+            className="rounded-full border border-border px-6 py-2 text-sm font-medium text-foreground disabled:opacity-60"
+          >
+            {sent ? 'Avisado' : sending ? 'Avisando...' : 'Avisar al soporte'}
+          </button>
+        </div>
       </div>
     );
   }

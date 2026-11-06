@@ -258,6 +258,30 @@ export type Database = {
           },
         ]
       }
+      support_messages: {
+        Row: {
+          id: string
+          user_id: string | null
+          message: string
+          context: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id?: string | null
+          message: string
+          context?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string | null
+          message?: string
+          context?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
       road_alerts: {
         Row: {
           confirmations: number

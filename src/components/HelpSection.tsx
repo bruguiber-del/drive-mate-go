@@ -1,7 +1,9 @@
 import { motion } from 'framer-motion';
-import { X, HelpCircle, MessageCircle, Phone, Mail, ChevronRight, ChevronDown, Shield, Car, Users, CreditCard } from 'lucide-react';
+import { X, HelpCircle, Mail, Loader2, ChevronRight, ChevronDown, Shield, Car, Users, CreditCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/components/ui/use-toast';
 
 interface HelpSectionProps {
   isOpen: boolean;
@@ -44,7 +46,33 @@ const faqs = [
 ];
 
 const HelpSection = ({ isOpen, onClose }: HelpSectionProps) => {
+  const { toast } = useToast();
   const [expandedFaq, setExpandedFaq] = useState<string | null>(null);
+  const [supportMessage, setSupportMessage] = useState('');
+  const [sending, setSending] = useState(false);
+
+  const handleSendSupport = async () => {
+    if (supportMessage.trim().length < 5) return;
+    setSending(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('contact-support', {
+        body: { message: supportMessage.trim(), context: 'Formulario de Ayuda' },
+      });
+      if (error || !data?.ok) {
+        toast({
+          title: 'No se pudo enviar',
+          description: (data as { error?: string } | null)?.error ?? 'Inténtalo de nuevo en un momento.',
+          variant: 'destructive',
+          duration: 3500,
+        });
+        return;
+      }
+      toast({ title: 'Mensaje enviado', description: 'Te responderemos en cuanto podamos.', duration: 2500 });
+      setSupportMessage('');
+    } finally {
+      setSending(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -74,26 +102,31 @@ const HelpSection = ({ isOpen, onClose }: HelpSectionProps) => {
           </div>
 
           <div className="p-6 space-y-6">
-            {/* Contact Options */}
-            <div className="grid grid-cols-3 gap-3">
-              <button className="glass rounded-xl p-4 flex flex-col items-center gap-2 hover:bg-muted/50 transition-colors">
-                <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center">
-                  <MessageCircle className="w-6 h-6 text-primary" />
-                </div>
-                <span className="text-sm font-medium text-foreground">Chat</span>
-              </button>
-              <button className="glass rounded-xl p-4 flex flex-col items-center gap-2 hover:bg-muted/50 transition-colors">
-                <div className="w-12 h-12 rounded-xl bg-secondary/20 flex items-center justify-center">
-                  <Phone className="w-6 h-6 text-secondary" />
-                </div>
-                <span className="text-sm font-medium text-foreground">Llamar</span>
-              </button>
-              <button className="glass rounded-xl p-4 flex flex-col items-center gap-2 hover:bg-muted/50 transition-colors">
-                <div className="w-12 h-12 rounded-xl bg-accent/20 flex items-center justify-center">
-                  <Mail className="w-6 h-6 text-accent-foreground" />
-                </div>
-                <span className="text-sm font-medium text-foreground">Email</span>
-              </button>
+            {/* Contactar con soporte — antes esto eran 3 botones (Chat,
+                Llamar, Email) que no hacían nada al pulsarlos; no hay
+                chat en vivo ni línea de teléfono de verdad detrás, así
+                que en su lugar hay un único canal que sí funciona: manda
+                un mensaje real al admin (push + email). */}
+            <div className="glass rounded-xl p-4 space-y-2">
+              <div className="flex items-center gap-2">
+                <Mail className="w-4 h-4 text-primary" />
+                <p className="font-medium text-foreground text-sm">Escríbenos</p>
+              </div>
+              <textarea
+                value={supportMessage}
+                onChange={(e) => setSupportMessage(e.target.value)}
+                rows={3}
+                placeholder="Cuéntanos tu problema o duda..."
+                className="w-full text-sm px-3 py-2 rounded-lg bg-muted text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+              />
+              <Button
+                size="sm"
+                className="w-full"
+                disabled={supportMessage.trim().length < 5 || sending}
+                onClick={handleSendSupport}
+              >
+                {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Enviar mensaje'}
+              </Button>
             </div>
 
             {/* Emergency */}
