@@ -257,6 +257,17 @@ const RatingModal = ({
                   {reviewErrors[t.id] && (
                     <p className="text-[10px] text-destructive mt-1">Escribe al menos 10 letras, o déjala vacía.</p>
                   )}
+                  {/* Una valoración de 1-2 estrellas afecta a la media semanal
+                      que puede acabar suspendiendo la cuenta de la otra
+                      persona — antes nadie que valoraba sabía que esto tenía
+                      esa consecuencia. Si de verdad fue grave, para eso
+                      mejor está el botón SOS, no solo una estrella baja. */}
+                  {(ratings[t.id] ?? 0) > 0 && (ratings[t.id] ?? 0) <= 2 && (
+                    <p className="text-[10px] text-warning mt-1">
+                      Una valoración así de baja puede hacer que {t.name} se quede sin cuenta y necesite una revisión
+                      manual para volver a usarla. Si fue algo grave de verdad, mejor usa el botón SOS.
+                    </p>
+                  )}
                 </div>
               ))}
 

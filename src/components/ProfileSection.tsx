@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { User, CheckCircle, AlertCircle, Star, Car, Users, X, Loader2, Trash2 } from 'lucide-react';
+import { User, CheckCircle, AlertCircle, Star, Car, Users, X, Loader2, Trash2, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,6 +22,7 @@ import { supabase } from '@/integrations/supabase/client';
 import IdentityVerification from '@/components/IdentityVerification';
 import { PhoneNumberInput } from '@/components/PhoneNumberInput';
 import AdminVerificationReview from '@/components/AdminVerificationReview';
+import AdminReportsReview from '@/components/AdminReportsReview';
 import PushNotificationCard from '@/components/PushNotificationCard';
 import { Combobox } from '@/components/ui/combobox';
 import { COUNTRY_CALLING_CODES } from '@/lib/countryCallingCodes';
@@ -76,6 +77,7 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
   const [draftCustomCity, setDraftCustomCity] = useState('');
   const [saving, setSaving] = useState(false);
   const [showAdminReview, setShowAdminReview] = useState(false);
+  const [showAdminReports, setShowAdminReports] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -270,6 +272,21 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
                   </div>
                 </button>
               )}
+
+              {authEmail === ADMIN_EMAIL && (
+                <button
+                  onClick={() => setShowAdminReports(true)}
+                  className="w-full glass rounded-xl p-4 flex items-center gap-3 text-left hover:bg-muted/50 transition-colors"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-destructive/20 flex items-center justify-center">
+                    <ShieldAlert className="w-5 h-5 text-destructive" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-foreground">Denuncias y suspensiones (admin)</p>
+                    <p className="text-sm text-muted-foreground">Revisar avisos SOS y cuentas suspendidas por valoración baja</p>
+                  </div>
+                </button>
+              )}
             </div>
 
             {/* Personal Data */}
@@ -390,7 +407,10 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
         </div>
       </motion.div>
       {authEmail === ADMIN_EMAIL && (
-        <AdminVerificationReview isOpen={showAdminReview} onClose={() => setShowAdminReview(false)} />
+        <>
+          <AdminVerificationReview isOpen={showAdminReview} onClose={() => setShowAdminReview(false)} />
+          <AdminReportsReview isOpen={showAdminReports} onClose={() => setShowAdminReports(false)} />
+        </>
       )}
       <AlertDialog open={showDeleteConfirm} onOpenChange={(open) => !deleting && setShowDeleteConfirm(open)}>
         <AlertDialogContent>

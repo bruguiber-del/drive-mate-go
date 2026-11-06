@@ -3,6 +3,7 @@ import { Settings, Locate, Navigation } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import DriverToggle from "@/components/DriverToggle";
 import PassengerToggle from "@/components/PassengerToggle";
+import SosButton from "@/components/SosButton";
 import { OVERLAY_BOTTOM_PX, overlayBottom } from "@/lib/overlayLayout";
 
 interface BottomActionBarProps {
@@ -15,6 +16,10 @@ interface BottomActionBarProps {
   isPassengerMode: boolean;
   onPassengerToggle: () => void;
   onOpenPassengerSettings: () => void;
+  /** Viaje activo ahora mismo (para el botón SOS), si lo hay. */
+  sosTripId?: string | null;
+  /** A quién podría estar señalando una denuncia del botón SOS. */
+  sosOtherParty?: { id: string; name: string }[];
 }
 
 /** Bottom overlay: the "start driving" CTA; the driver/passenger mode
@@ -30,6 +35,8 @@ const BottomActionBar = ({
   isPassengerMode,
   onPassengerToggle,
   onOpenPassengerSettings,
+  sosTripId,
+  sosOtherParty,
 }: BottomActionBarProps) => {
   return (
     <>
@@ -81,16 +88,21 @@ const BottomActionBar = ({
           un viaje activo, igual que les pasaba antes a los toggles de
           modo. */}
       <div className="fixed right-3 z-30 pointer-events-none" style={{ bottom: overlayBottom(OVERLAY_BOTTOM_PX.cornerControls) }}>
-        <div className="flex flex-col gap-1 pointer-events-auto">
-          <Button variant="glass" size="icon" className="w-8 h-8" onClick={() => (window as any).__mapZoomIn?.()}>
-            <span className="text-sm font-bold text-foreground">+</span>
-          </Button>
-          <Button variant="glass" size="icon" className="w-8 h-8" onClick={() => (window as any).__mapZoomOut?.()}>
-            <span className="text-sm font-bold text-foreground">−</span>
-          </Button>
-          <Button variant="glass" size="icon" className="w-8 h-8" onClick={() => (window as any).__mapCenterOnUser?.()}>
-            <Locate className="w-4 h-4 text-primary" />
-          </Button>
+        <div className="flex flex-col gap-2 items-center pointer-events-auto">
+          {/* SOS — siempre visible, igual que el resto de esta columna, por
+              si hace falta denunciar algo en cualquier momento del viaje. */}
+          <SosButton tripId={sosTripId} otherParty={sosOtherParty} />
+          <div className="flex flex-col gap-1">
+            <Button variant="glass" size="icon" className="w-8 h-8" onClick={() => (window as any).__mapZoomIn?.()}>
+              <span className="text-sm font-bold text-foreground">+</span>
+            </Button>
+            <Button variant="glass" size="icon" className="w-8 h-8" onClick={() => (window as any).__mapZoomOut?.()}>
+              <span className="text-sm font-bold text-foreground">−</span>
+            </Button>
+            <Button variant="glass" size="icon" className="w-8 h-8" onClick={() => (window as any).__mapCenterOnUser?.()}>
+              <Locate className="w-4 h-4 text-primary" />
+            </Button>
+          </div>
         </div>
       </div>
     </>

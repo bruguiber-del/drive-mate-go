@@ -226,8 +226,27 @@ const Index = () => {
 
     let fullName = profile?.fullName ?? null;
     if (userId) {
-      const { data } = await supabase.from("profiles").select("full_name").eq("id", userId).maybeSingle();
-      if (data) fullName = data.full_name;
+      const { data } = await supabase
+        .from("profiles")
+        .select("full_name, suspended_at, suspension_reason")
+        .eq("id", userId)
+        .maybeSingle();
+      if (data) {
+        fullName = data.full_name;
+        // Cuenta suspendida (por valoración media baja cada semana, o a
+        // mano por un admin tras revisar una denuncia) — antes no había
+        // ningún mecanismo para apartar a alguien problemático, por mucho
+        // que la comunidad lo valorara mal una y otra vez.
+        if (data.suspended_at) {
+          toast({
+            title: "Tu cuenta está suspendida",
+            description: data.suspension_reason || "Necesitas una revisión manual antes de poder usarla de nuevo.",
+            variant: "destructive",
+            duration: 5000,
+          });
+          return false;
+        }
+      }
     }
     const nameParts = (fullName ?? "").trim().split(/\s+/).filter(Boolean);
     if (nameParts.length < 2) {
@@ -1888,6 +1907,16 @@ const Index = () => {
           isPassengerMode={isPassengerMode}
           onPassengerToggle={handlePassengerToggle}
           onOpenPassengerSettings={modals.openPassengerSettings}
+          sosTripId={trip.activeTripId}
+          sosOtherParty={
+            isDriverMode
+              ? multiTrip.passengers
+                  .filter((p) => p.passenger.realPassengerId)
+                  .map((p) => ({ id: p.passenger.realPassengerId!, name: p.passenger.name }))
+              : driverSim.currentDriver
+                ? [{ id: driverSim.currentDriver.id, name: driverSim.currentDriver.name }]
+                : []
+          }
         />
       </MapView>
       </Suspense>
