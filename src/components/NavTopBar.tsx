@@ -43,7 +43,16 @@ const NavTopBar = ({
         : undefined;
 
   return (
-    <div className="absolute top-0 left-0 right-0 p-3 safe-area-inset-top pointer-events-none">
+    <div
+      className="absolute top-0 left-0 right-0 p-3 pointer-events-none"
+      // "safe-area-inset-top" no es una clase real (ni de Tailwind ni
+      // definida en el proyecto) — nunca ha aplicado nada. Sin este padding,
+      // en una app instalada en pantalla de inicio (sin la barra de Safari
+      // empujando el contenido hacia abajo) el botón de menú queda pegado
+      // bajo la barra de estado/notch, en la zona que iOS reserva para sus
+      // propios gestos, así que los toques ahí no le llegan a la app.
+      style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.75rem)' }}
+    >
       {/* Sin animación de entrada a propósito: es un control que SIEMPRE
           tiene que estar disponible (el menú y el buscador), y una
           animación de montaje puede quedarse congelada a mitad — p. ej. si
