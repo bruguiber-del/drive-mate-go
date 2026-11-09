@@ -123,9 +123,18 @@ Responde solo con JSON:
 "matches" es true solo si la matrícula leída coincide con la declarada y el logo corresponde a la marca declarada.`;
 }
 
-async function askClaude(imageBase64: string, mediaType: string, prompt: string): Promise<Verdict | null> {
+type ClaudeAttempt = { verdict: Verdict; failReason?: undefined } | { verdict: null; failReason: string };
+
+// Antes, cualquier fallo aquí (clave mal puesta, límite de uso, imagen
+// demasiado grande, respuesta que no es JSON válido...) acababa en el mismo
+// "la IA no pudo revisar la foto" tanto en los logs como en lo que veía el
+// admin — había que adivinar la causa. Ahora se registra y se devuelve.
+async function askClaude(imageBase64: string, mediaType: string, prompt: string): Promise<ClaudeAttempt> {
   const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
-  if (!apiKey) return null;
+  if (!apiKey) {
+    console.error("[verify-document] falta ANTHROPIC_API_KEY");
+    return { verdict: null, failReason: "Falta configurar la clave de la IA (ANTHROPIC_API_KEY)" };
+  }
   const res = await fetch(ANTHROPIC_URL, {
     method: "POST",
     headers: {
@@ -145,15 +154,23 @@ async function askClaude(imageBase64: string, mediaType: string, prompt: string)
       }],
     }),
   });
-  if (!res.ok) return null;
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    console.error("[verify-document] la API de Claude respondió con error", { status: res.status, body: body.slice(0, 500) });
+    return { verdict: null, failReason: `La IA no pudo revisar la foto (error ${res.status} del servicio)` };
+  }
   const data = await res.json();
   const text: string = data?.content?.[0]?.text ?? "";
   const match = text.match(/\{[\s\S]*\}/);
-  if (!match) return null;
+  if (!match) {
+    console.error("[verify-document] la respuesta de Claude no traía JSON", { text: text.slice(0, 500) });
+    return { verdict: null, failReason: "La IA respondió con algo que no se pudo interpretar" };
+  }
   try {
-    return JSON.parse(match[0]) as Verdict;
-  } catch {
-    return null;
+    return { verdict: JSON.parse(match[0]) as Verdict };
+  } catch (err) {
+    console.error("[verify-document] el JSON de Claude no se pudo parsear", { raw: match[0].slice(0, 500), err: String(err) });
+    return { verdict: null, failReason: "La IA respondió con algo que no se pudo interpretar" };
   }
 }
 
@@ -200,22 +217,25 @@ Deno.serve(async (req) => {
     if (v) vehicle = { brand: v.brand, licensePlate: v.license_plate };
   }
 
-  const verdict = await askClaude(imageBase64, file.type || "image/jpeg", promptFor(request.kind, vehicle));
+  // Sin desestructurar: TypeScript solo correlaciona "verdict" y "failReason"
+  // como viniendo de la misma rama de la unión mientras se compruebe sobre
+  // el objeto entero, no sobre variables ya separadas.
+  const attempt = await askClaude(imageBase64, file.type || "image/jpeg", promptFor(request.kind, vehicle));
 
   let status: "approved" | "rejected" | "needs_review";
   let reason: string;
-  if (!verdict) {
+  if (!attempt.verdict) {
     status = "needs_review";
-    reason = "La IA no pudo revisar la foto";
-  } else if (verdict.confidence >= MIN_CONFIDENCE && verdict.matches) {
+    reason = attempt.failReason;
+  } else if (attempt.verdict.confidence >= MIN_CONFIDENCE && attempt.verdict.matches) {
     status = "approved";
-    reason = verdict.reason;
-  } else if (verdict.confidence >= MIN_CONFIDENCE && !verdict.matches) {
+    reason = attempt.verdict.reason;
+  } else if (attempt.verdict.confidence >= MIN_CONFIDENCE && !attempt.verdict.matches) {
     status = "rejected";
-    reason = verdict.reason;
+    reason = attempt.verdict.reason;
   } else {
     status = "needs_review";
-    reason = verdict.reason;
+    reason = attempt.verdict.reason;
   }
 
   await admin
