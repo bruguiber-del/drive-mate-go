@@ -510,9 +510,13 @@ const Index = () => {
     const handler = () => {
       toast({
         title: "Ubicación denegada",
-        description: "Activa los permisos de ubicación para usar VIMATCH correctamente.",
+        // La ruta exacta, no solo "activa los permisos" — así no hay que
+        // adivinar dónde tocar ni preguntarlo cada vez. Duración más larga
+        // porque hay bastante que leer.
+        description:
+          "Ajustes del iPhone → Privacidad y seguridad → Localización → Safari en sitios web → \"Mientras se usa la app\". Si ya estaba así, prueba Ajustes → Safari → Ajustes para sitios web → Ubicación → Permitir.",
         variant: "destructive",
-        duration: 3500,
+        duration: 9000,
       });
     };
     window.addEventListener("vimatch:gps-denied", handler);

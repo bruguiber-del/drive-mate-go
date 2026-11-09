@@ -2,7 +2,7 @@ import type { GpsStatus } from "@/components/MapView";
 
 const MESSAGES: Record<Exclude<GpsStatus, "ok">, string> = {
   searching: "Buscando tu ubicación…",
-  denied: "Ubicación desactivada. Actívala en los ajustes del navegador para navegar.",
+  denied: "Sin permiso de ubicación. Actívalo en Ajustes → Privacidad → Localización → Safari.",
   lost: "Señal GPS perdida, buscando…",
   unavailable: "Este dispositivo no tiene ubicación.",
 };
