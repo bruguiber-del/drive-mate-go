@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, type FormEvent } from 'react';
-import { CreditCard, CheckCircle2, Loader2 } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { CreditCard, CheckCircle2, Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
@@ -138,18 +139,42 @@ const PassengerPaymentCard = () => {
           {hasPaymentMethod ? 'Cambiar' : 'Añadir'}
         </Button>
       </div>
-      {editing && (
-        <div className="mt-3">
-          <Elements stripe={getStripe()}>
-            <CardForm
-              onSaved={() => {
-                setEditing(false);
-                checkStatus();
-              }}
-            />
-          </Elements>
-        </div>
-      )}
+      {/* En un portal a document.body, no inline aquí — esta tarjeta se abre
+          siempre dentro de un panel animado con Framer Motion (WalletSection,
+          PassengerSettingsSheet...), y en Safari de iOS un iframe de
+          terceros (el campo de tarjeta de Stripe vive en uno) deja de
+          recibir toques en cuanto un antecesor tiene un transform de CSS
+          aplicado — como el que deja puesto la animación una vez asentada.
+          Sacarlo del árbol del panel evita el bug por completo. */}
+      {editing &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center"
+            onClick={() => setEditing(false)}
+          >
+            <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
+            <div
+              className="relative w-full sm:max-w-sm glass-strong rounded-t-3xl sm:rounded-2xl p-4 pb-6 sm:pb-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-semibold text-foreground">Añadir tarjeta</p>
+                <Button variant="ghost" size="icon-sm" onClick={() => setEditing(false)}>
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+              <Elements stripe={getStripe()}>
+                <CardForm
+                  onSaved={() => {
+                    setEditing(false);
+                    checkStatus();
+                  }}
+                />
+              </Elements>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 };
