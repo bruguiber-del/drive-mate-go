@@ -52,6 +52,7 @@ Deno.serve(async (req) => {
     admin.from("push_subscriptions").delete().eq("user_id", userId),
     admin.from("verification_requests").delete().eq("user_id", userId),
     admin.from("recurring_trips").delete().eq("user_id", userId),
+    admin.from("app_ratings").delete().eq("user_id", userId),
   ]);
 
   // Valoraciones donde apareces, como quien valora o como valorado.
