@@ -19,10 +19,24 @@ function getStripe() {
 // CSS de esta página — "hsl(var(--foreground))" no se resolvía ahí dentro
 // y Stripe caía en su negro por defecto, casi invisible sobre el fondo
 // oscuro de la tarjeta. Aquí se lee el valor real ya calculado.
+//
+// Las variables de este proyecto guardan el triplete sin "hsl(...)"
+// alrededor (p. ej. "222 47% 8%"), con espacios en vez de comas — Stripe
+// no acepta esa sintaxis moderna de color y lo descartaba en silencio,
+// cayendo en su negro por defecto. Montar un elemento de sondeo y leer
+// `color` ya resuelto evita tener que adivinar el formato: el navegador
+// siempre lo devuelve como "rgb(r, g, b)", que Stripe sí entiende.
 function resolveThemeColor(variable: string, fallback: string): string {
   if (typeof window === 'undefined') return fallback;
-  const value = getComputedStyle(document.documentElement).getPropertyValue(variable).trim();
-  return value ? `hsl(${value})` : fallback;
+  const raw = getComputedStyle(document.documentElement).getPropertyValue(variable).trim();
+  if (!raw) return fallback;
+  const probe = document.createElement('div');
+  probe.style.color = `hsl(${raw})`;
+  probe.style.display = 'none';
+  document.body.appendChild(probe);
+  const resolved = getComputedStyle(probe).color;
+  probe.remove();
+  return resolved || fallback;
 }
 
 const CardForm = ({ onSaved }: { onSaved: () => void }) => {
