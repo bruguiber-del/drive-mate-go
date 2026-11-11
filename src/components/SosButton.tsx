@@ -89,11 +89,11 @@ const SosButton = ({ tripId = null, otherParty = [] }: SosButtonProps) => {
       <Button
         variant="destructive"
         size="icon"
-        className="w-11 h-11 rounded-full shadow-lg pointer-events-auto"
+        className="w-8 h-8 rounded-full shadow-lg pointer-events-auto"
         onClick={() => setOpen(true)}
         aria-label="SOS — denunciar accidente o mal comportamiento"
       >
-        <span className="text-[10px] font-extrabold leading-none">SOS</span>
+        <AlertTriangle className="w-4 h-4" />
       </Button>
 
       <AnimatePresence>

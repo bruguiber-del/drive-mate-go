@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Camera, Siren, AlertOctagon, TrafficCone, Construction, Car, X, MapPin } from "lucide-react";
+import { Camera, Siren, AlertOctagon, TrafficCone, Construction, Car, X, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { ROAD_ALERT_KINDS, ROAD_ALERT_LABEL, type RoadAlertKind } from "@/lib/roadAlerts";
@@ -53,12 +53,12 @@ const RoadAlertButton = ({ location, onReport }: RoadAlertButtonProps) => {
       <Button
         variant="glass"
         size="icon"
-        className="w-11 h-11 rounded-full shadow-lg pointer-events-auto border border-warning/40"
+        className="w-8 h-8 rounded-full shadow-lg pointer-events-auto border border-warning/40"
         onClick={() => setOpen(true)}
         aria-label="Avisar de un radar, policía u otro problema en la carretera"
         disabled={!location}
       >
-        <MapPin className="w-5 h-5 text-warning" />
+        <AlertTriangle className="w-4 h-4 text-warning" />
       </Button>
 
       <AnimatePresence>
