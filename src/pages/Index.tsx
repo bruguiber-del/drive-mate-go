@@ -2209,12 +2209,19 @@ const Index = () => {
         tripInfo={lastTripSummary?.tripInfo ?? ""}
         totalSaved={lastTripSummary?.totalSaved}
         receiptLines={lastTripSummary?.receiptLines ?? []}
-        onSubmitAppRating={(rating, review) => {
-          // Sin backend propio de valoraciones de la app todavía (igual que
-          // las valoraciones de pasajero/conductor, que tampoco se guardan
-          // en ningún sitio hoy) — se recoge aquí para no perderla en
-          // cuanto exista dónde guardarla.
-          console.info("[VIMATCH] Valoración de la app:", rating, review);
+        onSubmitAppRating={async (rating, review) => {
+          const { data: userData } = await supabase.auth.getUser();
+          const userId = userData?.user?.id;
+          // Sin sesión real (viaje simulado/de prueba) no hay a quién
+          // guardarle la valoración — se omite sin más, no es un error.
+          if (userId) {
+            await supabase.from("app_ratings").insert({
+              user_id: userId,
+              trip_id: lastTripSummary?.tripId ?? null,
+              stars: rating,
+              review: review ?? null,
+            });
+          }
           toast({
             title: "¡Gracias por valorar VIMATCH!",
             description: "Tu opinión nos ayuda a mejorar la app.",
