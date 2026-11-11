@@ -19,3 +19,10 @@ export const OVERLAY_BOTTOM_PX = {
 /** Altura respetando la zona segura del móvil (muesca, barra de inicio). */
 export const overlayBottom = (px: number): string =>
   `calc(env(safe-area-inset-bottom, 0px) + ${px}px)`;
+
+/** Igual que overlayBottom() pero para avisos anclados arriba — sin esto,
+ *  en el notch/isla dinámica de iPhone (que ya empuja la barra superior
+ *  hacia abajo) estos avisos se quedaban con el mismo margen fijo de
+ *  siempre y acababan solapados con la barra. */
+export const overlayTop = (px: number): string =>
+  `calc(env(safe-area-inset-top, 0px) + ${px}px)`;

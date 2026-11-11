@@ -9,7 +9,7 @@ import GpsStatusBanner from "@/components/GpsStatusBanner";
 import { useProfile } from "@/hooks/useProfile";
 import { submitDocumentForVerification } from "@/lib/documentVerification";
 import type { GpsStatus } from "@/components/MapView";
-import { OVERLAY_BOTTOM_PX, overlayBottom } from "@/lib/overlayLayout";
+import { OVERLAY_BOTTOM_PX, overlayBottom, overlayTop } from "@/lib/overlayLayout";
 import { buildPassengerStopPills } from "@/lib/passengerStopPills";
 import type { PassengerStopPill } from "@/components/StopConfirmButtons";
 import { useState, useCallback, useMemo, useEffect, useRef, lazy, Suspense } from "react";
@@ -1790,7 +1790,20 @@ const Index = () => {
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="h-screen w-screen overflow-hidden">
+    // Toda la app se diseñó como una pantalla de móvil fija — en una
+    // tablet/ordenador los controles se quedaban pegados a cada esquina
+    // con un hueco enorme de mapa vacío en medio. En vez de rehacer cada
+    // panel para pantallas anchas, se centra el mismo diseño de siempre
+    // en una columna con ancho de móvil; en un móvil de verdad (más
+    // estrecho que ese máximo) esto no cambia nada.
+    //
+    // El "transform" en el marco interior no es decorativo: en CSS, eso
+    // convierte a ese div en el "contenedor" de cualquier descendiente con
+    // position:fixed (como GpsStatusBanner o el aviso de ubicación) — sin
+    // él, esos avisos seguirían pegándose a los bordes de toda la ventana
+    // del navegador en vez de a los del marco centrado.
+    <div className="fixed inset-0 bg-background flex items-center justify-center overflow-hidden">
+      <div className="relative h-full w-full max-w-[480px] overflow-hidden sm:shadow-2xl [transform:translateZ(0)]">
       <ErrorBoundary>
       <Suspense fallback={<div className="absolute inset-0 bg-background" />}>
       <MapView
@@ -1824,7 +1837,10 @@ const Index = () => {
             nunca arranca solo. Solo antes de navegar, para no interferir
             con un viaje ya en marcha. */}
         {upcomingTripOffer && (
-          <div className="absolute top-28 left-3 right-3 z-20 flex justify-center pointer-events-none">
+          <div
+            className="absolute left-3 right-3 z-20 flex justify-center pointer-events-none"
+            style={{ top: overlayTop(112) }}
+          >
             <div className="glass-strong rounded-xl px-3 py-2.5 flex items-center gap-2 pointer-events-auto max-w-sm">
               <CalendarClock className="w-4 h-4 text-primary shrink-0" />
               <p className="text-xs text-foreground flex-1">
@@ -1870,7 +1886,10 @@ const Index = () => {
             radio o si ya no había nadie cerca. */}
         {driverSearchEnabled &&
           (searchPhase === "searching" || searchPhase === "not_found") && (
-          <div className="absolute top-28 left-3 right-3 z-20 flex justify-center pointer-events-none">
+          <div
+            className="absolute left-3 right-3 z-20 flex justify-center pointer-events-none"
+            style={{ top: overlayTop(112) }}
+          >
             <div className="glass-strong rounded-xl px-3 py-2 flex items-center gap-2 pointer-events-auto max-w-sm">
               {searchPhase === "searching" ? (
                 <>
@@ -1902,7 +1921,10 @@ const Index = () => {
         {extraStops.length > 0 && (
           // top-40, no top-16: a esa altura ya está el aviso de navegación
           // (NavigationOverlays), que ahora es más alto por el icono grande.
-          <div className="absolute top-40 left-3 right-3 z-10 flex flex-wrap gap-1.5 pointer-events-none">
+          <div
+            className="absolute left-3 right-3 z-10 flex flex-wrap gap-1.5 pointer-events-none"
+            style={{ top: overlayTop(160) }}
+          >
             {extraStops.map((stop) => (
               <button
                 key={stop.id}
@@ -2213,6 +2235,7 @@ const Index = () => {
         mode={vehicleSelectMode}
         onConfirmSelect={handleVehicleSelected}
       />
+      </div>
     </div>
   );
 };

@@ -1,4 +1,5 @@
 import type { GpsStatus } from "@/components/MapView";
+import { overlayTop } from "@/lib/overlayLayout";
 
 const MESSAGES: Record<Exclude<GpsStatus, "ok">, string> = {
   searching: "Buscando tu ubicación…",
@@ -16,7 +17,10 @@ const RETRYABLE: ReadonlySet<GpsStatus> = new Set(["denied", "lost"]);
 const GpsStatusBanner = ({ status }: { status: GpsStatus }) => {
   if (status === "ok") return null;
   return (
-    <div className="fixed top-28 left-3 right-3 z-40 pointer-events-none flex justify-center">
+    <div
+      className="fixed left-3 right-3 z-40 pointer-events-none flex justify-center"
+      style={{ top: overlayTop(112) }}
+    >
       <div className="glass-strong rounded-full px-3 py-1.5 flex items-center gap-2 text-[11px] font-medium text-warning text-center">
         <span>{MESSAGES[status]}</span>
         {RETRYABLE.has(status) && (

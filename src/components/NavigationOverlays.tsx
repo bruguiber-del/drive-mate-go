@@ -2,6 +2,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import type { LucideIcon } from "lucide-react";
 import { Navigation } from "lucide-react";
 import { formatDistance } from "@/lib/format";
+import { overlayTop } from "@/lib/overlayLayout";
 import type { RouteStep } from "@/hooks/useRouting";
 import type { TripLeg } from "@/hooks/useWaypoints";
 
@@ -89,7 +90,12 @@ const NavigationOverlays = ({
       <AnimatePresence>
         {!isNavigating && !showActiveTrip && (
           <motion.div
-            className="absolute top-24 left-1/2 -translate-x-1/2 pointer-events-none"
+            className="absolute left-1/2 -translate-x-1/2 pointer-events-none"
+            // "top-24" era un valor fijo que no contaba con la barra superior
+            // creciendo por la zona segura del notch/isla dinámica — en esos
+            // móviles la barra ya no cabía antes del logo y se solapaban.
+            // Mismo margen de siempre, mas lo que ocupe la zona segura.
+            style={{ top: overlayTop(96) }}
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
@@ -107,7 +113,8 @@ const NavigationOverlays = ({
       {/* Driver Status Chip */}
       {isDriverMode && !showActiveTrip && (
         <motion.div
-          className="absolute top-16 right-4 pointer-events-none z-10"
+          className="absolute right-4 pointer-events-none z-10"
+          style={{ top: overlayTop(64) }}
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
         >
@@ -125,7 +132,8 @@ const NavigationOverlays = ({
       {/* Estado compacto — conductor con pasajero, sin navegación giro a giro */}
       {showActiveTrip && activeTripRole === "driver" && hasPassenger && !(hasStartedDriving && currentStep) && (
         <motion.div
-          className="absolute top-16 left-4 right-4 pointer-events-none z-10"
+          className="absolute left-4 right-4 pointer-events-none z-10"
+          style={{ top: overlayTop(64) }}
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
         >
@@ -155,7 +163,8 @@ const NavigationOverlays = ({
           no se enseñaba en ningún sitio arriba. */}
       {isNavigating && hasStartedDriving && !showActiveTrip && currentStep && (
         <motion.div
-          className="absolute top-16 left-4 right-4 pointer-events-none z-10"
+          className="absolute left-4 right-4 pointer-events-none z-10"
+          style={{ top: overlayTop(64) }}
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
         >
@@ -187,7 +196,8 @@ const NavigationOverlays = ({
           dejar sitio a la fase del viaje (recogida/bajada) y el ETA. */}
       {showActiveTrip && activeTripRole === "driver" && hasStartedDriving && currentStep && (
         <motion.div
-          className="absolute top-16 left-4 right-4 pointer-events-none z-10"
+          className="absolute left-4 right-4 pointer-events-none z-10"
+          style={{ top: overlayTop(64) }}
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
         >
