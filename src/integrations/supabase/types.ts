@@ -14,6 +14,41 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_ratings: {
+        Row: {
+          created_at: string
+          id: string
+          review: string | null
+          stars: number
+          trip_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          review?: string | null
+          stars: number
+          trip_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          review?: string | null
+          stars?: number
+          trip_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_ratings_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       driver_locations: {
         Row: {
           accuracy: number | null
