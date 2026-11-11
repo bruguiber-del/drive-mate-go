@@ -44,11 +44,18 @@ Deno.serve(async (req) => {
 
   const { data: row } = await admin
     .from("trip_passengers")
-    .select("id, stripe_payment_intent_id, trips!inner(driver_id)")
+    .select("id, passenger_id, stripe_payment_intent_id, trips!inner(driver_id)")
     .eq("id", tripPassengerId)
     .maybeSingle();
 
-  if (!row || (row as unknown as { trips: { driver_id: string } }).trips.driver_id !== user.id) {
+  // El propio pasajero de ESTE tramo puede liberar su retención al
+  // cancelar (antes solo se dejaba al conductor, así que un pasajero que
+  // cancelaba su parte nunca liberaba nada — la tarjeta se quedaba
+  // bloqueada hasta que Stripe la soltaba sola a los 7 días).
+  const typedRow = row as unknown as { passenger_id: string | null; trips: { driver_id: string } } | null;
+  const isDriver = typedRow?.trips.driver_id === user.id;
+  const isOwnPassenger = typedRow?.passenger_id === user.id;
+  if (!typedRow || !(isDriver || isOwnPassenger)) {
     return json({ error: "no autorizado para este tramo" }, 403);
   }
   if (!row.stripe_payment_intent_id) return json({ voided: true });
