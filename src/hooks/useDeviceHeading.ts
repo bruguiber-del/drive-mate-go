@@ -16,23 +16,43 @@ type PermissionState = 'unknown' | 'granted' | 'denied' | 'unsupported';
  * marcador de ubicación solo giraba con el curso GPS o apuntaba siempre al
  * destino, así que girar el teléfono parado no hacía nada.
  */
+/** Distancia angular con signo entre dos rumbos (-180..180), sin el salto
+ *  raro de cruzar 0°/360° que da una resta directa. */
+function headingDelta(a: number, b: number): number {
+  return ((a - b + 540) % 360) - 180;
+}
+
 export function useDeviceHeading() {
   const [heading, setHeading] = useState<number | null>(null);
   const [permissionState, setPermissionState] = useState<PermissionState>('unknown');
   const listenerAttachedRef = useRef(false);
+  const lastCommittedRef = useRef<number | null>(null);
+
+  // El sensor dispara a 30-60 Hz (más rápido que el GPS), y cada valor nuevo
+  // re-renderizaba todo lo que depende del rumbo — incluida la cámara del
+  // mapa, que reiniciaba su animación de giro a medio hacer en cada tick, lo
+  // que se notaba como un tirón/zumbido constante en vez de un giro suave.
+  // Solo se compromete a React un cambio real (>=2°), filtrando el ruido del
+  // sensor sin perder capacidad de respuesta ante un giro de verdad.
+  const commitHeading = useCallback((value: number) => {
+    const prev = lastCommittedRef.current;
+    if (prev !== null && Math.abs(headingDelta(value, prev)) < 2) return;
+    lastCommittedRef.current = value;
+    setHeading(value);
+  }, []);
 
   const handleOrientation = useCallback((event: Event) => {
     const e = event as CompassOrientationEvent;
     if (typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading)) {
       // iOS Safari: ya viene como rumbo absoluto respecto al norte.
-      setHeading(e.webkitCompassHeading);
+      commitHeading(e.webkitCompassHeading);
       return;
     }
     if (e.alpha == null) return;
     // Conversión estándar de alpha (sentido antihorario desde un origen
     // arbitrario) a rumbo de brújula (sentido horario desde el norte).
-    setHeading((360 - e.alpha) % 360);
-  }, []);
+    commitHeading((360 - e.alpha) % 360);
+  }, [commitHeading]);
 
   const attachListener = useCallback(() => {
     if (listenerAttachedRef.current || typeof window === 'undefined') return;
