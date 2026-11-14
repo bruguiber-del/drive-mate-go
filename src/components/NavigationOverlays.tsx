@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import type { LucideIcon } from "lucide-react";
 import { Navigation } from "lucide-react";
-import { formatDistance } from "@/lib/format";
+import { formatDistance, formatDuration, formatArrivalTime } from "@/lib/format";
 import { overlayTop } from "@/lib/overlayLayout";
 import type { RouteStep } from "@/hooks/useRouting";
 import type { TripLeg } from "@/hooks/useWaypoints";
@@ -146,7 +146,7 @@ const NavigationOverlays = ({
               )}
             </div>
             <div className="text-right shrink-0">
-              {dynamicETA && <span className="text-xs font-bold text-primary">{dynamicETA.minutes} min</span>}
+              {dynamicETA && <span className="text-xs font-bold text-primary">{formatDuration(dynamicETA.minutes)}</span>}
               {detourMinutes != null && detourMinutes > 0 && (
                 <span className="text-[9px] text-warning ml-1">+{detourMinutes} min desvío</span>
               )}
@@ -174,16 +174,18 @@ const NavigationOverlays = ({
               <p className="text-2xl font-extrabold text-foreground leading-none tabular-nums">
                 {formatDistance(distanceToManeuver ?? currentStep.distance)}
               </p>
-              <p className="text-xs font-medium text-muted-foreground leading-tight line-clamp-2 mt-1">
+              <p className="text-base font-medium text-muted-foreground leading-tight line-clamp-2 mt-1">
                 {currentStep.instruction}
               </p>
             </div>
             {dynamicETA?.distanceKm && (
               <div className="text-right shrink-0 border-l border-border/40 pl-2.5">
                 <p className="text-sm font-bold text-primary leading-tight tabular-nums">
-                  {dynamicETA.minutes} min
+                  {formatDuration(dynamicETA.minutes)}
                 </p>
-                <p className="text-[9px] text-muted-foreground leading-tight">{dynamicETA.distanceKm} km restantes</p>
+                <p className="text-[9px] text-muted-foreground leading-tight">
+                  {formatArrivalTime(dynamicETA.minutes)} · {dynamicETA.distanceKm} km
+                </p>
               </div>
             )}
           </div>
@@ -210,7 +212,7 @@ const NavigationOverlays = ({
                 </p>
                 {dynamicETA && (
                   <span className="text-[10px] text-primary font-semibold shrink-0">
-                    · {dynamicETA.minutes} min{dynamicETA.distanceKm ? ` · ${dynamicETA.distanceKm} km` : ''}
+                    · {formatDuration(dynamicETA.minutes)}{dynamicETA.distanceKm ? ` · ${dynamicETA.distanceKm} km` : ''}
                   </span>
                 )}
               </div>
