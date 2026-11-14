@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { User, CheckCircle, AlertCircle, Star, Car, Users, X, Loader2, Trash2, ShieldAlert } from 'lucide-react';
+import { User, CheckCircle, AlertCircle, Star, Car, Users, X, Loader2, Trash2, ShieldAlert, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -61,6 +61,7 @@ const ADMIN_EMAIL = 'bruguiber@gmail.com';
 
 const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
   const navigate = useNavigate();
+  const nameFieldRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const {
     profile, authEmail, emailConfirmed, phoneConfirmed, isAuthenticated, loading,
@@ -126,6 +127,9 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
     setDraftCity(split.city);
     setDraftCustomCity(split.customCity);
     setIsEditing(true);
+    // Para cuando se entra desde el nombre de arriba — si no, "Editar" abre
+    // el formulario más abajo sin que se note, porque queda fuera de vista.
+    setTimeout(() => nameFieldRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
   };
 
   const effectiveCity = draftCountry === 'ES'
@@ -198,7 +202,17 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
               <h3 className="mt-4 text-xl font-bold text-foreground">
                 {profile?.fullName || 'Sin nombre todavía'}
               </h3>
-              <p className="text-muted-foreground">{authEmail ?? profile?.phone ?? ''}</p>
+              {/* Antes solo se podía cambiar el nombre bajando hasta "Datos
+                  personales" y pulsando "Editar" ahí — sin ninguna pista
+                  arriba de que esto también se puede tocar. */}
+              <button
+                type="button"
+                onClick={startEditing}
+                className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <span>{authEmail ?? profile?.phone ?? ''}</span>
+                <Pencil className="w-3 h-3" />
+              </button>
             </div>
 
             {/* Stats */}
@@ -302,7 +316,7 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
                 <div className="space-y-3">
                   <div className="space-y-1.5">
                     <Label htmlFor="profile-name">Nombre completo</Label>
-                    <Input id="profile-name" value={draftName} onChange={(e) => setDraftName(e.target.value)} placeholder="Tu nombre" />
+                    <Input ref={nameFieldRef} id="profile-name" value={draftName} onChange={(e) => setDraftName(e.target.value)} placeholder="Tu nombre" />
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="profile-phone">Teléfono</Label>
