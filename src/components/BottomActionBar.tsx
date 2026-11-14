@@ -103,10 +103,26 @@ const BottomActionBar = ({
             <RoadAlertButton location={roadAlertLocation ?? null} onReport={onReportRoadAlert} />
           )}
           <div className="flex flex-col gap-1">
-            <Button variant="glass" size="icon" className="w-8 h-8" onClick={() => (window as any).__mapZoomIn?.()}>
+            <Button
+              variant="glass"
+              size="icon"
+              className="w-8 h-8"
+              onClick={() => {
+                (window as any).__mapPauseFollow?.();
+                (window as any).__mapZoomIn?.();
+              }}
+            >
               <span className="text-sm font-bold text-foreground">+</span>
             </Button>
-            <Button variant="glass" size="icon" className="w-8 h-8" onClick={() => (window as any).__mapZoomOut?.()}>
+            <Button
+              variant="glass"
+              size="icon"
+              className="w-8 h-8"
+              onClick={() => {
+                (window as any).__mapPauseFollow?.();
+                (window as any).__mapZoomOut?.();
+              }}
+            >
               <span className="text-sm font-bold text-foreground">−</span>
             </Button>
             <Button variant="glass" size="icon" className="w-8 h-8" onClick={() => (window as any).__mapCenterOnUser?.()}>

@@ -414,10 +414,18 @@ const MapView = ({
     // Pausa el seguimiento automático y programa su reanudación en RESUME_MS
     // — antes esto se quedaba desactivado para SIEMPRE hasta tocar a mano el
     // botón de centrar, así que arrastrar el mapa sin querer (un golpe en el
-    // soporte del móvil) o simplemente tocar cualquier otro control (zoom,
-    // ajustes, SOS...) lo dejaba sin seguir la posición el resto del viaje.
+    // soporte del móvil) lo dejaba sin seguir la posición el resto del viaje.
     // Cualquier toque nuevo reinicia la cuenta — solo se reanuda tras un
     // rato sin tocar NADA, igual que Google Maps/Waze.
+    //
+    // Antes esto también se disparaba con CUALQUIER toque en CUALQUIER
+    // botón de toda la app (SOS, silenciar voz, el menú...), aunque no
+    // tuviera nada que ver con mover el mapa — así que durante la
+    // navegación, el simple hecho de silenciar la voz dejaba de centrar y
+    // orientar el mapa durante 45s enteros, pareciendo que "no seguía" ni
+    // "giraba" de verdad. Ahora solo lo disparan el propio arrastre del
+    // mapa y los botones de zoom (que sí cambian lo que ves), expuestos
+    // como __mapPauseFollow junto a __mapZoomIn/__mapZoomOut más abajo.
     const RESUME_FOLLOW_MS = 45000;
     const pauseFollowAndScheduleResume = () => {
       isFollowingRef.current = false;
@@ -432,14 +440,10 @@ const MapView = ({
 
     map.current.on('dragstart', pauseFollowAndScheduleResume);
     map.current.on('dragend', pauseFollowAndScheduleResume);
-
-    // Lo mismo pero para cualquier otro elemento de la pantalla, no solo el
-    // mapa — a nivel de window porque los botones (zoom, SOS, ajustes...)
-    // los pinta el padre de MapView, no este componente.
-    window.addEventListener('pointerdown', pauseFollowAndScheduleResume);
+    (window as any).__mapPauseFollow = pauseFollowAndScheduleResume;
 
     return () => {
-      window.removeEventListener('pointerdown', pauseFollowAndScheduleResume);
+      delete (window as any).__mapPauseFollow;
       if (resumeFollowTimerRef.current !== null) {
         window.clearTimeout(resumeFollowTimerRef.current);
         resumeFollowTimerRef.current = null;
