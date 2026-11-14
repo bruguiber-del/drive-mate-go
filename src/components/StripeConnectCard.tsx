@@ -65,12 +65,19 @@ const StripeConnectCard = () => {
   }, []);
 
   const handleConnect = async () => {
+    // Safari en iOS solo deja abrir una pestaña nueva en el mismo instante
+    // del toque — si se abre DESPUÉS de esperar la respuesta del servidor
+    // (como antes), ya no cuenta como gesto real del usuario y la bloquea
+    // en silencio, sin ningún error ni aviso: parecía que "no conectaba".
+    // Se abre ya mismo, en blanco, y se rellena en cuanto llega la URL real.
+    const win = window.open('', '_blank');
     setConnecting(true);
     try {
       const { data, error } = await supabase.functions.invoke('stripe-connect-onboarding', {
         body: { returnUrl: window.location.href },
       });
       if (error || !data?.url) {
+        win?.close();
         toast({
           title: 'No se pudo abrir Stripe',
           description: error?.message ?? 'Inténtalo de nuevo en un momento.',
@@ -79,7 +86,10 @@ const StripeConnectCard = () => {
         });
         return;
       }
-      window.open(data.url, '_blank');
+      if (win) win.location.href = data.url;
+      // Si hasta la pestaña en blanco se bloqueó, al menos no se pierde la
+      // URL: se navega en la misma pestaña como último recurso.
+      else window.location.href = data.url;
     } finally {
       setConnecting(false);
     }
@@ -89,10 +99,14 @@ const StripeConnectCard = () => {
   // existe en el Dashboard Express de Stripe — en VIMATCH no se guarda
   // ningún saldo propio, así que esto no es un atajo, es la única fuente.
   const handleOpenDashboard = async () => {
+    // Mismo motivo que en handleConnect: abrir la pestaña después de
+    // esperar al servidor hace que Safari en iOS la bloquee en silencio.
+    const win = window.open('', '_blank');
     setOpeningDashboard(true);
     try {
       const { data, error } = await supabase.functions.invoke('stripe-connect-dashboard-link', { body: {} });
       if (error || !data?.url) {
+        win?.close();
         toast({
           title: 'No se pudo abrir el panel de Stripe',
           description: data?.error ?? error?.message ?? 'Inténtalo de nuevo en un momento.',
@@ -101,7 +115,8 @@ const StripeConnectCard = () => {
         });
         return;
       }
-      window.open(data.url, '_blank');
+      if (win) win.location.href = data.url;
+      else window.location.href = data.url;
     } finally {
       setOpeningDashboard(false);
     }
