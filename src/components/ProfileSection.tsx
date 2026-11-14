@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { User, CheckCircle, AlertCircle, Star, Car, Users, X, Loader2, Trash2, ShieldAlert, Pencil } from 'lucide-react';
+import { User, CheckCircle, AlertCircle, Star, Car, Users, X, Loader2, Trash2, ShieldAlert, Pencil, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -61,7 +61,6 @@ const ADMIN_EMAIL = 'bruguiber@gmail.com';
 
 const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
   const navigate = useNavigate();
-  const nameFieldRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const {
     profile, authEmail, emailConfirmed, phoneConfirmed, isAuthenticated, loading,
@@ -69,6 +68,9 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
   } = useProfile();
 
   const [isEditing, setIsEditing] = useState(false);
+  const [editingNameInline, setEditingNameInline] = useState(false);
+  const [inlineName, setInlineName] = useState('');
+  const [savingInlineName, setSavingInlineName] = useState(false);
   const [draftName, setDraftName] = useState('');
   const [draftPhone, setDraftPhone] = useState('');
   const [draftCountry, setDraftCountry] = useState('ES');
@@ -127,9 +129,22 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
     setDraftCity(split.city);
     setDraftCustomCity(split.customCity);
     setIsEditing(true);
-    // Para cuando se entra desde el nombre de arriba — si no, "Editar" abre
-    // el formulario más abajo sin que se note, porque queda fuera de vista.
-    setTimeout(() => nameFieldRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
+  };
+
+  const startEditingNameInline = () => {
+    setInlineName(profile?.fullName ?? '');
+    setEditingNameInline(true);
+  };
+
+  // Edición de verdad ahí mismo, arriba — antes tocar el nombre/correo solo
+  // bajaba hasta el campo de "Datos personales" para rellenarlo ahí, que
+  // seguía siendo un paso de más en vez de escribir directamente donde se
+  // tocó.
+  const handleSaveNameInline = async () => {
+    setSavingInlineName(true);
+    const ok = await updateProfile({ fullName: inlineName.trim() || null });
+    setSavingInlineName(false);
+    if (ok) setEditingNameInline(false);
   };
 
   const effectiveCity = draftCountry === 'ES'
@@ -202,17 +217,39 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
               <h3 className="mt-4 text-xl font-bold text-foreground">
                 {profile?.fullName || 'Sin nombre todavía'}
               </h3>
-              {/* Antes solo se podía cambiar el nombre bajando hasta "Datos
-                  personales" y pulsando "Editar" ahí — sin ninguna pista
-                  arriba de que esto también se puede tocar. */}
-              <button
-                type="button"
-                onClick={startEditing}
-                className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <span>{authEmail ?? profile?.phone ?? ''}</span>
-                <Pencil className="w-3 h-3" />
-              </button>
+              {/* Al tocar donde sale el correo se edita el NOMBRE ahí mismo,
+                  sin bajar a ningún sitio — antes esto solo llevaba hasta
+                  el campo de "Datos personales" más abajo para rellenarlo. */}
+              {editingNameInline ? (
+                <div className="flex items-center gap-1.5 w-full max-w-xs">
+                  <Input
+                    autoFocus
+                    value={inlineName}
+                    onChange={(e) => setInlineName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSaveNameInline();
+                      if (e.key === 'Escape') setEditingNameInline(false);
+                    }}
+                    placeholder="Tu nombre y apellidos"
+                    className="text-center h-8 text-sm"
+                  />
+                  <Button size="icon-sm" variant="ghost" disabled={savingInlineName} onClick={handleSaveNameInline}>
+                    {savingInlineName ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4 text-success" />}
+                  </Button>
+                  <Button size="icon-sm" variant="ghost" disabled={savingInlineName} onClick={() => setEditingNameInline(false)}>
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={startEditingNameInline}
+                  className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <span>{authEmail ?? profile?.phone ?? ''}</span>
+                  <Pencil className="w-3 h-3" />
+                </button>
+              )}
             </div>
 
             {/* Stats */}
@@ -316,7 +353,7 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
                 <div className="space-y-3">
                   <div className="space-y-1.5">
                     <Label htmlFor="profile-name">Nombre completo</Label>
-                    <Input ref={nameFieldRef} id="profile-name" value={draftName} onChange={(e) => setDraftName(e.target.value)} placeholder="Tu nombre" />
+                    <Input id="profile-name" value={draftName} onChange={(e) => setDraftName(e.target.value)} placeholder="Tu nombre" />
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="profile-phone">Teléfono</Label>
