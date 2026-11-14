@@ -14,6 +14,9 @@ export const OVERLAY_BOTTOM_PX = {
   compensatedBadge: 70,
   /** Chapa de aceptar solicitud de pasajero (derecha). */
   acceptPill: 320,
+  /** Aviso de "centrar ubicación" — por encima del total compensado y de
+   *  los modos conductor/pasajero para no solaparse con ninguno. */
+  recenterBanner: 170,
 } as const;
 
 /** Altura respetando la zona segura del móvil (muesca, barra de inicio). */

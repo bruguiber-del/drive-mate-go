@@ -15,7 +15,7 @@ import type { PassengerStopPill } from "@/components/StopConfirmButtons";
 import { useState, useCallback, useMemo, useEffect, useRef, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
-import { X, Search, Loader2, CalendarClock } from "lucide-react";
+import { X, Search, Loader2, CalendarClock, Locate } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getManeuverIcon } from "@/lib/maneuverIcons";
 import { useVoiceGuidance } from "@/hooks/useVoiceGuidance";
@@ -112,6 +112,7 @@ const Index = () => {
   const [isPassengerMode, setIsPassengerMode] = useState(false);
   const [realUserLocation, setRealUserLocation] = useState<[number, number] | null>(null);
   const [gpsStatus, setGpsStatus] = useState<GpsStatus>("searching");
+  const [isFollowingMap, setIsFollowingMap] = useState(true);
   // Solo para colocar paradas personales: se lee la posición actual sin que
   // cada movimiento de GPS reordene la ruta entera.
   const userLocRef = useRef<[number, number] | null>(null);
@@ -1826,6 +1827,7 @@ const Index = () => {
         simulatedHeading={null}
         onUserLocationUpdate={setRealUserLocation}
         onGpsStatusChange={setGpsStatus}
+        onFollowingChange={setIsFollowingMap}
         previewWaypoints={previewWaypoints}
         roadAlerts={roadAlerts.alerts}
         onConfirmRoadAlert={roadAlerts.confirmAlert}
@@ -2041,6 +2043,27 @@ const Index = () => {
           pendingKeys={pendingStopKeys}
           onConfirm={handleStopButtonConfirm}
         />
+      )}
+
+      {/* Aviso de "centrar ubicación" — a petición del usuario: el mapa ya
+          se re-centra solo a los 20s de arrastrarlo o tocar el zoom, pero
+          mientras tanto no había ninguna pista en pantalla de que el punto
+          azul ya no está en el centro, solo el botón de siempre en la
+          esquina sin ningún aviso. */}
+      {!isFollowingMap && (
+        <div
+          className="fixed left-1/2 -translate-x-1/2 z-30 flex justify-center"
+          style={{ bottom: overlayBottom(OVERLAY_BOTTOM_PX.recenterBanner) }}
+        >
+          <button
+            type="button"
+            onClick={() => (window as any).__mapCenterOnUser?.()}
+            className="glass-strong rounded-full px-3 py-1.5 flex items-center gap-1.5 border border-primary/30 pointer-events-auto"
+          >
+            <Locate className="w-3.5 h-3.5 text-primary" />
+            <span className="text-xs font-medium text-foreground">Centrar ubicación</span>
+          </button>
+        </div>
       )}
 
       {/* Total compensado por ahora en este viaje — centrado abajo, junto a

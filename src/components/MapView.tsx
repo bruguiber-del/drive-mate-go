@@ -65,6 +65,10 @@ interface MapViewProps {
   simulatedHeading?: number | null;
   onUserLocationUpdate?: (loc: [number, number]) => void;
   onGpsStatusChange?: (status: GpsStatus) => void;
+  /** Avisa cuando el mapa deja de seguir tu posición (al arrastrarlo o
+   *  usar el zoom) y cuando vuelve a seguirla — para poder enseñar un
+   *  aviso de "centrar ubicación" mientras tanto. */
+  onFollowingChange?: (following: boolean) => void;
   previewWaypoints?: Array<{
     lat: number;
     lng: number;
@@ -125,6 +129,7 @@ const MapView = ({
   simulatedHeading,
   onUserLocationUpdate,
   onGpsStatusChange,
+  onFollowingChange,
   previewWaypoints,
   intermediateRouteWaypoints,
   purpleUntilStop,
@@ -214,6 +219,16 @@ const MapView = ({
   const isFollowingRef = useRef(true);
   // Timer to resume following after a fitBounds shows user + waypoints together.
   const resumeFollowTimerRef = useRef<number | null>(null);
+
+  // Mismo patrón que reportGpsStatus de abajo: el ref es la fuente de
+  // verdad que lee el bucle de posición/cámara sin provocar re-renders de
+  // más; el callback solo avisa hacia fuera cuando el valor cambia de
+  // verdad, para poder enseñar un aviso de "centrar ubicación".
+  const reportFollowing = useCallback((value: boolean) => {
+    if (isFollowingRef.current === value) return;
+    isFollowingRef.current = value;
+    onFollowingChange?.(value);
+  }, [onFollowingChange]);
   const lastPropagatedRef = useRef<[number, number] | null>(null);
   // Último estado de GPS reportado — en un ref (no state) solo para que el
   // reintento de abajo pueda leerlo sin provocar un re-render de más.
@@ -340,13 +355,13 @@ const MapView = ({
 
   const centerOnUser = useCallback(() => {
     if (!map.current || !userLocation) return;
-    isFollowingRef.current = true;
+    reportFollowing(true);
     map.current.easeTo({
       center: [userLocation[1], userLocation[0]],
       zoom: Math.max(map.current.getZoom(), 16),
       duration: 600,
     });
-  }, [userLocation]);
+  }, [userLocation, reportFollowing]);
 
   const zoomIn = useCallback(() => { map.current?.zoomIn(); }, []);
   const zoomOut = useCallback(() => { map.current?.zoomOut(); }, []);
@@ -426,14 +441,14 @@ const MapView = ({
     // "giraba" de verdad. Ahora solo lo disparan el propio arrastre del
     // mapa y los botones de zoom (que sí cambian lo que ves), expuestos
     // como __mapPauseFollow junto a __mapZoomIn/__mapZoomOut más abajo.
-    const RESUME_FOLLOW_MS = 45000;
+    const RESUME_FOLLOW_MS = 20000;
     const pauseFollowAndScheduleResume = () => {
-      isFollowingRef.current = false;
+      reportFollowing(false);
       if (resumeFollowTimerRef.current !== null) {
         window.clearTimeout(resumeFollowTimerRef.current);
       }
       resumeFollowTimerRef.current = window.setTimeout(() => {
-        isFollowingRef.current = true;
+        reportFollowing(true);
         resumeFollowTimerRef.current = null;
       }, RESUME_FOLLOW_MS);
     };
@@ -454,6 +469,10 @@ const MapView = ({
       map.current?.remove();
       map.current = null;
     };
+    // Efecto de una sola vez (crea el mapa); reportFollowing es estable en
+    // la práctica (envuelve el setState que pasa el padre), así que incluirla
+    // no cambiaría nada salvo volver a crear el mapa entero si no lo fuera.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Brújula: pide permiso al primer toque real sobre el mapa ───────────────
@@ -876,17 +895,17 @@ const MapView = ({
         });
         // Temporarily stop following to show user + waypoints together, then
         // automatically resume continuous following once the animation is done.
-        isFollowingRef.current = false;
+        reportFollowing(false);
         if (resumeFollowTimerRef.current !== null) {
           window.clearTimeout(resumeFollowTimerRef.current);
         }
         resumeFollowTimerRef.current = window.setTimeout(() => {
-          isFollowingRef.current = true;
+          reportFollowing(true);
           resumeFollowTimerRef.current = null;
         }, 2500);
       }
     }
-  }, [waypointMarkers, mapReady, updateMarkerLabelVisibility]);
+  }, [waypointMarkers, mapReady, updateMarkerLabelVisibility, reportFollowing]);
 
   // ── Avisos de carretera (radar, policía, accidente...) ────────────────────
   useEffect(() => {
@@ -1022,16 +1041,16 @@ const MapView = ({
       m.fitBounds(bounds, { padding: 80, maxZoom: 13, duration: 800 });
       // Temporarily stop following to show user + preview route, then
       // automatically resume continuous following once the animation is done.
-      isFollowingRef.current = false;
+      reportFollowing(false);
       if (resumeFollowTimerRef.current !== null) {
         window.clearTimeout(resumeFollowTimerRef.current);
       }
       resumeFollowTimerRef.current = window.setTimeout(() => {
-        isFollowingRef.current = true;
+        reportFollowing(true);
         resumeFollowTimerRef.current = null;
       }, 2500);
     }
-  }, [previewWaypoints, mapReady, updateMarkerLabelVisibility]);
+  }, [previewWaypoints, mapReady, updateMarkerLabelVisibility, reportFollowing]);
 
   // ── Driver marker (passenger view) ────────────────────────────────────────
   useEffect(() => {
@@ -1062,13 +1081,13 @@ const MapView = ({
       // arrastrar el mapa para seguir por dónde viene sin que se resetee.
       const ul = userLocationRef.current;
       if (ul) {
-        isFollowingRef.current = true;
+        reportFollowing(true);
         m.easeTo({ center: [ul[1], ul[0]], zoom: Math.max(m.getZoom(), 15), duration: 600 });
       }
     } else {
       driverMarkerRef.current.setLngLat(lngLat);
     }
-  }, [driverLocation, driverLocationHistory, showDriverMarker, mapReady]);
+  }, [driverLocation, driverLocationHistory, showDriverMarker, mapReady, reportFollowing]);
 
   // ── Ruta real del conductor hacia el punto de recogida (vista pasajero) ────
   const lastDriverRouteFetchRef = useRef<[number, number] | null>(null);
