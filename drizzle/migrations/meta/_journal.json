@@ -162,6 +162,13 @@
       "when": 1794854806218,
       "tag": "0022_radar_tramo",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1794854870021,
+      "tag": "0023_restrict_profiles_ratings_select",
+      "breakpoints": true
     }
   ]
 }
