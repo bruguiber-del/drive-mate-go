@@ -73,15 +73,15 @@ export function useRealDriverSearch({
   const resolveMatch = useCallback(async (tripId: string, passengerPriceEur: number | null) => {
     const { data: trip } = await supabase.from('trips').select('driver_id').eq('id', tripId).maybeSingle();
     if (!trip) return;
-    const [{ data: driverProfile }, { data: vehicle }] = await Promise.all([
-      supabase.from('profiles').select('full_name, average_rating').eq('id', trip.driver_id).maybeSingle(),
-      supabase
-        .from('vehicles')
-        .select('brand, model, license_plate')
-        .eq('user_id', trip.driver_id)
-        .eq('is_active', true)
-        .maybeSingle(),
-    ]);
+    // El perfil y el vehículo del conductor ya no se pueden leer en directo
+    // desde el cliente (profiles/vehicles solo dejan ver tu propia fila,
+    // por un escaneo de seguridad) — de ahí la función, que comprueba que
+    // de verdad tienes una fila en ESTE viaje antes de devolver nada.
+    const { data } = await supabase.functions.invoke('get-driver-profile', { body: { tripId } });
+    const driverProfile = data ? { full_name: data.fullName, average_rating: data.averageRating } : null;
+    const vehicle = data?.vehicle
+      ? { brand: data.vehicle.brand, model: data.vehicle.model, license_plate: data.vehicle.licensePlate }
+      : null;
 
     const price = passengerPriceEur ?? 0;
     const driver: SimulatedDriver = {
