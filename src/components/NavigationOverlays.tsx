@@ -3,6 +3,7 @@ import type { LucideIcon } from "lucide-react";
 import { Navigation } from "lucide-react";
 import { formatDistance, formatDuration, formatArrivalTime } from "@/lib/format";
 import { overlayTop } from "@/lib/overlayLayout";
+import LaneGuidance from "@/components/LaneGuidance";
 import type { RouteStep } from "@/hooks/useRouting";
 import type { TripLeg } from "@/hooks/useWaypoints";
 
@@ -177,6 +178,7 @@ const NavigationOverlays = ({
               <p className="text-base font-medium text-muted-foreground leading-tight line-clamp-2 mt-1">
                 {currentStep.instruction}
               </p>
+              {currentStep.lanes && <LaneGuidance lanes={currentStep.lanes} />}
             </div>
             {dynamicETA?.distanceKm && (
               <div className="text-right shrink-0 border-l border-border/40 pl-2.5">

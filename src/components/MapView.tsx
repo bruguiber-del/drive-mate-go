@@ -36,8 +36,23 @@ import {
   buildDriverMarkerEl,
   buildRoadAlertMarkerEl,
 } from '@/lib/mapMarkerElements';
+import { isImportantManeuver } from '@/lib/maneuverIcons';
 
 mapboxgl.accessToken = MAPBOX_TOKEN;
+
+/** Distancia (m) a partir de la cual empieza a acercarse el mapa para una
+ *  maniobra importante — bastante antes de llegar, para dar tiempo a
+ *  identificar el carril/vía correcta, no solo en el último instante. */
+const IMPORTANT_MANEUVER_ZOOM_DISTANCE_M = 400;
+
+function isNearImportantManeuver(
+  type: string | null | undefined,
+  modifier: string | null | undefined,
+  distance: number | null | undefined,
+): boolean {
+  if (distance == null) return false;
+  return isImportantManeuver(type ?? undefined, modifier ?? undefined) && distance < IMPORTANT_MANEUVER_ZOOM_DISTANCE_M;
+}
 
 interface MapViewProps {
   children?: React.ReactNode;
@@ -69,6 +84,13 @@ interface MapViewProps {
    *  usar el zoom) y cuando vuelve a seguirla — para poder enseñar un
    *  aviso de "centrar ubicación" mientras tanto. */
   onFollowingChange?: (following: boolean) => void;
+  /** Tipo/modificador de la maniobra que viene y distancia hasta ella —
+   *  para acercar el mapa solo (zoom) cuando se aproxima un desvío
+   *  importante (bifurcación, carril de entrada/salida, giro cerrado),
+   *  igual que hace Waze/Google Maps. */
+  upcomingManeuverType?: string | null;
+  upcomingManeuverModifier?: string | null;
+  distanceToManeuver?: number | null;
   previewWaypoints?: Array<{
     lat: number;
     lng: number;
@@ -130,6 +152,9 @@ const MapView = ({
   onUserLocationUpdate,
   onGpsStatusChange,
   onFollowingChange,
+  upcomingManeuverType,
+  upcomingManeuverModifier,
+  distanceToManeuver,
   previewWaypoints,
   intermediateRouteWaypoints,
   purpleUntilStop,
@@ -633,11 +658,19 @@ const MapView = ({
 
       if (isFollowingRef.current) {
         if (isNavigating) {
+          // Acerca el mapa al aproximarse a un desvío importante (una
+          // bifurcación, un carril de entrada/salida, un giro cerrado) —
+          // esos son justo los que peor se ven con el zoom normal, porque
+          // varias vías quedan muy juntas en pantalla. Al alejarse de la
+          // maniobra, vuelve al zoom normal de navegación.
+          const navZoom = isNearImportantManeuver(upcomingManeuverType, upcomingManeuverModifier, distanceToManeuver)
+            ? Math.max(m.getZoom(), 18)
+            : 16;
           m.easeTo({
             center: [displayLocation[1], displayLocation[0]],
             bearing: simulatedHeading ?? heading ?? 0,
             pitch: 45,
-            zoom: Math.max(m.getZoom(), 16),
+            zoom: navZoom,
             duration: 500,
           });
         } else {
@@ -657,7 +690,7 @@ const MapView = ({
       const id = setTimeout(tryMount, 500);
       return () => clearTimeout(id);
     }
-  }, [rawUserLocation, simulatedPosition, displayLocation, mapReady, showRoute, isNavigating, simulatedHeading, getHeading, animateUserMarkerTo]);
+  }, [rawUserLocation, simulatedPosition, displayLocation, mapReady, showRoute, isNavigating, simulatedHeading, getHeading, animateUserMarkerTo, upcomingManeuverType, upcomingManeuverModifier, distanceToManeuver]);
 
   // ── Trail line during navigation ──────────────────────────────────────────
   useEffect(() => {

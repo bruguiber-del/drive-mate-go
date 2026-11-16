@@ -1828,6 +1828,9 @@ const Index = () => {
         onUserLocationUpdate={setRealUserLocation}
         onGpsStatusChange={setGpsStatus}
         onFollowingChange={setIsFollowingMap}
+        upcomingManeuverType={currentStep?.maneuver?.type}
+        upcomingManeuverModifier={currentStep?.maneuver?.modifier}
+        distanceToManeuver={distanceToManeuver}
         previewWaypoints={previewWaypoints}
         roadAlerts={roadAlerts.alerts}
         onConfirmRoadAlert={roadAlerts.confirmAlert}

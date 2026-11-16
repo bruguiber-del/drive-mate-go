@@ -7,6 +7,18 @@ export interface VoiceInstruction {
   announcement: string;
 }
 
+/** Un carril del cruce/autovía justo antes de la maniobra — "indications"
+ *  son las direcciones válidas desde ese carril (p. ej. ["left"], o
+ *  ["straight","right"] si sirve para las dos); "active" marca si ESTE
+ *  carril es el que hay que coger para seguir la ruta. Mapbox ya manda
+ *  esto en bannerInstructions.sub cuando banner_instructions=true, pero
+ *  hasta ahora se descartaba sin usarlo — por eso en una vía de 2+
+ *  carriles nunca se señalaba cuál coger. */
+export interface RouteLane {
+  indications: string[];
+  active: boolean;
+}
+
 export interface RouteStep {
   instruction: string;
   distance: number;
@@ -20,6 +32,9 @@ export interface RouteStep {
     exit?: number;
   };
   voiceInstructions?: VoiceInstruction[];
+  /** Carriles para ESTA maniobra, si Mapbox los da para este tramo —
+   *  ausente (no solo vacío) cuando no hay guía de carril que mostrar. */
+  lanes?: RouteLane[];
 }
 
 export interface RouteData {
@@ -205,21 +220,35 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
       // destination) include the steps from every segment.
       const steps =
         routeData.legs?.flatMap((leg: any) =>
-          leg.steps?.map((s: any) => ({
-            instruction: s.maneuver?.instruction ?? '',
-            distance: s.distance,
-            duration: s.duration,
-            maneuver: {
-              type: s.maneuver?.type ?? '',
-              modifier: s.maneuver?.modifier,
-              location: s.maneuver?.location,
-              exit: s.maneuver?.exit,
-            },
-            voiceInstructions: (s.voiceInstructions ?? []).map((v: any) => ({
-              distanceAlongGeometry: v.distanceAlongGeometry ?? 0,
-              announcement: v.announcement ?? '',
-            })),
-          })) ?? [],
+          leg.steps?.map((s: any) => {
+            // De entre los varios bannerInstructions de este tramo (cada
+            // uno pensado para mostrarse a una distancia distinta), se usa
+            // el primero que de verdad traiga guía de carril — vale para
+            // todo el tramo, no hace falta elegir por distancia.
+            const laneBanner = (s.bannerInstructions ?? []).find(
+              (b: any) => Array.isArray(b?.sub?.components) && b.sub.components.some((c: any) => c.type === 'lane'),
+            );
+            const lanes = laneBanner?.sub.components
+              .filter((c: any) => c.type === 'lane')
+              .map((c: any) => ({ indications: c.indications ?? [], active: !!c.active }));
+
+            return {
+              instruction: s.maneuver?.instruction ?? '',
+              distance: s.distance,
+              duration: s.duration,
+              maneuver: {
+                type: s.maneuver?.type ?? '',
+                modifier: s.maneuver?.modifier,
+                location: s.maneuver?.location,
+                exit: s.maneuver?.exit,
+              },
+              voiceInstructions: (s.voiceInstructions ?? []).map((v: any) => ({
+                distanceAlongGeometry: v.distanceAlongGeometry ?? 0,
+                announcement: v.announcement ?? '',
+              })),
+              lanes: lanes && lanes.length > 0 ? lanes : undefined,
+            };
+          }) ?? [],
         ) ?? [];
 
       // Congestion annotation: one entry per coordinate pair, concatenated
