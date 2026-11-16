@@ -41,14 +41,11 @@ const PassengerToggle = ({ isPassenger, onToggle }: PassengerToggleProps) => {
         <Users className="w-4 h-4" />
       </motion.div>
 
-      <div className="flex flex-col items-start">
-        <span className="text-[10px] uppercase tracking-wider opacity-70">
-          Pasajero
-        </span>
-        <span className="text-xs font-bold">
-          {isPassenger ? 'Buscando...' : 'Off'}
-        </span>
-      </div>
+      {/* Sin la palabra "Pasajero" — el icono de varias personitas ya dice
+          de qué modo se trata, a petición del usuario. Solo el estado. */}
+      <span className="text-xs font-bold pr-0.5">
+        {isPassenger ? 'Buscando...' : 'Off'}
+      </span>
 
       {/* Pulse indicator when active */}
       {isPassenger && (

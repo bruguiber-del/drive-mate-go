@@ -17,6 +17,9 @@ export const OVERLAY_BOTTOM_PX = {
   /** Aviso de "centrar ubicación" — por encima del total compensado y de
    *  los modos conductor/pasajero para no solaparse con ninguno. */
   recenterBanner: 170,
+  /** Velocímetro — encima de la lupa de añadir parada (130), que a su vez
+   *  ya está encima de los modos conductor/pasajero. */
+  speedometer: 200,
 } as const;
 
 /** Altura respetando la zona segura del móvil (muesca, barra de inicio). */

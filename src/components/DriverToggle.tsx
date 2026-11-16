@@ -29,14 +29,11 @@ const DriverToggle = ({ isDriver, onToggle }: DriverToggleProps) => {
         <Car className="w-4 h-4" />
       </motion.div>
       
-      <div className="flex flex-col items-start">
-        <span className="text-[10px] uppercase tracking-wider opacity-70">
-          Conductor
-        </span>
-        <span className="text-xs font-bold">
-          {isDriver ? 'Activo' : 'Off'}
-        </span>
-      </div>
+      {/* Sin la palabra "Conductor" — el propio icono del coche ya dice de
+          qué modo se trata, a petición del usuario. Solo queda el estado. */}
+      <span className="text-xs font-bold pr-0.5">
+        {isDriver ? 'Activo' : 'Off'}
+      </span>
 
       {/* Pulse indicator when active */}
       {isDriver && (

@@ -1849,12 +1849,16 @@ const Index = () => {
         {/* Top Bar */}
         <GpsStatusBanner status={gpsStatus} />
 
-        {/* Velocímetro — a petición del usuario: a qué velocidad vas
-            ahora mismo, en rojo si te pasas del límite de la vía en la
-            que estás. Lado izquierdo para no chocar con SOS/aviso/zoom
-            (derecha) ni con los modos conductor/pasajero (abajo). */}
+        {/* Velocímetro — a qué velocidad vas ahora mismo, en rojo si te
+            pasas del límite de la vía en la que estás. Encima del modo
+            conductor, como se pidió — antes usaba overlayTop (desde
+            ARRIBA) en vez de overlayBottom (desde ABAJO, como el resto de
+            esta columna izquierda), así que no quedaba ni cerca. */}
         {nav.isNavigating && speedInfo && (
-          <div className="absolute left-3 pointer-events-none" style={{ top: overlayTop(190) }}>
+          <div
+            className="fixed left-3 z-30 pointer-events-none"
+            style={{ bottom: overlayBottom(OVERLAY_BOTTOM_PX.speedometer) }}
+          >
             <SpeedometerBadge info={speedInfo} />
           </div>
         )}

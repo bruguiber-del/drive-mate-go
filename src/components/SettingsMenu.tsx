@@ -49,7 +49,13 @@ const SettingsMenu = ({ isOpen, onClose, onNavigate, userName, userSubtitle, use
             animate={{ x: 0 }}
             exit={{ x: '-100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="fixed left-0 top-0 bottom-0 w-80 max-w-[85vw] z-50"
+            // w-80 (320px) fijo con un tope de 85vw se pensó para pantallas
+            // anchas — en un móvil normal (375-430px) 85vw da más de 320px,
+            // así que ganaba siempre el fijo y dejaba un hueco feo a la
+            // derecha en vez de ocupar casi toda la pantalla como un menú
+            // lateral normal. Ahora es al revés: una anchura relativa a la
+            // pantalla, con un tope para que no se vuelva absurdo en tablet.
+            className="fixed left-0 top-0 bottom-0 w-[82vw] max-w-sm z-50"
           >
             <div className="h-full bg-card border-r border-border p-6 flex flex-col">
               {/* Header */}
