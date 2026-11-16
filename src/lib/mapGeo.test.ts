@@ -6,6 +6,7 @@ import {
   markerScreenRotation,
   nextSpeedTier,
   nearestPointOnRoute,
+  distanceAlongRoute,
 } from './mapGeo';
 
 describe('approxMetersBetween', () => {
@@ -155,6 +156,55 @@ describe('nearestPointOnRoute', () => {
     // desvío real, no ruido de GPS, así que no debe ocultarse.
     const farAway: [number, number] = [0.5, 0.01];
     expect(nearestPointOnRoute(farAway, straightRoute)).toBeNull();
+  });
+});
+
+describe('distanceAlongRoute', () => {
+  const straightRoute: [number, number][] = [
+    [0, 0],
+    [1, 0],
+  ];
+  const totalLength = approxMetersBetween(straightRoute[0], straightRoute[1]);
+
+  it('returns null when the route has fewer than 2 points', () => {
+    expect(distanceAlongRoute([0.5, 0.0001], [[0, 0]])).toBeNull();
+    expect(distanceAlongRoute([0.5, 0.0001], [])).toBeNull();
+  });
+
+  it('is ~0 right at the start of the route', () => {
+    const d = distanceAlongRoute([0.0001, 0.00005], straightRoute);
+    expect(d).not.toBeNull();
+    expect(d!).toBeLessThan(20);
+  });
+
+  it('is roughly half the route length at the midpoint', () => {
+    const d = distanceAlongRoute([0.5, 0.00005], straightRoute);
+    expect(d).not.toBeNull();
+    expect(Math.abs(d! - totalLength / 2)).toBeLessThan(50);
+  });
+
+  it('is roughly the full route length near the end', () => {
+    const d = distanceAlongRoute([0.9999, 0.00005], straightRoute);
+    expect(d).not.toBeNull();
+    expect(d!).toBeGreaterThan(totalLength - 50);
+  });
+
+  it('returns null for a real detour, far from the route', () => {
+    expect(distanceAlongRoute([0.5, 0.01], straightRoute)).toBeNull();
+  });
+
+  it('orders points correctly on a route that loops back near its own start — the exact bug this fixes: picking the nearest STEP by straight-line distance to a maneuver point could jump to a geometrically close but route-wise distant step, like a roundabout exit sitting right next to its entrance', () => {
+    const loop: [number, number][] = [
+      [0, 0],
+      [0, 0.01],
+      [0.01, 0.01],
+      [0.01, 0.0001],
+    ];
+    const nearStart = distanceAlongRoute([0.0001, 0.0001], loop);
+    const nearEndButGeometricallyClose = distanceAlongRoute([0.0099, 0.0001], loop);
+    expect(nearStart).not.toBeNull();
+    expect(nearEndButGeometricallyClose).not.toBeNull();
+    expect(nearEndButGeometricallyClose!).toBeGreaterThan(nearStart! + 1000);
   });
 });
 

@@ -1,5 +1,5 @@
 import { haversineMeters } from "@/lib/geo";
-import { computeBearing, approxMetersBetween } from "@/lib/mapGeo";
+import { computeBearing, approxMetersBetween, distanceAlongRoute } from "@/lib/mapGeo";
 import { useErrandStops } from "@/hooks/useErrandStops";
 import { useDriverSettings } from "@/hooks/useDriverSettings";
 import { useRecurringTripReminder } from "@/hooks/useRecurringTripReminder";
@@ -1584,24 +1584,32 @@ const Index = () => {
   });
 
   // ── Current navigation step (turn-by-turn) ──────────────────────────────────
+  // Antes se elegía por el punto de MANIOBRA más cercano en línea recta a
+  // donde estás — pero eso ignora el camino real. En una rotonda, por
+  // ejemplo, la salida puede quedar geométricamente pegada a la entrada
+  // (casi el mismo punto en el mapa, aunque la carretera dé una vuelta
+  // entera entre medias y sean pasos distintos), así que el paso "actual"
+  // podía saltar al equivocado — y de ahí salían mal los metros hasta la
+  // maniobra, los km restantes, todo. Ahora se mide cuánto llevas
+  // recorrido A LO LARGO de la ruta (distanceAlongRoute, que proyecta
+  // sobre la polilínea real) y se busca en qué paso cae esa distancia —
+  // inmune a que dos puntos de maniobra distintos queden cerca en el mapa.
   const currentStepIndex = useMemo(() => {
     const steps = nav.currentRoute?.steps;
-    if (!steps?.length || !realUserLocation) return -1;
-    let closestIdx = 0;
-    let minDist = Infinity;
-    steps.forEach((step, i) => {
-      const loc = step.maneuver?.location;
-      if (!loc) return;
-      const [lng, lat] = loc;
-      const dLat = lat - realUserLocation[0];
-      const dLng = lng - realUserLocation[1];
-      const d = dLat * dLat + dLng * dLng;
-      if (d < minDist) {
-        minDist = d;
-        closestIdx = i;
-      }
-    });
-    return closestIdx;
+    const coordinates = nav.currentRoute?.coordinates;
+    if (!steps?.length || !coordinates?.length || !realUserLocation) return -1;
+
+    const traveled = distanceAlongRoute(realUserLocation, coordinates);
+    if (traveled == null) return -1;
+
+    let cumulative = 0;
+    for (let i = 0; i < steps.length; i += 1) {
+      cumulative += steps[i].distance;
+      // El último paso ("llegada") no tiene más distancia después — si ya
+      // se superó el acumulado de todos los anteriores, es que estás en él.
+      if (traveled < cumulative || i === steps.length - 1) return i;
+    }
+    return steps.length - 1;
   }, [nav.currentRoute, realUserLocation]);
 
   const currentStep = useMemo(() => {

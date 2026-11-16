@@ -67,6 +67,64 @@ export function nearestPointOnRoute(
   return fromXY(best.xy);
 }
 
+/** Más margen que SNAP_TO_ROUTE_MAX_M (25m) a propósito: esto decide a qué
+ *  PASO de la maniobra corresponde tu posición, no si hay que "enganchar"
+ *  el punto a la ruta — un desvío de carril normal o ruido de GPS algo
+ *  mayor no debería hacer que se pierda la cuenta de en qué paso vas. */
+const DISTANCE_ALONG_ROUTE_MAX_M = 80;
+
+/**
+ * Distancia (m) desde el inicio de `route` hasta el punto de la polilínea
+ * más cercano a `point` — a diferencia de nearestPointOnRoute(), que
+ * devuelve UN PUNTO, esto devuelve CUÁNTO llevas recorrido de la ruta.
+ *
+ * Por qué hace falta: antes se elegía el paso actual de navegación por el
+ * punto de maniobra (maneuver.location) más cercano en línea recta a tu
+ * posición — pero eso no tiene en cuenta el camino real. En una rotonda,
+ * por ejemplo, la salida puede quedar geométricamente más cerca de donde
+ * estás que la propia entrada (son casi el mismo punto en el mapa, aunque
+ * sean pasos distintos y la carretera dé una vuelta entera entre medias),
+ * así que el paso "actual" podía saltar al equivocado y toda la distancia
+ * mostrada (metros hasta la maniobra, km restantes por ese carril...)
+ * salía mal. Proyectar sobre la polilínea en vez de sobre los puntos de
+ * maniobra sueltos sigue el camino de verdad, no la línea recta entre dos
+ * puntos que pueden estar lejos en la carretera pero cerca en el mapa.
+ *
+ * Devuelve null si la ruta tiene menos de 2 puntos o si el punto más
+ * cercano de la polilínea queda a más de DISTANCE_ALONG_ROUTE_MAX_M — ahí
+ * ya no se puede saber con fiabilidad en qué tramo de la ruta estás.
+ */
+export function distanceAlongRoute(point: [number, number], route: [number, number][]): number | null {
+  if (route.length < 2) return null;
+  const lngScale = Math.cos((point[0] * Math.PI) / 180);
+  const toXY = (p: [number, number]): [number, number] => [
+    (p[1] - point[1]) * 111320 * lngScale,
+    (p[0] - point[0]) * 111320,
+  ];
+
+  let best: { distSq: number; segment: number; t: number } | null = null;
+  for (let i = 0; i < route.length - 1; i += 1) {
+    const a = toXY(route[i]);
+    const b = toXY(route[i + 1]);
+    const abx = b[0] - a[0];
+    const aby = b[1] - a[1];
+    const lenSq = abx * abx + aby * aby;
+    const t = lenSq === 0 ? 0 : Math.max(0, Math.min(1, -(a[0] * abx + a[1] * aby) / lenSq));
+    const projX = a[0] + abx * t;
+    const projY = a[1] + aby * t;
+    const distSq = projX * projX + projY * projY;
+    if (!best || distSq < best.distSq) best = { distSq, segment: i, t };
+  }
+  if (!best || Math.sqrt(best.distSq) > DISTANCE_ALONG_ROUTE_MAX_M) return null;
+
+  let cumulative = 0;
+  for (let i = 0; i < best.segment; i += 1) {
+    cumulative += approxMetersBetween(route[i], route[i + 1]);
+  }
+  cumulative += approxMetersBetween(route[best.segment], route[best.segment + 1]) * best.t;
+  return cumulative;
+}
+
 /** Por debajo de esto no merece la pena recortar la ruta ya recorrida —
  *  más allá, el desvío real ya dispara un recálculo de ruta aparte (ver
  *  useRouting), así que la línea vieja se sustituye entera pronto de
