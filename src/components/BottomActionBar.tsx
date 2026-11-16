@@ -125,25 +125,15 @@ const BottomActionBar = ({
             >
               <span className="text-sm font-bold text-foreground">−</span>
             </Button>
+            {/* De vuelta a esta columna — el usuario aclaró que el que
+                quería centrado no era este icono fijo, sino el AVISO de
+                "Centrar ubicación" que sale tras mover el mapa (ver
+                Index.tsx, RecenterBanner). */}
+            <Button variant="glass" size="icon" className="w-8 h-8" onClick={() => (window as any).__mapCenterOnUser?.()}>
+              <Locate className="w-4 h-4 text-primary" />
+            </Button>
           </div>
         </div>
-      </div>
-
-      {/* Centrar ubicación — a petición del usuario: en el centro, entre
-          la columna de pasajero (izquierda) y la de zoom (derecha), no
-          dentro de ninguna de las dos columnas. */}
-      <div
-        className="fixed left-1/2 -translate-x-1/2 z-30 pointer-events-none"
-        style={{ bottom: overlayBottom(OVERLAY_BOTTOM_PX.cornerControls) }}
-      >
-        <Button
-          variant="glass"
-          size="icon"
-          className="w-8 h-8 pointer-events-auto"
-          onClick={() => (window as any).__mapCenterOnUser?.()}
-        >
-          <Locate className="w-4 h-4 text-primary" />
-        </Button>
       </div>
     </>
   );

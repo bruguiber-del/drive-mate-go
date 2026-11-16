@@ -2077,11 +2077,13 @@ const Index = () => {
           se re-centra solo a los 20s de arrastrarlo o tocar el zoom, pero
           mientras tanto no había ninguna pista en pantalla de que el punto
           azul ya no está en el centro, solo el botón de siempre en la
-          esquina sin ningún aviso. */}
+          esquina sin ningún aviso. Centrado abajo, a la misma altura que
+          los modos conductor/pasajero y el zoom (no más arriba, como
+          antes) — el icono fijo de la esquina se queda donde estaba. */}
       {!isFollowingMap && (
         <div
           className="fixed left-1/2 -translate-x-1/2 z-30 flex justify-center"
-          style={{ bottom: overlayBottom(OVERLAY_BOTTOM_PX.recenterBanner) }}
+          style={{ bottom: overlayBottom(OVERLAY_BOTTOM_PX.cornerControls) }}
         >
           <button
             type="button"
