@@ -56,15 +56,21 @@ Deno.serve(async (req) => {
     if (!passengerRow) return json({ error: "no autorizado para este viaje" }, 403);
   }
 
-  const [{ data: profile }, { data: vehicle }] = await Promise.all([
+  // `is_active` puede estar a true en varias filas a la vez (la app elige el
+  // vehículo en el cliente, no en la base de datos), así que maybeSingle()
+  // fallaba con "contains 2 rows" y el pasajero se quedaba sin vehículo.
+  // Se coge el más reciente de los activos: siempre devuelve una fila o ninguna.
+  const [{ data: profile }, { data: vehicleRows }] = await Promise.all([
     admin.from("profiles").select("full_name, average_rating").eq("id", trip.driver_id).maybeSingle(),
     admin
       .from("vehicles")
       .select("brand, model, license_plate")
       .eq("user_id", trip.driver_id)
       .eq("is_active", true)
-      .maybeSingle(),
+      .order("created_at", { ascending: false })
+      .limit(1),
   ]);
+  const vehicle = vehicleRows?.[0] ?? null;
 
   return json({
     fullName: profile?.full_name ?? null,
