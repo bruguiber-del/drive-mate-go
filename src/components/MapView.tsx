@@ -3,7 +3,7 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { useRouting, RouteData, TravelMode } from '@/hooks/useRouting';
 import type { RoadAlert } from '@/hooks/useRoadAlerts';
-import { ROAD_ALERT_LABEL } from '@/lib/roadAlerts';
+import { ROAD_ALERT_LABEL, RADAR_FORCE_FIELD_RADIUS_M } from '@/lib/roadAlerts';
 import { useDeviceHeading } from '@/hooks/useDeviceHeading';
 import { MAPBOX_TOKEN, MAPBOX_STYLE } from '@/lib/mapboxConfig';
 import {
@@ -23,6 +23,7 @@ import {
   ROUTE_COLOR,
   toLineGeoJSON,
   toRouteGeoJSON,
+  toCircleGeoJSON,
   nearestCoordIndex,
   ROUTE_BEFORE_STOP_COLOR,
   TRAFFIC_BORDER_COLOR_EXPR,
@@ -134,6 +135,9 @@ const SRC_PREVIEW = 'vm-preview';
 const LYR_PREVIEW = 'vm-preview-line';
 const SRC_DRIVER_ROUTE = 'vm-driver-route';
 const LYR_DRIVER_ROUTE = 'vm-driver-route-line';
+const SRC_RADAR_ZONES = 'vm-radar-zones';
+const LYR_RADAR_ZONES_FILL = 'vm-radar-zones-fill';
+const LYR_RADAR_ZONES_LINE = 'vm-radar-zones-line';
 /** Mismo azul que la ruta principal de navegación — el conductor viniendo
  *  hacia ti es, visualmente, "tu" ruta todavía. */
 const DRIVER_ROUTE_COLOR = ROUTE_COLOR;
@@ -974,14 +978,52 @@ const MapView = ({
   useEffect(() => {
     if (!map.current || !mapReady) return;
     const m = map.current;
+    if (!m.isStyleLoaded()) return;
 
     roadAlertMarkersRef.current.forEach(mk => mk.remove());
     roadAlertMarkersRef.current = [];
 
-    if (!roadAlerts?.length) return;
+    // "Campo de fuerza" rojo alrededor de cada radar puntual — a petición
+    // del usuario, para que se note de lejos en el mapa, no solo al
+    // acercarse lo bastante para el aviso de voz. Un radar de tramo no
+    // lleva círculo (es un control a lo largo de la vía, no en un punto).
+    const radarZones = {
+      type: 'FeatureCollection' as const,
+      features: (roadAlerts ?? [])
+        .filter((a) => a.kind === 'radar')
+        .map((a) => toCircleGeoJSON({ lat: a.lat, lng: a.lng }, RADAR_FORCE_FIELD_RADIUS_M)),
+    };
+    const zonesSrc = m.getSource(SRC_RADAR_ZONES) as mapboxgl.GeoJSONSource | undefined;
+    if (zonesSrc) {
+      zonesSrc.setData(radarZones);
+    } else {
+      m.addSource(SRC_RADAR_ZONES, { type: 'geojson', data: radarZones });
+      m.addLayer({
+        id: LYR_RADAR_ZONES_FILL,
+        type: 'fill',
+        source: SRC_RADAR_ZONES,
+        paint: { 'fill-color': 'hsl(0, 84%, 55%)', 'fill-opacity': 0.12 },
+      });
+      m.addLayer({
+        id: LYR_RADAR_ZONES_LINE,
+        type: 'line',
+        source: SRC_RADAR_ZONES,
+        paint: { 'line-color': 'hsl(0, 84%, 55%)', 'line-width': 2, 'line-opacity': 0.5 },
+      });
+    }
+
+    if (!roadAlerts?.length) {
+      requestAnimationFrame(updateMarkerLabelVisibility);
+      return;
+    }
 
     for (const alert of roadAlerts) {
-      const label = ROAD_ALERT_LABEL[alert.kind];
+      // El radar de tramo necesita decir cuánto dura el control — el resto
+      // de tipos no llevan ningún dato extra en la etiqueta.
+      const label =
+        alert.kind === 'radar_tramo' && alert.lengthKm
+          ? `${ROAD_ALERT_LABEL[alert.kind]} · ${alert.lengthKm}km`
+          : ROAD_ALERT_LABEL[alert.kind];
       const el = buildRoadAlertMarkerEl(label);
 
       const popupEl = document.createElement('div');

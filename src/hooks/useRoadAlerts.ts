@@ -16,6 +16,8 @@ export interface RoadAlert {
   confirmations: number;
   /** Para no dejar confirmar/descartar el propio aviso que acabas de poner. */
   isMine: boolean;
+  /** Solo en kind === 'radar_tramo': cuántos km dura el control. */
+  lengthKm?: number | null;
 }
 
 const POLL_MS = 30000;
@@ -34,7 +36,7 @@ export function useRoadAlerts(enabled: boolean) {
     const myId = userData?.user?.id;
     const { data } = await supabase
       .from('road_alerts')
-      .select('id, creator_id, kind, lat, lng, created_at, expires_at, confirmations')
+      .select('id, creator_id, kind, lat, lng, length_km, created_at, expires_at, confirmations')
       .gt('expires_at', new Date().toISOString());
     if (!data) return;
     setAlerts(
@@ -47,6 +49,7 @@ export function useRoadAlerts(enabled: boolean) {
         expiresAt: r.expires_at,
         confirmations: r.confirmations,
         isMine: r.creator_id === myId,
+        lengthKm: r.length_km,
       })),
     );
   }, []);
@@ -59,14 +62,19 @@ export function useRoadAlerts(enabled: boolean) {
   }, [enabled, load]);
 
   const reportAlert = useCallback(
-    async (kind: RoadAlertKind, lat: number, lng: number): Promise<{ ok: boolean; reason?: string }> => {
+    async (
+      kind: RoadAlertKind,
+      lat: number,
+      lng: number,
+      lengthKm?: number,
+    ): Promise<{ ok: boolean; reason?: string }> => {
       const { data: userData } = await supabase.auth.getUser();
       const userId = userData?.user?.id;
       if (!userId) return { ok: false };
       const expiresAt = new Date(Date.now() + ROAD_ALERT_DEFAULT_DURATION_S[kind] * 1000).toISOString();
       const { error } = await supabase
         .from('road_alerts')
-        .insert({ creator_id: userId, kind, lat, lng, expires_at: expiresAt });
+        .insert({ creator_id: userId, kind, lat, lng, length_km: lengthKm ?? null, expires_at: expiresAt });
       if (error) {
         // La política de la base de datos rechaza esto si ya tienes un
         // aviso tuyo a menos de 500m, o si tu cuenta está suspendida — el

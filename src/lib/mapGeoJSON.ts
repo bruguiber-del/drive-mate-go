@@ -13,6 +13,31 @@ export const toLineGeoJSON = (coords: [number, number][]): GeoJSON.Feature<GeoJS
   },
 });
 
+/** Polígono circular (GeoJSON) de radio `radiusM` metros alrededor de
+ *  `center` — para el "campo de fuerza" rojo de los radares puntuales.
+ *  Aproximación equirectangular, de sobra para un círculo decorativo de
+ *  unos pocos cientos de metros (no para medir distancias de verdad). */
+export const toCircleGeoJSON = (
+  center: { lat: number; lng: number },
+  radiusM: number,
+  points = 48,
+): GeoJSON.Feature<GeoJSON.Polygon> => {
+  const latScale = 111320;
+  const lngScale = 111320 * Math.cos((center.lat * Math.PI) / 180);
+  const ring: [number, number][] = [];
+  for (let i = 0; i <= points; i += 1) {
+    const angle = (i / points) * 2 * Math.PI;
+    const lng = center.lng + (radiusM * Math.cos(angle)) / lngScale;
+    const lat = center.lat + (radiusM * Math.sin(angle)) / latScale;
+    ring.push([lng, lat]);
+  }
+  return {
+    type: 'Feature',
+    properties: {},
+    geometry: { type: 'Polygon', coordinates: [ring] },
+  };
+};
+
 /** Morado: tramo que se recorre hasta la parada que añades desde el buscador. */
 export const ROUTE_BEFORE_STOP_COLOR = 'hsl(280, 70%, 55%)';
 
