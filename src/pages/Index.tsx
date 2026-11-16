@@ -1854,8 +1854,10 @@ const Index = () => {
             pasas del límite de la vía en la que estás. Encima del modo
             conductor, como se pidió — antes usaba overlayTop (desde
             ARRIBA) en vez de overlayBottom (desde ABAJO, como el resto de
-            esta columna izquierda), así que no quedaba ni cerca. */}
-        {nav.isNavigating && speedInfo && (
+            esta columna izquierda), así que no quedaba ni cerca. Siempre
+            visible, haya o no destino puesto — antes solo aparecía
+            navegando, pero se pidió que esté siempre en el mapa. */}
+        {speedInfo && (
           <div
             className="fixed left-3 z-30 pointer-events-none"
             style={{ bottom: overlayBottom(OVERLAY_BOTTOM_PX.speedometer) }}
