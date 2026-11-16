@@ -185,68 +185,81 @@ const NavigationSearch = ({
     const timeoutId = setTimeout(async () => {
       setIsSearching(true);
       try {
-        const params = new URLSearchParams({
-          q: destination,
-          access_token: MAPBOX_TOKEN,
-          session_token: sessionTokenRef.current,
-          language: 'es',
-          country: 'es',
-          limit: '8',
-          types: 'poi,address,place',
-        });
-        if (userLocation) {
-          params.set('proximity', `${userLocation[1]},${userLocation[0]}`);
-        }
+        const fetchSuggestions = async (q: string) => {
+          const params = new URLSearchParams({
+            q,
+            access_token: MAPBOX_TOKEN,
+            session_token: sessionTokenRef.current,
+            language: 'es',
+            country: 'es',
+            limit: '8',
+            types: 'poi,address,place',
+          });
+          if (userLocation) {
+            params.set('proximity', `${userLocation[1]},${userLocation[0]}`);
+          }
+          const response = await fetch(
+            `https://api.mapbox.com/search/searchbox/v1/suggest?${params.toString()}`
+          );
+          const data = await response.json();
+          return Array.isArray(data.suggestions) ? data.suggestions : [];
+        };
 
-        const response = await fetch(
-          `https://api.mapbox.com/search/searchbox/v1/suggest?${params.toString()}`
-        );
-        const data = await response.json();
+        // Mapbox no encuentra nada si a un nombre de sitio le sigue una
+        // palabra genérica de categoría que no sabe ligar bien (p. ej.
+        // "blanca dona pabellón" no da nada, pero "blanca dona" sí) —
+        // Google Maps sí resuelve eso. Como paliativo gratuito, si la
+        // búsqueda completa no da resultados se reintenta quitando la
+        // última palabra, una a una, hasta dar con algo.
+        let suggestions = await fetchSuggestions(destination);
+        if (!cancelled && suggestions.length === 0) {
+          const words = destination.trim().split(/\s+/);
+          for (let n = words.length - 1; n >= 1 && suggestions.length === 0; n--) {
+            suggestions = await fetchSuggestions(words.slice(0, n).join(' '));
+            if (cancelled) return;
+          }
+        }
         if (cancelled) return;
 
-        if (Array.isArray(data.suggestions)) {
-          const mapped = data.suggestions.map((s: any, i: number) => ({
-            id: `${s.mapbox_id}-${i}`,
-            mapboxId: s.mapbox_id,
-            name: s.name,
-            place_name: [s.name, s.full_address ?? s.place_formatted].filter(Boolean).join(' · '),
-            rank: categoryRank([
-              ...(Array.isArray(s.poi_category) ? s.poi_category : s.poi_category ? [s.poi_category] : []),
-              ...(Array.isArray(s.poi_category_ids) ? s.poi_category_ids : []),
-            ]),
-            order: i,
-          }));
+        const mapped = suggestions.map((s: any, i: number) => ({
+          id: `${s.mapbox_id}-${i}`,
+          mapboxId: s.mapbox_id,
+          name: s.name,
+          place_name: [s.name, s.full_address ?? s.place_formatted].filter(Boolean).join(' · '),
+          rank: categoryRank([
+            ...(Array.isArray(s.poi_category) ? s.poi_category : s.poi_category ? [s.poi_category] : []),
+            ...(Array.isArray(s.poi_category_ids) ? s.poi_category_ids : []),
+          ]),
+          order: i,
+        }));
 
-          // Estable: lugares importantes primero, negocios genéricos al final,
-          // conservando el orden de relevancia de Mapbox dentro de cada grupo.
-          mapped.sort((a: any, b: any) => a.rank - b.rank || a.order - b.order);
+        // Estable: lugares importantes primero, negocios genéricos al final,
+        // conservando el orden de relevancia de Mapbox dentro de cada grupo.
+        mapped.sort((a: any, b: any) => a.rank - b.rank || a.order - b.order);
 
-          const results: SearchResult[] = mapped.map(({ id, mapboxId, name, place_name }: any) => ({
-            id,
-            mapboxId,
-            name,
-            place_name,
-          }));
+        const results: SearchResult[] = mapped.map(({ id, mapboxId, name, place_name }: any) => ({
+          id,
+          mapboxId,
+          name,
+          place_name,
+        }));
 
-          // Mapbox no tiene bien cargados algunos aeropuertos regionales
-          // como entrada propia — solo devuelve negocios dentro de ellos.
-          // Si la búsqueda coincide con un aeropuerto conocido, lo ponemos
-          // el primero, con coordenadas ya verificadas de la terminal.
-          const airport = findMatchingAirport(destination, userLocation);
-          if (airport) {
-            results.unshift({
-              id: `airport-${airport.name}`,
-              mapboxId: '',
-              name: airport.name,
-              place_name: airport.name,
-              localCoords: { lat: airport.lat, lng: airport.lng },
-            });
-          }
-
-          setSearchResults(results);
-        } else {
-          setSearchResults([]);
+        // Mapbox no tiene bien cargados algunos aeropuertos regionales
+        // como entrada propia — solo devuelve negocios dentro de ellos.
+        // Si la búsqueda coincide con un aeropuerto conocido, lo ponemos
+        // el primero, con coordenadas ya verificadas de la terminal.
+        const airport = findMatchingAirport(destination, userLocation);
+        if (airport) {
+          results.unshift({
+            id: `airport-${airport.name}`,
+            mapboxId: '',
+            name: airport.name,
+            place_name: airport.name,
+            localCoords: { lat: airport.lat, lng: airport.lng },
+          });
         }
+
+        setSearchResults(results);
       } catch (error) {
         console.error('Search error:', error);
       } finally {
