@@ -41,6 +41,7 @@ import MatchPopup from "@/components/MatchPopup";
 import SettingsMenu from "@/components/SettingsMenu";
 import ProfileSection from "@/components/ProfileSection";
 import TripHistory from "@/components/TripHistory";
+import SecuritySection from "@/components/SecuritySection";
 import WalletSection from "@/components/WalletSection";
 import HelpSection from "@/components/HelpSection";
 import ActiveTripView from "@/components/ActiveTripView";
@@ -2020,16 +2021,6 @@ const Index = () => {
           isPassengerMode={isPassengerMode}
           onPassengerToggle={handlePassengerToggle}
           onOpenPassengerSettings={modals.openPassengerSettings}
-          sosTripId={trip.activeTripId}
-          sosOtherParty={
-            isDriverMode
-              ? multiTrip.passengers
-                  .filter((p) => p.passenger.realPassengerId)
-                  .map((p) => ({ id: p.passenger.realPassengerId!, name: p.passenger.name }))
-              : driverSim.currentDriver
-                ? [{ id: driverSim.currentDriver.id, name: driverSim.currentDriver.name }]
-                : []
-          }
           roadAlertLocation={realUserLocation}
           onReportRoadAlert={roadAlerts.reportAlert}
         />
@@ -2217,6 +2208,20 @@ const Index = () => {
       <TripHistory isOpen={modals.showHistory} onClose={modals.closeHistory} />
       <WalletSection isOpen={modals.showWallet} onClose={modals.closeWallet} />
       <HelpSection isOpen={modals.showHelp} onClose={modals.closeHelp} />
+      <SecuritySection
+        isOpen={modals.showSecurity}
+        onClose={modals.closeSecurity}
+        tripId={trip.activeTripId}
+        otherParty={
+          isDriverMode
+            ? multiTrip.passengers
+                .filter((p) => p.passenger.realPassengerId)
+                .map((p) => ({ id: p.passenger.realPassengerId!, name: p.passenger.name }))
+            : driverSim.currentDriver
+              ? [{ id: driverSim.currentDriver.id, name: driverSim.currentDriver.name }]
+              : []
+        }
+      />
 
       <RatingModal
         isOpen={trip.showRating}

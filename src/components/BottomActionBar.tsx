@@ -3,7 +3,6 @@ import { Settings, Locate, Navigation } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import DriverToggle from "@/components/DriverToggle";
 import PassengerToggle from "@/components/PassengerToggle";
-import SosButton from "@/components/SosButton";
 import RoadAlertButton from "@/components/RoadAlertButton";
 import type { RoadAlertKind } from "@/lib/roadAlerts";
 import { OVERLAY_BOTTOM_PX, overlayBottom } from "@/lib/overlayLayout";
@@ -18,10 +17,6 @@ interface BottomActionBarProps {
   isPassengerMode: boolean;
   onPassengerToggle: () => void;
   onOpenPassengerSettings: () => void;
-  /** Viaje activo ahora mismo (para el botón SOS), si lo hay. */
-  sosTripId?: string | null;
-  /** A quién podría estar señalando una denuncia del botón SOS. */
-  sosOtherParty?: { id: string; name: string }[];
   /** Posición real actual — para marcar dónde se avisa de un radar/policía/etc. */
   roadAlertLocation?: [number, number] | null;
   onReportRoadAlert?: (kind: RoadAlertKind, lat: number, lng: number) => Promise<{ ok: boolean; reason?: string }>;
@@ -40,8 +35,6 @@ const BottomActionBar = ({
   isPassengerMode,
   onPassengerToggle,
   onOpenPassengerSettings,
-  sosTripId,
-  sosOtherParty,
   roadAlertLocation,
   onReportRoadAlert,
 }: BottomActionBarProps) => {
@@ -96,9 +89,6 @@ const BottomActionBar = ({
           modo. */}
       <div className="fixed right-3 z-30 pointer-events-none" style={{ bottom: overlayBottom(OVERLAY_BOTTOM_PX.cornerControls) }}>
         <div className="flex flex-col gap-2 items-center pointer-events-auto">
-          {/* SOS — siempre visible, igual que el resto de esta columna, por
-              si hace falta denunciar algo en cualquier momento del viaje. */}
-          <SosButton tripId={sosTripId} otherParty={sosOtherParty} />
           {onReportRoadAlert && (
             <RoadAlertButton location={roadAlertLocation ?? null} onReport={onReportRoadAlert} />
           )}

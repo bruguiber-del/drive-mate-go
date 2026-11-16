@@ -20,6 +20,8 @@ interface UseUIModalsReturn {
 
   showHelp: boolean;
 
+  showSecurity: boolean;
+
   showMatchPopup: boolean;
 
   showNavigationSearch: boolean;
@@ -51,6 +53,10 @@ interface UseUIModalsReturn {
   openHelp: () => void;
 
   closeHelp: () => void;
+
+  openSecurity: () => void;
+
+  closeSecurity: () => void;
 
   openMatchPopup: () => void;
 
@@ -92,6 +98,8 @@ export function useUIModals(): UseUIModalsReturn {
 
   const [showHelp, setShowHelp] = useState(false);
 
+  const [showSecurity, setShowSecurity] = useState(false);
+
   const [showMatchPopup, setShowMatchPopup] = useState(false);
 
   const [showNavigationSearch, setShowNavigationSearch] = useState(false);
@@ -123,6 +131,10 @@ export function useUIModals(): UseUIModalsReturn {
   const openHelp = useCallback(() => setShowHelp(true), []);
 
   const closeHelp = useCallback(() => setShowHelp(false), []);
+
+  const openSecurity = useCallback(() => setShowSecurity(true), []);
+
+  const closeSecurity = useCallback(() => setShowSecurity(false), []);
 
   const openMatchPopup = useCallback(() => setShowMatchPopup(true), []);
 
@@ -156,7 +168,7 @@ export function useUIModals(): UseUIModalsReturn {
 
         profile: openProfile,
 
-        security: openProfile, // security shares the profile sheet
+        security: openSecurity,
 
         history: openHistory,
 
@@ -170,7 +182,7 @@ export function useUIModals(): UseUIModalsReturn {
 
     },
 
-    [closeSettingsMenu, openProfile, openHistory, openWallet, openHelp],
+    [closeSettingsMenu, openProfile, openSecurity, openHistory, openWallet, openHelp],
 
   );
 
@@ -185,6 +197,8 @@ export function useUIModals(): UseUIModalsReturn {
     showWallet,
 
     showHelp,
+
+    showSecurity,
 
     showMatchPopup,
 
@@ -215,6 +229,10 @@ export function useUIModals(): UseUIModalsReturn {
     openHelp,
 
     closeHelp,
+
+    openSecurity,
+
+    closeSecurity,
 
     openMatchPopup,
 
