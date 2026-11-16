@@ -302,7 +302,6 @@ export type Database = {
           id: string
           kind: string
           lat: number
-          length_km: number | null
           lng: number
         }
         Insert: {
@@ -313,7 +312,6 @@ export type Database = {
           id?: string
           kind: string
           lat: number
-          length_km?: number | null
           lng: number
         }
         Update: {
@@ -324,7 +322,6 @@ export type Database = {
           id?: string
           kind?: string
           lat?: number
-          length_km?: number | null
           lng?: number
         }
         Relationships: []
