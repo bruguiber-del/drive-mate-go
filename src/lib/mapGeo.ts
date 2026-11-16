@@ -23,78 +23,17 @@ export function approxMetersBetween(a: [number, number], b: [number, number]): n
  *  enseña la posición cruda. */
 export const SNAP_TO_ROUTE_MAX_M = 25;
 
-/**
- * Punto más cercano a `point` sobre la polilínea `route` (proyectando
- * sobre cada segmento, no solo sobre los vértices) — plano local en metros
- * centrado en `point`, misma aproximación que approxMetersBetween, barata
- * y de sobra para los tramos cortos de un segmento de carretera.
- *
- * Devuelve null si la ruta tiene menos de 2 puntos o si el más cercano
- * queda a más de SNAP_TO_ROUTE_MAX_M — en ese caso el GPS crudo ya no es
- * "ruido alrededor de la vía", sino un desvío real que no hay que ocultar.
- */
-export function nearestPointOnRoute(
+/** Núcleo compartido de "proyectar un punto sobre la polilínea de una
+ *  ruta" — plano local en metros centrado en `point`, misma aproximación
+ *  que approxMetersBetween, barata y de sobra para tramos cortos de
+ *  carretera. nearestPointOnRoute, distanceAlongRoute y
+ *  nearestRouteSegmentIndex comparten este cálculo; solo cambia qué hacen
+ *  con el resultado (el punto en sí, cuánto se ha recorrido, o en qué
+ *  segmento cae) y qué umbral de distancia aceptan. */
+function projectOntoRoute(
   point: [number, number],
   route: [number, number][],
-): [number, number] | null {
-  if (route.length < 2) return null;
-  const lngScale = Math.cos((point[0] * Math.PI) / 180);
-  const toXY = (p: [number, number]): [number, number] => [
-    (p[1] - point[1]) * 111320 * lngScale,
-    (p[0] - point[0]) * 111320,
-  ];
-  const fromXY = (xy: [number, number]): [number, number] => [
-    point[0] + xy[1] / 111320,
-    point[1] + xy[0] / (111320 * lngScale),
-  ];
-
-  let best: { distSq: number; xy: [number, number] } | null = null;
-  for (let i = 0; i < route.length - 1; i += 1) {
-    const a = toXY(route[i]);
-    const b = toXY(route[i + 1]);
-    const abx = b[0] - a[0];
-    const aby = b[1] - a[1];
-    const lenSq = abx * abx + aby * aby;
-    // t = proyección de (0,0) sobre el segmento a→b, acotada a [0,1] para
-    // no salirse del tramo cuando la perpendicular cae fuera de él.
-    const t = lenSq === 0 ? 0 : Math.max(0, Math.min(1, -(a[0] * abx + a[1] * aby) / lenSq));
-    const projX = a[0] + abx * t;
-    const projY = a[1] + aby * t;
-    const distSq = projX * projX + projY * projY;
-    if (!best || distSq < best.distSq) best = { distSq, xy: [projX, projY] };
-  }
-  if (!best || Math.sqrt(best.distSq) > SNAP_TO_ROUTE_MAX_M) return null;
-  return fromXY(best.xy);
-}
-
-/** Más margen que SNAP_TO_ROUTE_MAX_M (25m) a propósito: esto decide a qué
- *  PASO de la maniobra corresponde tu posición, no si hay que "enganchar"
- *  el punto a la ruta — un desvío de carril normal o ruido de GPS algo
- *  mayor no debería hacer que se pierda la cuenta de en qué paso vas. */
-const DISTANCE_ALONG_ROUTE_MAX_M = 80;
-
-/**
- * Distancia (m) desde el inicio de `route` hasta el punto de la polilínea
- * más cercano a `point` — a diferencia de nearestPointOnRoute(), que
- * devuelve UN PUNTO, esto devuelve CUÁNTO llevas recorrido de la ruta.
- *
- * Por qué hace falta: antes se elegía el paso actual de navegación por el
- * punto de maniobra (maneuver.location) más cercano en línea recta a tu
- * posición — pero eso no tiene en cuenta el camino real. En una rotonda,
- * por ejemplo, la salida puede quedar geométricamente más cerca de donde
- * estás que la propia entrada (son casi el mismo punto en el mapa, aunque
- * sean pasos distintos y la carretera dé una vuelta entera entre medias),
- * así que el paso "actual" podía saltar al equivocado y toda la distancia
- * mostrada (metros hasta la maniobra, km restantes por ese carril...)
- * salía mal. Proyectar sobre la polilínea en vez de sobre los puntos de
- * maniobra sueltos sigue el camino de verdad, no la línea recta entre dos
- * puntos que pueden estar lejos en la carretera pero cerca en el mapa.
- *
- * Devuelve null si la ruta tiene menos de 2 puntos o si el punto más
- * cercano de la polilínea queda a más de DISTANCE_ALONG_ROUTE_MAX_M — ahí
- * ya no se puede saber con fiabilidad en qué tramo de la ruta estás.
- */
-export function distanceAlongRoute(point: [number, number], route: [number, number][]): number | null {
+): { distSq: number; segment: number; t: number } | null {
   if (route.length < 2) return null;
   const lngScale = Math.cos((point[0] * Math.PI) / 180);
   const toXY = (p: [number, number]): [number, number] => [
@@ -109,13 +48,70 @@ export function distanceAlongRoute(point: [number, number], route: [number, numb
     const abx = b[0] - a[0];
     const aby = b[1] - a[1];
     const lenSq = abx * abx + aby * aby;
+    // t = proyección de (0,0) sobre el segmento a→b, acotada a [0,1] para
+    // no salirse del tramo cuando la perpendicular cae fuera de él.
     const t = lenSq === 0 ? 0 : Math.max(0, Math.min(1, -(a[0] * abx + a[1] * aby) / lenSq));
     const projX = a[0] + abx * t;
     const projY = a[1] + aby * t;
     const distSq = projX * projX + projY * projY;
     if (!best || distSq < best.distSq) best = { distSq, segment: i, t };
   }
-  if (!best || Math.sqrt(best.distSq) > DISTANCE_ALONG_ROUTE_MAX_M) return null;
+  return best;
+}
+
+/**
+ * Punto más cercano a `point` sobre la polilínea `route` (proyectando
+ * sobre cada segmento, no solo sobre los vértices).
+ *
+ * Devuelve null si la ruta tiene menos de 2 puntos o si el más cercano
+ * queda a más de SNAP_TO_ROUTE_MAX_M — en ese caso el GPS crudo ya no es
+ * "ruido alrededor de la vía", sino un desvío real que no hay que ocultar.
+ */
+export function nearestPointOnRoute(
+  point: [number, number],
+  route: [number, number][],
+): [number, number] | null {
+  const best = projectOntoRoute(point, route);
+  if (!best || Math.sqrt(best.distSq) > SNAP_TO_ROUTE_MAX_M) return null;
+  const lngScale = Math.cos((point[0] * Math.PI) / 180);
+  const a = route[best.segment];
+  const b = route[best.segment + 1];
+  return [a[0] + (b[0] - a[0]) * best.t, a[1] + (b[1] - a[1]) * best.t];
+}
+
+/** Más margen que SNAP_TO_ROUTE_MAX_M (25m) a propósito: esto decide a qué
+ *  PASO de la maniobra (o a qué límite de velocidad) corresponde tu
+ *  posición, no si hay que "enganchar" el punto a la ruta — un desvío de
+ *  carril normal o ruido de GPS algo mayor no debería hacer que se pierda
+ *  la cuenta de en qué tramo vas. */
+const ROUTE_PROGRESS_MAX_M = 80;
+
+/**
+ * Distancia (m) desde el inicio de `route` hasta el punto de la polilínea
+ * más cercano a `point` — a diferencia de nearestPointOnRoute(), que
+ * devuelve UN PUNTO, esto devuelve CUÁNTO llevas recorrido de la ruta.
+ *
+ * Por qué hace falta: antes se elegía el paso actual de navegación por el
+ * punto de maniobra (maneuver.location) más cercano en línea recta a tu
+ * posición — pero eso no tiene en cuenta el camino real. En una rotonda,
+ * por ejemplo, la salida puede quedar geométricamente más cerca de donde
+ * estás que la propia entrada (son casi el mismo punto en el mapa, aunque
+ * sean pasos distintos y la carretera dé una vuelta entera entre medias),
+ * así que el paso "actual" podía saltar al equivocado y toda la distancia
+ * mostrada (metros hasta la maniobra, km restantes por ese carril...)
+ * salía mal — podía incluso IR SUBIENDO según avanzabas, si el salto te
+ * dejaba en un paso más lejano del que ya habías pasado. Proyectar sobre
+ * la polilínea en vez de sobre los puntos de maniobra sueltos sigue el
+ * camino de verdad, no la línea recta entre dos puntos que pueden estar
+ * lejos en la carretera pero cerca en el mapa.
+ *
+ * Devuelve null si la ruta tiene menos de 2 puntos o si el punto más
+ * cercano de la polilínea queda a más de ROUTE_PROGRESS_MAX_M — ahí ya no
+ * se puede saber con fiabilidad en qué tramo de la ruta estás.
+ */
+export function distanceAlongRoute(point: [number, number], route: [number, number][]): number | null {
+  const best = projectOntoRoute(point, route);
+  if (!best || Math.sqrt(best.distSq) > ROUTE_PROGRESS_MAX_M) return null;
 
   let cumulative = 0;
   for (let i = 0; i < best.segment; i += 1) {
@@ -123,6 +119,17 @@ export function distanceAlongRoute(point: [number, number], route: [number, numb
   }
   cumulative += approxMetersBetween(route[best.segment], route[best.segment + 1]) * best.t;
   return cumulative;
+}
+
+/** En qué segmento de `route` (índice del punto inicial, 0-based) cae tu
+ *  posición — para leer, p. ej., el límite de velocidad de ESE tramo
+ *  concreto (annotations=maxspeed de Mapbox da un valor por segmento,
+ *  igual que ya hace congestion). Mismo umbral y mismo criterio de "no sé
+ *  en qué tramo estás" que distanceAlongRoute(). */
+export function nearestRouteSegmentIndex(point: [number, number], route: [number, number][]): number | null {
+  const best = projectOntoRoute(point, route);
+  if (!best || Math.sqrt(best.distSq) > ROUTE_PROGRESS_MAX_M) return null;
+  return best.segment;
 }
 
 /** Por debajo de esto no merece la pena recortar la ruta ya recorrida —

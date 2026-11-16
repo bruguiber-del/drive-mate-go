@@ -49,6 +49,10 @@ export interface RouteData {
   legDistances?: number[];
   /** Congestion level per coordinate segment ('low' | 'moderate' | 'heavy' | 'severe' | 'unknown') */
   congestion?: string[];
+  /** Límite de velocidad por segmento de coordenadas (mismo criterio que
+   *  congestion) — null cuando Mapbox no lo conoce para ese tramo
+   *  (carretera sin datos, zona privada...), no cuando no hay límite. */
+  maxspeedKmh?: (number | null)[];
   steps?: RouteStep[];
 }
 
@@ -192,8 +196,9 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
       // mantiene "full" aquí a costa de algo de peso extra en la respuesta.
       // La anotación de congestión solo existe en driving-traffic — a pie/
       // bici Mapbox la ignora o devuelve error, así que se omite fuera de
-      // modo coche.
-      const congestionParam = profile === 'driving' ? '&annotations=congestion' : '';
+      // modo coche. maxspeed (para el velocímetro) solo tiene sentido ahí
+      // también — a pie/bici no hay límite de velocidad que mostrar.
+      const congestionParam = profile === 'driving' ? '&annotations=congestion,maxspeed' : '';
       const url =
         `${MAPBOX_DIRECTIONS_BASE}/${MAPBOX_PROFILE[profile]}/${points.join(';')}` +
         `?geometries=geojson&overview=full&steps=true` +
@@ -256,6 +261,21 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
       const congestion: string[] =
         routeData.legs?.flatMap((leg: any) => leg.annotation?.congestion ?? []) ?? [];
 
+      // maxspeed: mismo criterio que congestion (un valor por segmento),
+      // pero Mapbox lo manda en mph en vías donde así se señaliza (EEUU,
+      // Reino Unido...) — se normaliza todo a km/h para no tener que
+      // acordarse de la unidad en cada sitio que lo use. "none" (sin
+      // límite, p. ej. un tramo de autobahn) y "unknown" (sin datos) se
+      // guardan igual, como null — no hay nada que pintar en rojo si no
+      // se sabe cuál es el límite.
+      const maxspeedKmh: (number | null)[] =
+        routeData.legs?.flatMap((leg: any) =>
+          (leg.annotation?.maxspeed ?? []).map((m: any) => {
+            if (!m || m.unknown || m.none || typeof m.speed !== 'number') return null;
+            return m.unit === 'mph' ? Math.round(m.speed * 1.60934) : m.speed;
+          }),
+        ) ?? [];
+
       const newRoute: RouteData = {
         coordinates,
         distance: routeData.distance,
@@ -263,6 +283,7 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
         legDurations: routeData.legs?.map((leg: any) => leg.duration ?? 0) ?? [],
         legDistances: routeData.legs?.map((leg: any) => leg.distance ?? 0) ?? [],
         congestion,
+        maxspeedKmh,
         steps,
       };
 

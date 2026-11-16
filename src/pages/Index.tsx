@@ -6,6 +6,7 @@ import { useRecurringTripReminder } from "@/hooks/useRecurringTripReminder";
 import { useScheduledTripReminder } from "@/hooks/useScheduledTripReminder";
 import RecurringTripsSheet from "@/components/RecurringTripsSheet";
 import GpsStatusBanner from "@/components/GpsStatusBanner";
+import SpeedometerBadge, { type SpeedInfo } from "@/components/SpeedometerBadge";
 import { useProfile } from "@/hooks/useProfile";
 import { submitDocumentForVerification } from "@/lib/documentVerification";
 import type { GpsStatus } from "@/components/MapView";
@@ -113,6 +114,7 @@ const Index = () => {
   const [realUserLocation, setRealUserLocation] = useState<[number, number] | null>(null);
   const [gpsStatus, setGpsStatus] = useState<GpsStatus>("searching");
   const [isFollowingMap, setIsFollowingMap] = useState(true);
+  const [speedInfo, setSpeedInfo] = useState<SpeedInfo | null>(null);
   // Solo para colocar paradas personales: se lee la posición actual sin que
   // cada movimiento de GPS reordene la ruta entera.
   const userLocRef = useRef<[number, number] | null>(null);
@@ -1836,6 +1838,7 @@ const Index = () => {
         onUserLocationUpdate={setRealUserLocation}
         onGpsStatusChange={setGpsStatus}
         onFollowingChange={setIsFollowingMap}
+        onSpeedChange={setSpeedInfo}
         upcomingManeuverType={currentStep?.maneuver?.type}
         upcomingManeuverModifier={currentStep?.maneuver?.modifier}
         distanceToManeuver={distanceToManeuver}
@@ -1845,6 +1848,16 @@ const Index = () => {
       >
         {/* Top Bar */}
         <GpsStatusBanner status={gpsStatus} />
+
+        {/* Velocímetro — a petición del usuario: a qué velocidad vas
+            ahora mismo, en rojo si te pasas del límite de la vía en la
+            que estás. Lado izquierdo para no chocar con SOS/aviso/zoom
+            (derecha) ni con los modos conductor/pasajero (abajo). */}
+        {nav.isNavigating && speedInfo && (
+          <div className="absolute left-3 pointer-events-none" style={{ top: overlayTop(190) }}>
+            <SpeedometerBadge info={speedInfo} />
+          </div>
+        )}
 
         {/* Viaje habitual o puntual a su hora — un toque para empezarlo,
             nunca arranca solo. Solo antes de navegar, para no interferir

@@ -7,6 +7,7 @@ import {
   nextSpeedTier,
   nearestPointOnRoute,
   distanceAlongRoute,
+  nearestRouteSegmentIndex,
 } from './mapGeo';
 
 describe('approxMetersBetween', () => {
@@ -205,6 +206,35 @@ describe('distanceAlongRoute', () => {
     expect(nearStart).not.toBeNull();
     expect(nearEndButGeometricallyClose).not.toBeNull();
     expect(nearEndButGeometricallyClose!).toBeGreaterThan(nearStart! + 1000);
+  });
+});
+
+describe('nearestRouteSegmentIndex', () => {
+  const threeSegmentRoute: [number, number][] = [
+    [0, 0],
+    [0.001, 0],
+    [0.002, 0],
+    [0.003, 0],
+  ];
+
+  it('returns null when the route has fewer than 2 points', () => {
+    expect(nearestRouteSegmentIndex([0.0005, 0], [[0, 0]])).toBeNull();
+  });
+
+  it('identifies the first segment near the start', () => {
+    expect(nearestRouteSegmentIndex([0.0002, 0.00001], threeSegmentRoute)).toBe(0);
+  });
+
+  it('identifies the middle segment partway along', () => {
+    expect(nearestRouteSegmentIndex([0.0015, 0.00001], threeSegmentRoute)).toBe(1);
+  });
+
+  it('identifies the last segment near the end', () => {
+    expect(nearestRouteSegmentIndex([0.0028, 0.00001], threeSegmentRoute)).toBe(2);
+  });
+
+  it('returns null for a real detour, far from the route', () => {
+    expect(nearestRouteSegmentIndex([0.0015, 0.01], threeSegmentRoute)).toBeNull();
   });
 });
 

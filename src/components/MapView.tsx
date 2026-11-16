@@ -14,6 +14,7 @@ import {
   markerScreenRotation,
   nextSpeedTier,
   nearestPointOnRoute,
+  nearestRouteSegmentIndex,
   remainingRouteFrom,
   TIER_CAMERA,
   type SpeedTier,
@@ -84,6 +85,11 @@ interface MapViewProps {
    *  usar el zoom) y cuando vuelve a seguirla — para poder enseñar un
    *  aviso de "centrar ubicación" mientras tanto. */
   onFollowingChange?: (following: boolean) => void;
+  /** Velocidad actual (km/h, del propio GPS) y límite de la vía en la que
+   *  estás ahora mismo (si Mapbox lo conoce para ese tramo) — para el
+   *  velocímetro. limitKmh es null cuando no hay dato de límite para este
+   *  tramo, no cuando no hay límite de verdad. */
+  onSpeedChange?: (info: { kmh: number; limitKmh: number | null } | null) => void;
   /** Tipo/modificador de la maniobra que viene y distancia hasta ella —
    *  para acercar el mapa solo (zoom) cuando se aproxima un desvío
    *  importante (bifurcación, carril de entrada/salida, giro cerrado),
@@ -152,6 +158,7 @@ const MapView = ({
   onUserLocationUpdate,
   onGpsStatusChange,
   onFollowingChange,
+  onSpeedChange,
   upcomingManeuverType,
   upcomingManeuverModifier,
   distanceToManeuver,
@@ -310,6 +317,13 @@ const MapView = ({
   useEffect(() => { onRouteUpdate?.(route); }, [route, onRouteUpdate]);
   useEffect(() => { onRouteError?.(routeError); }, [routeError, onRouteError]);
   useEffect(() => { onRouteLoadingChange?.(isRouteLoading); }, [isRouteLoading, onRouteLoadingChange]);
+
+  // Para leer el límite de velocidad del tramo actual dentro del handler
+  // de watchPosition sin tener que meter "route" en sus dependencias — la
+  // ruta cambia bastante seguido (recálculos por desvío) y eso reengancharía
+  // el GPS entero cada vez, cosa que no hace falta para esto.
+  const routeRef = useRef(route);
+  routeRef.current = route;
 
   // Posición "visual" del marcador — enganchada a la carretera cuando el GPS
   // crudo cae a pocos metros de la ruta ya calculada (reutiliza las mismas
@@ -579,6 +593,22 @@ const MapView = ({
         if (speedMs != null && !isNaN(speedMs) && speedMs >= 0) {
           const kmh = speedMs * 3.6;
           setSpeedTier(prevTier => nextSpeedTier(kmh, prevTier));
+
+          // Límite de la vía en la que estás AHORA MISMO, no el de toda la
+          // ruta — un mismo trayecto puede cambiar de límite varias veces
+          // (ciudad, nacional, autovía...), así que se busca en qué
+          // segmento de la polilínea cae tu posición y se lee el límite
+          // de ESE segmento (misma idea que distanceAlongRoute, para el
+          // mismo problema: la línea recta no vale, hay que seguir la vía).
+          let limitKmh: number | null = null;
+          const liveRoute = routeRef.current;
+          if (liveRoute?.coordinates && liveRoute.maxspeedKmh) {
+            const segment = nearestRouteSegmentIndex(coords, liveRoute.coordinates);
+            if (segment != null) limitKmh = liveRoute.maxspeedKmh[segment] ?? null;
+          }
+          onSpeedChange?.({ kmh: Math.round(kmh), limitKmh });
+        } else {
+          onSpeedChange?.(null);
         }
 
         reportGpsStatus('ok');
@@ -611,7 +641,7 @@ const MapView = ({
         watchIdRef.current = null;
       }
     };
-  }, [mapReady, gpsRetryTick, reportGpsStatus]);
+  }, [mapReady, gpsRetryTick, reportGpsStatus, onSpeedChange]);
 
   // ── User marker + auto-follow during navigation ───────────────────────────
   useEffect(() => {
