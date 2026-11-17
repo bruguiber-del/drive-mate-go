@@ -280,11 +280,6 @@ const Index = () => {
    *  sustituye el destino) o 'stop' (añade una parada sin tocarlo). */
   const [searchMode, setSearchMode] = useState<"destination" | "stop">("destination");
 
-  const handleOpenAddStopSearch = useCallback(() => {
-    setSearchMode("stop");
-    modals.openNavigationSearch();
-  }, [modals]);
-
   const handleOpenDestinationSearch = useCallback(() => {
     setSearchMode("destination");
     modals.openNavigationSearch();
@@ -300,6 +295,15 @@ const Index = () => {
     cancelTrip,
     onStop: () => tripEndRef.current(),
   });
+
+  const handleOpenAddStopSearch = useCallback(() => {
+    // Sin ruta activa, una "parada" no tiene a qué engancharse — en ese
+    // caso este mismo botón abre el buscador normal de destino, que es lo
+    // que de verdad hace falta (elegir a dónde ir primero). Con una ruta
+    // ya en marcha sigue siendo el modo "parada" de siempre.
+    setSearchMode(nav.isNavigating ? "stop" : "destination");
+    modals.openNavigationSearch();
+  }, [modals, nav.isNavigating]);
 
   // El móvil usado de verdad como navegador (apoyado en el salpicadero) no
   // se puede apagar solo a media ruta por inactividad.
@@ -1964,23 +1968,22 @@ const Index = () => {
           </div>
         )}
 
-        {/* Añadir parada — lupa en la esquina inferior izquierda, a la
-            misma altura que las chapas de pasajero del lateral derecho.
-            Antes era un "+" en la barra de arriba, lejos de donde está
-            toda la demás acción del viaje. */}
-        {nav.isNavigating && (
-          <div className="fixed left-3 z-30 pointer-events-none" style={{ bottom: overlayBottom(OVERLAY_BOTTOM_PX.addStopButton) }}>
-            <Button
-              variant="glass"
-              size="icon"
-              className="pointer-events-auto rounded-full shadow-lg"
-              onClick={handleOpenAddStopSearch}
-              aria-label="Añadir parada"
-            >
-              <Search className="w-5 h-5 text-primary" />
-            </Button>
-          </div>
-        )}
+        {/* Añadir parada — lupa en la esquina inferior izquierda, siempre
+            visible, haya o no ruta activa (antes solo aparecía navegando).
+            Sin ruta activa, "añadir parada" no tiene a qué engancharse —
+            handleOpenAddStopSearch abre entonces el buscador normal de
+            destino en su lugar. */}
+        <div className="fixed left-3 z-30 pointer-events-none" style={{ bottom: overlayBottom(OVERLAY_BOTTOM_PX.addStopButton) }}>
+          <Button
+            variant="glass"
+            size="icon"
+            className="pointer-events-auto rounded-full shadow-lg"
+            onClick={handleOpenAddStopSearch}
+            aria-label="Añadir parada"
+          >
+            <Search className="w-5 h-5 text-primary" />
+          </Button>
+        </div>
 
         <NavigationOverlays
           isNavigating={nav.isNavigating}
