@@ -1,8 +1,8 @@
-import { Menu, Volume2, VolumeX, X, Plus } from "lucide-react";
+import { Menu, Volume2, VolumeX, X, Plus, Home, Briefcase } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import SearchBar from "@/components/SearchBar";
 import type { TravelMode } from "@/hooks/useRouting";
-import type { SavedPlace } from "@/hooks/useSavedPlaces";
+import type { SavedPlace, SavedPlaceKind } from "@/hooks/useSavedPlaces";
 import { getSavedPlaceIcon } from "@/lib/savedPlaceIcons";
 
 interface NavTopBarProps {
@@ -22,6 +22,9 @@ interface NavTopBarProps {
   savedPlaces: SavedPlace[];
   onSelectSavedPlace: (place: SavedPlace) => void;
   onManageSavedPlaces: () => void;
+  /** Casa/Trabajo sin guardar todavía — abre el formulario de Ajustes ya
+   *  con ese tipo elegido, en vez de mandar a elegirlo otra vez a mano. */
+  onAddSavedPlaceKind: (kind: SavedPlaceKind) => void;
 }
 
 /** Top bar: hamburger menu, the universal destination search bar, and — only
@@ -40,7 +43,11 @@ const NavTopBar = ({
   savedPlaces,
   onSelectSavedPlace,
   onManageSavedPlaces,
+  onAddSavedPlaceKind,
 }: NavTopBarProps) => {
+  const homePlace = savedPlaces.find((p) => p.kind === 'home') ?? null;
+  const workPlace = savedPlaces.find((p) => p.kind === 'work') ?? null;
+  const otherPlaces = savedPlaces.filter((p) => p.kind === 'other');
   // Descompone la espera en dos fases con nombre, en vez de un "Navegando..."
   // fijo mientras no hay nada que ver todavía — así se nota qué está pasando.
   const statusText = !isNavigating
@@ -107,11 +114,34 @@ const NavTopBar = ({
 
       {/* Casa, trabajo y demás, justo debajo del buscador sin llegar a
           tocarlo — un solo toque para ir directo, visible nada más entrar
-          a la app, a petición explícita del usuario. Solo antes de
-          navegar, igual que el propio buscador. */}
-      {!isNavigating && savedPlaces.length > 0 && (
+          a la app, a petición explícita del usuario. Casa y Trabajo salen
+          SIEMPRE, aunque no se hayan guardado todavía (en gris, invitando
+          a configurarlos con un toque) — no hacía falta guardar nada
+          primero para que aparecieran. Solo antes de navegar, igual que
+          el propio buscador. */}
+      {!isNavigating && (
         <div className="pointer-events-auto flex gap-2 mt-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {savedPlaces.map((p) => {
+          <button
+            type="button"
+            onClick={() => (homePlace ? onSelectSavedPlace(homePlace) : onAddSavedPlaceKind('home'))}
+            className={`shrink-0 flex items-center gap-1.5 pl-2 pr-3 py-1.5 rounded-full text-xs font-medium ${
+              homePlace ? 'glass text-foreground' : 'border border-dashed border-muted-foreground/40 text-muted-foreground'
+            }`}
+          >
+            <Home className={`w-3.5 h-3.5 shrink-0 ${homePlace ? 'text-primary' : ''}`} />
+            Casa
+          </button>
+          <button
+            type="button"
+            onClick={() => (workPlace ? onSelectSavedPlace(workPlace) : onAddSavedPlaceKind('work'))}
+            className={`shrink-0 flex items-center gap-1.5 pl-2 pr-3 py-1.5 rounded-full text-xs font-medium ${
+              workPlace ? 'glass text-foreground' : 'border border-dashed border-muted-foreground/40 text-muted-foreground'
+            }`}
+          >
+            <Briefcase className={`w-3.5 h-3.5 shrink-0 ${workPlace ? 'text-primary' : ''}`} />
+            Trabajo
+          </button>
+          {otherPlaces.map((p) => {
             const Icon = getSavedPlaceIcon(p);
             return (
               <button

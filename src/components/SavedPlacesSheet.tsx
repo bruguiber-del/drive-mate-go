@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus, Trash2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -21,11 +21,15 @@ interface SavedPlacesSheetProps {
    *  una llamada propia aquí no compartiría estado con esas (mismo
    *  problema ya resuelto para los viajes programados). */
   places: ReturnType<typeof useSavedPlaces>;
+  /** Al tocar una Casa/Trabajo sin guardar en la barra de acceso rápido,
+   *  abre esto directamente con el formulario ya puesto en ese tipo, en
+   *  vez de mandar a elegirlo otra vez a mano. */
+  initialKind?: SavedPlaceKind | null;
 }
 
 const KIND_LABEL: Record<SavedPlaceKind, string> = { home: 'Casa', work: 'Trabajo', other: '' };
 
-const SavedPlacesSheet = ({ isOpen, onClose, currentLocation, places }: SavedPlacesSheetProps) => {
+const SavedPlacesSheet = ({ isOpen, onClose, currentLocation, places, initialKind }: SavedPlacesSheetProps) => {
   const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [kind, setKind] = useState<SavedPlaceKind>('home');
@@ -36,6 +40,13 @@ const SavedPlacesSheet = ({ isOpen, onClose, currentLocation, places }: SavedPla
 
   const hasHome = places.places.some((p) => p.kind === 'home');
   const hasWork = places.places.some((p) => p.kind === 'work');
+
+  useEffect(() => {
+    if (isOpen && initialKind) {
+      setKind(initialKind);
+      setShowForm(true);
+    }
+  }, [isOpen, initialKind]);
 
   const resetForm = () => {
     setKind(hasHome ? (hasWork ? 'other' : 'work') : 'home');
