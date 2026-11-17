@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Plus, Trash2, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Loader2, LocateFixed } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/use-toast';
+import { MAPBOX_TOKEN } from '@/lib/mapboxConfig';
 import type { useSavedPlaces, SavedPlaceKind } from '@/hooks/useSavedPlaces';
 import { SAVED_PLACE_ICON_OPTIONS, getSavedPlaceIcon } from '@/lib/savedPlaceIcons';
 import PlacePicker, { type PickedPlace } from '@/components/PlacePicker';
@@ -37,6 +38,7 @@ const SavedPlacesSheet = ({ isOpen, onClose, currentLocation, places, initialKin
   const [otherIcon, setOtherIcon] = useState(SAVED_PLACE_ICON_OPTIONS[0].id);
   const [place, setPlace] = useState<PickedPlace | null>(null);
   const [saving, setSaving] = useState(false);
+  const [locating, setLocating] = useState(false);
 
   const hasHome = places.places.some((p) => p.kind === 'home');
   const hasWork = places.places.some((p) => p.kind === 'work');
@@ -59,6 +61,30 @@ const SavedPlacesSheet = ({ isOpen, onClose, currentLocation, places, initialKin
   const openForm = () => {
     setKind(hasHome ? (hasWork ? 'other' : 'work') : 'home');
     setShowForm(true);
+  };
+
+  // Captura la ubicación real AHORA, igual que ya hace RecurringTripsSheet
+  // para el punto de salida — se resuelve a una dirección legible con la
+  // misma geocodificación que ya usa la app, en vez de guardar solo
+  // "tu ubicación" sin ningún nombre reconocible.
+  const handleUseCurrentLocation = async () => {
+    if (!currentLocation) {
+      toast({ title: 'Esperando tu ubicación GPS', description: 'Inténtalo de nuevo en unos segundos', duration: 2500 });
+      return;
+    }
+    setLocating(true);
+    const [lat, lng] = currentLocation;
+    try {
+      const params = new URLSearchParams({ access_token: MAPBOX_TOKEN, language: 'es', limit: '1' });
+      const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?${params.toString()}`);
+      const data = await res.json();
+      const name = data?.features?.[0]?.place_name ?? 'Tu ubicación actual';
+      setPlace({ name, lat, lng });
+    } catch {
+      setPlace({ name: 'Tu ubicación actual', lat, lng });
+    } finally {
+      setLocating(false);
+    }
   };
 
   const handleSave = async () => {
@@ -182,7 +208,33 @@ const SavedPlacesSheet = ({ isOpen, onClose, currentLocation, places, initialKin
                     </>
                   )}
 
-                  <PlacePicker placeholder="Buscar dirección..." onSelect={setPlace} userLocation={currentLocation} />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-start"
+                    disabled={locating}
+                    onClick={handleUseCurrentLocation}
+                  >
+                    {locating ? (
+                      <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                    ) : (
+                      <LocateFixed className="w-4 h-4 mr-1.5" />
+                    )}
+                    Usar mi ubicación actual
+                  </Button>
+
+                  {/* key fuerza a PlacePicker a remontar (y recoger el
+                      nuevo initialValue) cuando el sitio se resuelve desde
+                      el GPS en vez de escribirlo — si no, su input se
+                      quedaría vacío aunque "place" ya tenga un valor. */}
+                  <PlacePicker
+                    key={place?.name ?? 'empty'}
+                    placeholder="O busca una dirección..."
+                    initialValue={place?.name ?? ''}
+                    onSelect={setPlace}
+                    userLocation={currentLocation}
+                  />
 
                   <div className="flex gap-2 pt-1">
                     <Button variant="ghost" className="flex-1" onClick={resetForm} disabled={saving}>
