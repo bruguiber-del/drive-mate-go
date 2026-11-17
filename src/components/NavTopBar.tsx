@@ -1,7 +1,9 @@
-import { Menu, Volume2, VolumeX, X } from "lucide-react";
+import { Menu, Volume2, VolumeX, X, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import SearchBar from "@/components/SearchBar";
 import type { TravelMode } from "@/hooks/useRouting";
+import type { SavedPlace } from "@/hooks/useSavedPlaces";
+import { getSavedPlaceIcon } from "@/lib/savedPlaceIcons";
 
 interface NavTopBarProps {
   onOpenMenu: () => void;
@@ -16,6 +18,10 @@ interface NavTopBarProps {
   isMuted: boolean;
   onToggleMuted: () => void;
   onStopNavigation: () => void;
+  /** Casa, trabajo y demás — fila de un solo toque bajo el buscador. */
+  savedPlaces: SavedPlace[];
+  onSelectSavedPlace: (place: SavedPlace) => void;
+  onManageSavedPlaces: () => void;
 }
 
 /** Top bar: hamburger menu, the universal destination search bar, and — only
@@ -31,6 +37,9 @@ const NavTopBar = ({
   isMuted,
   onToggleMuted,
   onStopNavigation,
+  savedPlaces,
+  onSelectSavedPlace,
+  onManageSavedPlaces,
 }: NavTopBarProps) => {
   // Descompone la espera en dos fases con nombre, en vez de un "Navegando..."
   // fijo mientras no hay nada que ver todavía — así se nota qué está pasando.
@@ -95,6 +104,37 @@ const NavTopBar = ({
           </div>
         )}
       </div>
+
+      {/* Casa, trabajo y demás, justo debajo del buscador sin llegar a
+          tocarlo — un solo toque para ir directo, visible nada más entrar
+          a la app, a petición explícita del usuario. Solo antes de
+          navegar, igual que el propio buscador. */}
+      {!isNavigating && savedPlaces.length > 0 && (
+        <div className="pointer-events-auto flex gap-2 mt-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {savedPlaces.map((p) => {
+            const Icon = getSavedPlaceIcon(p);
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => onSelectSavedPlace(p)}
+                className="shrink-0 flex items-center gap-1.5 pl-2 pr-3 py-1.5 rounded-full glass text-xs font-medium text-foreground"
+              >
+                <Icon className="w-3.5 h-3.5 text-primary shrink-0" />
+                {p.label}
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            onClick={onManageSavedPlaces}
+            aria-label="Añadir sitio guardado"
+            className="shrink-0 flex items-center justify-center w-7 h-7 rounded-full glass"
+          >
+            <Plus className="w-3.5 h-3.5 text-muted-foreground" />
+          </button>
+        </div>
+      )}
     </div>
   );
 };

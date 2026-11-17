@@ -6,6 +6,8 @@ import { useRecurringTripReminder, hasTripStarted } from "@/hooks/useRecurringTr
 import { useScheduledTripReminder, hasScheduledTripStarted } from "@/hooks/useScheduledTripReminder";
 import { useRecurringTrips } from "@/hooks/useRecurringTrips";
 import { useScheduledTrips } from "@/hooks/useScheduledTrips";
+import { useSavedPlaces } from "@/hooks/useSavedPlaces";
+import SavedPlacesSheet from "@/components/SavedPlacesSheet";
 import RecurringTripsSheet from "@/components/RecurringTripsSheet";
 import GpsStatusBanner from "@/components/GpsStatusBanner";
 import { type SpeedInfo } from "@/components/SpeedometerBadge";
@@ -102,6 +104,7 @@ const Index = () => {
   // real pueda descubrirte desde el minuto uno.
   const [driverOnlineTripId, setDriverOnlineTripId] = useState<string | null>(null);
   const [showRecurringTrips, setShowRecurringTrips] = useState(false);
+  const [showSavedPlaces, setShowSavedPlaces] = useState(false);
   /** Lo que el pasajero pidió al buscar conductor — antes se guardaba y no
    *  filtraba nada. */
   const [passengerPreferences, setPassengerPreferences] = useState({
@@ -307,6 +310,15 @@ const Index = () => {
     modals.openNavigationSearch();
   }, [modals, nav.isNavigating]);
 
+  // Un solo toque en Casa/Trabajo/etc. bajo el buscador — directo a
+  // navegar, sin pasar por el buscador en absoluto.
+  const handleSelectSavedPlace = useCallback(
+    (place: { name: string; lat: number; lng: number }) => {
+      nav.handleNavigate(place.name, { lat: place.lat, lng: place.lng });
+    },
+    [nav],
+  );
+
   // El móvil usado de verdad como navegador (apoyado en el salpicadero) no
   // se puede apagar solo a media ruta por inactividad.
   useWakeLock(nav.isNavigating);
@@ -479,6 +491,7 @@ const Index = () => {
   // hora, y el aviso no saltaba nunca por mucho que pasara el minuto.
   const recurringTrips = useRecurringTrips();
   const scheduledTrips = useScheduledTrips();
+  const savedPlaces = useSavedPlaces();
 
   // Ofrece un viaje habitual o puntual con un toque cuando toca — nunca
   // arranca solo. Si coinciden los dos a la vez (raro), gana el habitual.
@@ -1263,6 +1276,11 @@ const Index = () => {
         setShowRecurringTrips(true);
         return;
       }
+      if (section === "saved-places") {
+        modals.closeSettingsMenu();
+        setShowSavedPlaces(true);
+        return;
+      }
       modals.handleMenuNavigate(section);
     },
     [modals],
@@ -1938,6 +1956,9 @@ const Index = () => {
           isMuted={voice.isMuted}
           onToggleMuted={voice.toggleMuted}
           onStopNavigation={handleStopNavigation}
+          savedPlaces={savedPlaces.places}
+          onSelectSavedPlace={handleSelectSavedPlace}
+          onManageSavedPlaces={() => setShowSavedPlaces(true)}
         />
 
         {/* Buscando conductor (modo pasajero) — antes no había ningún aviso
@@ -2154,6 +2175,7 @@ const Index = () => {
         onTravelModeChange={nav.setTravelMode}
         mode={searchMode}
         onAddStop={handleAddStop}
+        savedPlaces={savedPlaces.places}
       />
 
 
@@ -2213,6 +2235,13 @@ const Index = () => {
         currentLocation={realUserLocation}
         recurring={recurringTrips}
         scheduled={scheduledTrips}
+      />
+
+      <SavedPlacesSheet
+        isOpen={showSavedPlaces}
+        onClose={() => setShowSavedPlaces(false)}
+        currentLocation={realUserLocation}
+        places={savedPlaces}
       />
 
       <MatchPopup

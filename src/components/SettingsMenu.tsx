@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, History, Wallet, Shield, HelpCircle, LogOut, ChevronRight, X, CheckCircle, Car, CalendarClock } from 'lucide-react';
+import { User, History, Wallet, Shield, HelpCircle, LogOut, ChevronRight, X, CheckCircle, Car, CalendarClock, Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { overlayTop } from '@/lib/overlayLayout';
 
@@ -22,6 +22,7 @@ interface SettingsMenuProps {
 const menuItems = [
   { id: 'profile', icon: User, label: 'Mi perfil', description: 'Datos personales y verificación', badge: null },
   { id: 'schedule', icon: CalendarClock, label: 'Programar viaje', description: 'Viajes habituales, como ir cada día al mismo sitio', badge: null },
+  { id: 'saved-places', icon: Home, label: 'Lugares guardados', description: 'Casa, trabajo y otros sitios de un solo toque', badge: null },
   { id: 'vehicles', icon: Car, label: 'Mis vehículos', description: 'Gestiona tus coches y su coste/km', badge: null },
   { id: 'history', icon: History, label: 'Historial', description: 'Viajes anteriores', badge: 'trips' },
   { id: 'wallet', icon: Wallet, label: 'Pagos', description: 'Tu tarjeta y tus cobros', badge: null },

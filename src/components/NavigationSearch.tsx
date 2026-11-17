@@ -10,6 +10,8 @@ import { findNamedPlace } from '@/lib/namedPlaces';
 import { haversineKm } from '@/lib/geo';
 import { overlayTop } from '@/lib/overlayLayout';
 import type { TravelMode } from '@/hooks/useRouting';
+import type { SavedPlace } from '@/hooks/useSavedPlaces';
+import { getSavedPlaceIcon } from '@/lib/savedPlaceIcons';
 
 interface NavigationSearchProps {
   isOpen: boolean;
@@ -27,6 +29,8 @@ interface NavigationSearchProps {
    *  transporte ni los destinos recientes. */
   mode?: 'destination' | 'stop';
   onAddStop?: (name: string, coords: { lng: number; lat: number }) => void;
+  /** Casa, trabajo y demás — acceso rápido también desde el propio buscador. */
+  savedPlaces?: SavedPlace[];
 }
 
 const TRAVEL_MODES: { value: TravelMode; label: string; icon: typeof Car }[] = [
@@ -149,6 +153,7 @@ const NavigationSearch = ({
   onTravelModeChange,
   mode = 'destination',
   onAddStop,
+  savedPlaces = [],
 }: NavigationSearchProps) => {
   const isStopMode = mode === 'stop';
   const [destination, setDestination] = useState('');
@@ -330,6 +335,16 @@ const NavigationSearch = ({
   const handleRecentDestination = (place: RecentDestination) => {
     saveRecentDestination(place);
     onNavigate(place.address, place.coords, travelMode);
+    onClose();
+  };
+
+  const handleSavedPlaceClick = (place: SavedPlace) => {
+    const coords = { lng: place.lng, lat: place.lat };
+    if (isStopMode) {
+      onAddStop?.(place.label, coords);
+    } else {
+      onNavigate(place.name, coords, travelMode);
+    }
     onClose();
   };
 
@@ -604,39 +619,65 @@ const NavigationSearch = ({
               </div>
             )}
 
-            {/* Recent Destinations - only show when no search results/category active */}
-            {!isStopMode && !activeCategory && searchResults.length === 0 && !destination && (
+            {/* Lugares guardados y destinos recientes - only show when no search results/category active */}
+            {!activeCategory && searchResults.length === 0 && !destination && (
               <div className="flex-1 p-4 overflow-auto">
-                <div className="flex items-center gap-2 mb-3">
-                  <Clock className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm font-medium text-muted-foreground">Destinos recientes</span>
-                </div>
-                {recentDestinations.length === 0 ? (
-                  <p className="text-sm text-muted-foreground px-1">
-                    Los sitios a los que navegues aparecerán aquí.
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {recentDestinations.map((place, index) => (
-                      <motion.button
-                        key={`${place.name}-${place.coords.lat}-${place.coords.lng}`}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: index * 0.1 }}
-                        onClick={() => handleRecentDestination(place)}
-                        className="w-full flex items-center gap-4 p-4 rounded-xl hover:bg-muted transition-colors"
-                      >
-                        <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-                          <MapPin className="w-4 h-4 text-primary" />
-                        </div>
-                        <div className="text-left flex-1 min-w-0">
-                          <p className="font-medium text-foreground truncate">{place.name}</p>
-                          <p className="text-sm text-muted-foreground truncate">{place.address}</p>
-                        </div>
-                        <Navigation className="w-4 h-4 text-primary shrink-0" />
-                      </motion.button>
-                    ))}
+                {savedPlaces.length > 0 && (
+                  <div className="flex gap-2 mb-4 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    {savedPlaces.map((p) => {
+                      const Icon = getSavedPlaceIcon(p);
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => handleSavedPlaceClick(p)}
+                          className="shrink-0 flex items-center gap-1.5 pl-2 pr-3 py-2 rounded-full bg-muted hover:bg-muted/70 transition-colors text-sm font-medium text-foreground"
+                        >
+                          <Icon className="w-4 h-4 text-primary shrink-0" />
+                          {p.label}
+                        </button>
+                      );
+                    })}
                   </div>
+                )}
+
+                {/* Los destinos recientes son del modo "destino" — en modo
+                    "parada" no tienen sentido (sustituirían el destino en
+                    vez de sumarse a la ruta), igual que antes. */}
+                {!isStopMode && (
+                  <>
+                    <div className="flex items-center gap-2 mb-3">
+                      <Clock className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-sm font-medium text-muted-foreground">Destinos recientes</span>
+                    </div>
+                    {recentDestinations.length === 0 ? (
+                      <p className="text-sm text-muted-foreground px-1">
+                        Los sitios a los que navegues aparecerán aquí.
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {recentDestinations.map((place, index) => (
+                          <motion.button
+                            key={`${place.name}-${place.coords.lat}-${place.coords.lng}`}
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: index * 0.1 }}
+                            onClick={() => handleRecentDestination(place)}
+                            className="w-full flex items-center gap-4 p-4 rounded-xl hover:bg-muted transition-colors"
+                          >
+                            <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                              <MapPin className="w-4 h-4 text-primary" />
+                            </div>
+                            <div className="text-left flex-1 min-w-0">
+                              <p className="font-medium text-foreground truncate">{place.name}</p>
+                              <p className="text-sm text-muted-foreground truncate">{place.address}</p>
+                            </div>
+                            <Navigation className="w-4 h-4 text-primary shrink-0" />
+                          </motion.button>
+                        ))}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}
