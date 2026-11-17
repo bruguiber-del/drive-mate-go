@@ -4,6 +4,8 @@ import { useErrandStops } from "@/hooks/useErrandStops";
 import { useDriverSettings } from "@/hooks/useDriverSettings";
 import { useRecurringTripReminder } from "@/hooks/useRecurringTripReminder";
 import { useScheduledTripReminder } from "@/hooks/useScheduledTripReminder";
+import { useRecurringTrips } from "@/hooks/useRecurringTrips";
+import { useScheduledTrips } from "@/hooks/useScheduledTrips";
 import RecurringTripsSheet from "@/components/RecurringTripsSheet";
 import GpsStatusBanner from "@/components/GpsStatusBanner";
 import { type SpeedInfo } from "@/components/SpeedometerBadge";
@@ -470,6 +472,14 @@ const Index = () => {
     },
   });
 
+  // Una sola instancia de cada uno aquí arriba (no dentro de los hooks de
+  // aviso ni de RecurringTripsSheet por separado) — dos llamadas
+  // independientes al mismo hook no comparten estado, así que un viaje
+  // programado desde la hoja nunca lo veía la instancia que vigila la
+  // hora, y el aviso no saltaba nunca por mucho que pasara el minuto.
+  const recurringTrips = useRecurringTrips();
+  const scheduledTrips = useScheduledTrips();
+
   // Ofrece un viaje habitual o puntual con un toque cuando toca — nunca
   // arranca solo. Si coinciden los dos a la vez (raro), gana el habitual.
   // Antes exigía tener el modo conductor ya encendido, pero programar un
@@ -477,8 +487,8 @@ const Index = () => {
   // encendido el modo todavía, así que con esa condición el aviso nunca
   // llegaba a saltar.
   const reminderEnabled = !nav.isNavigating && !trip.showActiveTrip;
-  const { upcoming: upcomingRecurringTrip, dismiss: dismissRecurringTrip } = useRecurringTripReminder(reminderEnabled);
-  const { upcoming: upcomingScheduledTrip, dismiss: dismissScheduledTrip } = useScheduledTripReminder(reminderEnabled);
+  const { upcoming: upcomingRecurringTrip, dismiss: dismissRecurringTrip } = useRecurringTripReminder(reminderEnabled, recurringTrips.trips);
+  const { upcoming: upcomingScheduledTrip, dismiss: dismissScheduledTrip } = useScheduledTripReminder(reminderEnabled, scheduledTrips.trips);
   const upcomingTripOffer = upcomingRecurringTrip
     ? {
         name: upcomingRecurringTrip.destinationName,
@@ -2177,6 +2187,8 @@ const Index = () => {
         onClose={() => setShowRecurringTrips(false)}
         currentDestination={nav.isNavigating && nav.destinationCoords ? nav.destinationCoords : null}
         currentLocation={realUserLocation}
+        recurring={recurringTrips}
+        scheduled={scheduledTrips}
       />
 
       <MatchPopup

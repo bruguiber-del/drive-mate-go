@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useScheduledTrips, type ScheduledTrip } from '@/hooks/useScheduledTrips';
+import type { ScheduledTrip } from '@/hooks/useScheduledTrips';
 
 /** Mismo margen que los viajes habituales: avisa desde 30 min antes hasta
  *  15 min después, por si se abre la app un poco tarde. */
@@ -13,9 +13,13 @@ export function isScheduledTripDueNow(trip: Pick<ScheduledTrip, 'scheduledAt'>, 
 }
 
 /** Igual que los viajes habituales pero para una fecha y hora concretas —
- *  lo ofrece con un toque, nunca arranca solo. */
-export function useScheduledTripReminder(enabled: boolean) {
-  const { trips } = useScheduledTrips();
+ *  lo ofrece con un toque, nunca arranca solo.
+ *
+ *  `trips` se recibe de fuera (ver el mismo comentario en
+ *  useRecurringTripReminder) para compartir la misma lista que usa
+ *  RecurringTripsSheet al programar — si no, un viaje recién programado
+ *  nunca llegaba a verlo esta instancia y el aviso no saltaba nunca. */
+export function useScheduledTripReminder(enabled: boolean, trips: ScheduledTrip[]) {
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
   const [tick, setTick] = useState(0);
 

@@ -4,8 +4,8 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/use-toast';
 import { MAPBOX_TOKEN } from '@/lib/mapboxConfig';
-import { useRecurringTrips, type NewRecurringTrip } from '@/hooks/useRecurringTrips';
-import { useScheduledTrips, type NewScheduledTrip } from '@/hooks/useScheduledTrips';
+import type { useRecurringTrips, NewRecurringTrip } from '@/hooks/useRecurringTrips';
+import type { useScheduledTrips, NewScheduledTrip } from '@/hooks/useScheduledTrips';
 import PlacePicker, { type PickedPlace } from '@/components/PlacePicker';
 import {
   Drawer,
@@ -22,6 +22,11 @@ interface RecurringTripsSheetProps {
   currentDestination?: { name: string; lat: number; lng: number } | null;
   /** Ubicación GPS real, para "Usar mi ubicación actual" como punto de salida. */
   currentLocation?: [number, number] | null;
+  /** Misma instancia que usa el aviso de "¿vas a X ahora?" en Index — una
+   *  llamada propia aquí no compartiría estado con esa, así que un viaje
+   *  recién programado nunca llegaría a verlo el aviso. */
+  recurring: ReturnType<typeof useRecurringTrips>;
+  scheduled: ReturnType<typeof useScheduledTrips>;
 }
 
 const DAY_LABELS = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
@@ -63,10 +68,8 @@ function nowLocalValue(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-const RecurringTripsSheet = ({ isOpen, onClose, currentDestination, currentLocation }: RecurringTripsSheetProps) => {
+const RecurringTripsSheet = ({ isOpen, onClose, currentDestination, currentLocation, recurring, scheduled }: RecurringTripsSheetProps) => {
   const { toast } = useToast();
-  const recurring = useRecurringTrips();
-  const scheduled = useScheduledTrips();
   const [showForm, setShowForm] = useState(false);
   const [repeatMode, setRepeatMode] = useState<'weekly' | 'once'>('weekly');
 

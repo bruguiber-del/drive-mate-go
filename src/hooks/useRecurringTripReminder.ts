@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useRecurringTrips, type RecurringTrip } from '@/hooks/useRecurringTrips';
+import type { RecurringTrip } from '@/hooks/useRecurringTrips';
 
 /** Avisa desde 30 min antes de la hora de salida hasta 15 min después, por
  *  si se abre la app un poco tarde. */
@@ -17,9 +17,14 @@ export function isTripDueNow(trip: Pick<RecurringTrip, 'active' | 'daysOfWeek' |
 }
 
 /** Cuando toca un viaje habitual (hoy es uno de sus días y la hora está
- *  cerca), lo ofrece para empezarlo con un toque — nunca arranca solo. */
-export function useRecurringTripReminder(enabled: boolean) {
-  const { trips } = useRecurringTrips();
+ *  cerca), lo ofrece para empezarlo con un toque — nunca arranca solo.
+ *
+ *  `trips` se recibe de fuera (en vez de llamar aquí a useRecurringTrips)
+ *  porque RecurringTripsSheet necesita su PROPIA instancia para poder
+ *  guardar/borrar viajes — dos llamadas independientes al mismo hook no
+ *  comparten estado, así que un viaje programado desde la hoja nunca
+ *  llegaba a verlo esta otra instancia, y el aviso no saltaba nunca. */
+export function useRecurringTripReminder(enabled: boolean, trips: RecurringTrip[]) {
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
   const [tick, setTick] = useState(0);
 
