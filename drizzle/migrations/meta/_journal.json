@@ -169,6 +169,13 @@
       "when": 1794854870021,
       "tag": "0023_restrict_profiles_ratings_select",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1794929334270,
+      "tag": "0024_scheduled_trip_reminders_columns",
+      "breakpoints": true
     }
   ]
 }

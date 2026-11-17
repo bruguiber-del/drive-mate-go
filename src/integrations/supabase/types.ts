@@ -214,6 +214,7 @@ export type Database = {
           destination_lng: number
           destination_name: string
           id: string
+          last_reminded_date: string | null
           origin_lat: number | null
           origin_lng: number | null
           origin_name: string | null
@@ -228,6 +229,7 @@ export type Database = {
           destination_lng: number
           destination_name: string
           id?: string
+          last_reminded_date?: string | null
           origin_lat?: number | null
           origin_lng?: number | null
           origin_name?: string | null
@@ -242,6 +244,7 @@ export type Database = {
           destination_lng?: number
           destination_name?: string
           id?: string
+          last_reminded_date?: string | null
           origin_lat?: number | null
           origin_lng?: number | null
           origin_name?: string | null
@@ -437,6 +440,7 @@ export type Database = {
           passenger_id: string | null
           price: number | null
           rating: number | null
+          reminder_sent_at: string | null
           scheduled_at: string | null
           status: string
         }
@@ -458,6 +462,7 @@ export type Database = {
           passenger_id?: string | null
           price?: number | null
           rating?: number | null
+          reminder_sent_at?: string | null
           scheduled_at?: string | null
           status?: string
         }
@@ -479,6 +484,7 @@ export type Database = {
           passenger_id?: string | null
           price?: number | null
           rating?: number | null
+          reminder_sent_at?: string | null
           scheduled_at?: string | null
           status?: string
         }
