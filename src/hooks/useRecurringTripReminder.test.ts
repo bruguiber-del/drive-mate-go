@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isTripDueNow } from "./useRecurringTripReminder";
+import { isTripDueNow, hasTripStarted } from "./useRecurringTripReminder";
 
 const mon0800 = { active: true, daysOfWeek: [1], departureTime: "08:00" };
 
@@ -36,5 +36,19 @@ describe("isTripDueNow", () => {
 
   it("is never due when inactive", () => {
     expect(isTripDueNow({ ...mon0800, active: false }, at(8, 0))).toBe(false);
+  });
+});
+
+describe("hasTripStarted", () => {
+  it("has not started before the departure time", () => {
+    expect(hasTripStarted(mon0800, at(7, 45))).toBe(false);
+  });
+
+  it("has started right at departure time", () => {
+    expect(hasTripStarted(mon0800, at(8, 0))).toBe(true);
+  });
+
+  it("has started after departure time", () => {
+    expect(hasTripStarted(mon0800, at(8, 10))).toBe(true);
   });
 });

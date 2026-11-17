@@ -12,8 +12,16 @@ export function isScheduledTripDueNow(trip: Pick<ScheduledTrip, 'scheduledAt'>, 
   return diffMin <= WINDOW_BEFORE_MIN && diffMin >= -WINDOW_AFTER_MIN;
 }
 
+/** Pura y testeable: ¿ya ha llegado (o pasado) la hora exacta programada?
+ *  Mismo criterio que hasTripStarted para los habituales — antes de la
+ *  hora se pregunta, a partir de ella se arranca solo. */
+export function hasScheduledTripStarted(trip: Pick<ScheduledTrip, 'scheduledAt'>, now: Date): boolean {
+  return new Date(trip.scheduledAt).getTime() <= now.getTime();
+}
+
 /** Igual que los viajes habituales pero para una fecha y hora concretas —
- *  lo ofrece con un toque, nunca arranca solo.
+ *  lo ofrece con un toque antes de la hora, y lo arranca solo en cuanto
+ *  llega la hora exacta (ver hasScheduledTripStarted).
  *
  *  `trips` se recibe de fuera (ver el mismo comentario en
  *  useRecurringTripReminder) para compartir la misma lista que usa

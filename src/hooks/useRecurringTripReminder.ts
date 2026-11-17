@@ -16,8 +16,22 @@ export function isTripDueNow(trip: Pick<RecurringTrip, 'active' | 'daysOfWeek' |
   return nowMinutes >= depMinutes - WINDOW_BEFORE_MIN && nowMinutes <= depMinutes + WINDOW_AFTER_MIN;
 }
 
+/** Pura y testeable: ¿ya ha llegado (o pasado, siempre dentro de la
+ *  ventana de isTripDueNow) la hora exacta de salida? Antes de esa hora
+ *  se pregunta ("¿vas a X ahora?"); a partir de ella ya no — se da por
+ *  hecho y se arranca solo. Solo tiene sentido llamarla cuando
+ *  isTripDueNow ya ha dado true. */
+export function hasTripStarted(trip: Pick<RecurringTrip, 'departureTime'>, now: Date): boolean {
+  const [h, m] = trip.departureTime.split(':').map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return false;
+  const depMinutes = h * 60 + m;
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  return nowMinutes >= depMinutes;
+}
+
 /** Cuando toca un viaje habitual (hoy es uno de sus días y la hora está
- *  cerca), lo ofrece para empezarlo con un toque — nunca arranca solo.
+ *  cerca), lo ofrece para empezarlo con un toque antes de la hora, y lo
+ *  arranca solo en cuanto llega la hora exacta (ver hasTripStarted).
  *
  *  `trips` se recibe de fuera (en vez de llamar aquí a useRecurringTrips)
  *  porque RecurringTripsSheet necesita su PROPIA instancia para poder

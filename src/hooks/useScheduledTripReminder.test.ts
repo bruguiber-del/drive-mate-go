@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isScheduledTripDueNow } from "./useScheduledTripReminder";
+import { isScheduledTripDueNow, hasScheduledTripStarted } from "./useScheduledTripReminder";
 
 function iso(base: Date, minutesOffset: number): string {
   return new Date(base.getTime() + minutesOffset * 60_000).toISOString();
@@ -30,5 +30,21 @@ describe("isScheduledTripDueNow", () => {
 
   it("is not due for a different day", () => {
     expect(isScheduledTripDueNow({ scheduledAt: iso(now, 60 * 24) }, now)).toBe(false);
+  });
+});
+
+describe("hasScheduledTripStarted", () => {
+  const now = new Date("2026-01-05T08:00:00.000Z");
+
+  it("has not started before the scheduled time", () => {
+    expect(hasScheduledTripStarted({ scheduledAt: iso(now, 5) }, now)).toBe(false);
+  });
+
+  it("has started right at the scheduled time", () => {
+    expect(hasScheduledTripStarted({ scheduledAt: iso(now, 0) }, now)).toBe(true);
+  });
+
+  it("has started after the scheduled time", () => {
+    expect(hasScheduledTripStarted({ scheduledAt: iso(now, -5) }, now)).toBe(true);
   });
 });

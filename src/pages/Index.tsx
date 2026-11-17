@@ -2,8 +2,8 @@ import { haversineMeters } from "@/lib/geo";
 import { computeBearing, approxMetersBetween, distanceAlongRoute } from "@/lib/mapGeo";
 import { useErrandStops } from "@/hooks/useErrandStops";
 import { useDriverSettings } from "@/hooks/useDriverSettings";
-import { useRecurringTripReminder } from "@/hooks/useRecurringTripReminder";
-import { useScheduledTripReminder } from "@/hooks/useScheduledTripReminder";
+import { useRecurringTripReminder, hasTripStarted } from "@/hooks/useRecurringTripReminder";
+import { useScheduledTripReminder, hasScheduledTripStarted } from "@/hooks/useScheduledTripReminder";
 import { useRecurringTrips } from "@/hooks/useRecurringTrips";
 import { useScheduledTrips } from "@/hooks/useScheduledTrips";
 import RecurringTripsSheet from "@/components/RecurringTripsSheet";
@@ -489,21 +489,45 @@ const Index = () => {
   const reminderEnabled = !nav.isNavigating && !trip.showActiveTrip;
   const { upcoming: upcomingRecurringTrip, dismiss: dismissRecurringTrip } = useRecurringTripReminder(reminderEnabled, recurringTrips.trips);
   const { upcoming: upcomingScheduledTrip, dismiss: dismissScheduledTrip } = useScheduledTripReminder(reminderEnabled, scheduledTrips.trips);
-  const upcomingTripOffer = upcomingRecurringTrip
-    ? {
+  const upcomingTripOffer = useMemo(() => {
+    if (upcomingRecurringTrip) {
+      return {
+        id: `recurring-${upcomingRecurringTrip.id}`,
         name: upcomingRecurringTrip.destinationName,
         lat: upcomingRecurringTrip.destinationLat,
         lng: upcomingRecurringTrip.destinationLng,
         dismiss: () => dismissRecurringTrip(upcomingRecurringTrip.id),
-      }
-    : upcomingScheduledTrip
-      ? {
-          name: upcomingScheduledTrip.destinationName,
-          lat: upcomingScheduledTrip.destinationLat,
-          lng: upcomingScheduledTrip.destinationLng,
-          dismiss: () => dismissScheduledTrip(upcomingScheduledTrip.id),
-        }
-      : null;
+        // Antes de la hora se pregunta; a partir de la hora exacta ya no —
+        // se arranca solo, como se pidió explícitamente.
+        autoStart: hasTripStarted(upcomingRecurringTrip, new Date()),
+      };
+    }
+    if (upcomingScheduledTrip) {
+      return {
+        id: `scheduled-${upcomingScheduledTrip.id}`,
+        name: upcomingScheduledTrip.destinationName,
+        lat: upcomingScheduledTrip.destinationLat,
+        lng: upcomingScheduledTrip.destinationLng,
+        dismiss: () => dismissScheduledTrip(upcomingScheduledTrip.id),
+        autoStart: hasScheduledTripStarted(upcomingScheduledTrip, new Date()),
+      };
+    }
+    return null;
+  }, [upcomingRecurringTrip, upcomingScheduledTrip, dismissRecurringTrip, dismissScheduledTrip]);
+
+  // A la hora exacta, el viaje arranca solo — tanto si la app se abre
+  // justo entonces (p. ej. al tocar la notificación push) como si ya
+  // estaba abierta y pasa el minuto mientras se mira. autoStartedIdRef
+  // evita arrancarlo dos veces mientras el estado de nav.isNavigating
+  // todavía no se ha propagado para que reminderEnabled lo retire.
+  const autoStartedTripIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!upcomingTripOffer?.autoStart) return;
+    if (autoStartedTripIdRef.current === upcomingTripOffer.id) return;
+    autoStartedTripIdRef.current = upcomingTripOffer.id;
+    nav.handleNavigate(upcomingTripOffer.name, { lat: upcomingTripOffer.lat, lng: upcomingTripOffer.lng });
+    upcomingTripOffer.dismiss();
+  }, [upcomingTripOffer, nav]);
 
   // Keep the bridge ref pointing at the latest handleTripEnd
   useEffect(() => {
@@ -1868,10 +1892,10 @@ const Index = () => {
         {/* Top Bar */}
         <GpsStatusBanner status={gpsStatus} />
 
-        {/* Viaje habitual o puntual a su hora — un toque para empezarlo,
-            nunca arranca solo. Solo antes de navegar, para no interferir
-            con un viaje ya en marcha. */}
-        {upcomingTripOffer && (
+        {/* Viaje habitual o puntual, ANTES de su hora — un toque para
+            empezarlo. En cuanto llega la hora exacta esto ya no se
+            muestra: el efecto de arriba lo arranca solo sin preguntar. */}
+        {upcomingTripOffer && !upcomingTripOffer.autoStart && (
           <div
             className="absolute left-3 right-3 z-20 flex justify-center pointer-events-none"
             style={{ top: overlayTop(112) }}
