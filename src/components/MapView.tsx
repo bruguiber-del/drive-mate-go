@@ -266,6 +266,11 @@ const MapView = ({
     onFollowingChange?.(value);
   }, [onFollowingChange]);
   const lastPropagatedRef = useRef<[number, number] | null>(null);
+  // Último punto+hora usado para la velocidad de respaldo (ver más abajo,
+  // en watchPosition) — independiente de lastPropagatedRef porque esta
+  // necesita CADA fix, incluso los que el filtro de ruido descarta para la
+  // posición en el mapa.
+  const lastSpeedSampleRef = useRef<{ coords: [number, number]; t: number; kmh: number } | null>(null);
   // Último estado de GPS reportado — en un ref (no state) solo para que el
   // reintento de abajo pueda leerlo sin provocar un re-render de más.
   const gpsStatusRef = useRef<GpsStatus>('searching');
@@ -594,34 +599,59 @@ const MapView = ({
           localStorage.setItem('vimatch_last_pos', JSON.stringify(coords));
         } catch { /* ignore quota errors */ }
 
+        // Velocidad — ANTES del filtro de jitter de abajo, porque ese
+        // filtro descarta fixes con poco movimiento (para no repintar el
+        // mapa de más) y aquí hace falta justo lo contrario: cada fix,
+        // aunque casi no te hayas movido, para no perder la cuenta de
+        // cuánto tiempo ha pasado desde el anterior.
+        //
+        // coords.speed de por sí no es de fiar: muchos navegadores/webviews
+        // (sobre todo envueltos para iOS) lo devuelven siempre null, nunca
+        // 0 ni un número real, aunque el GPS vaya perfecto — por eso antes
+        // el velocímetro simplemente no aparecía nunca en el móvil. Si el
+        // navegador sí lo da, se usa (más preciso, viene del propio chip
+        // GPS); si no, se calcula a mano: distancia entre el punto anterior
+        // y este, dividida por el tiempo entre ambos.
+        const now = Date.now();
+        const lastSample = lastSpeedSampleRef.current;
+        const rawSpeedMs = position.coords.speed;
+        let kmh: number;
+        if (rawSpeedMs != null && !isNaN(rawSpeedMs) && rawSpeedMs >= 0) {
+          kmh = rawSpeedMs * 3.6;
+        } else if (lastSample) {
+          const dtSeconds = (now - lastSample.t) / 1000;
+          // Menos de medio segundo entre fixes es ruido del propio GPS, no
+          // da para medir nada fiable — se mantiene la última velocidad en
+          // vez de recalcular con un intervalo casi cero.
+          kmh = dtSeconds > 0.5
+            ? Math.min((approxMetersBetween(lastSample.coords, coords) / dtSeconds) * 3.6, 220)
+            : lastSample.kmh;
+        } else {
+          kmh = 0;
+        }
+        lastSpeedSampleRef.current = { coords, t: now, kmh };
+
+        setSpeedTier(prevTier => nextSpeedTier(kmh, prevTier));
+
+        // Límite de la vía en la que estás AHORA MISMO, no el de toda la
+        // ruta — un mismo trayecto puede cambiar de límite varias veces
+        // (ciudad, nacional, autovía...), así que se busca en qué
+        // segmento de la polilínea cae tu posición y se lee el límite
+        // de ESE segmento (misma idea que distanceAlongRoute, para el
+        // mismo problema: la línea recta no vale, hay que seguir la vía).
+        let limitKmh: number | null = null;
+        const liveRoute = routeRef.current;
+        if (liveRoute?.coordinates && liveRoute.maxspeedKmh) {
+          const segment = nearestRouteSegmentIndex(coords, liveRoute.coordinates);
+          if (segment != null) limitKmh = liveRoute.maxspeedKmh[segment] ?? null;
+        }
+        onSpeedChange?.({ kmh: Math.round(kmh), limitKmh });
+
         // Filter GPS jitter: ignore micro-movements so the whole app doesn't
         // re-render on every tick. Marker still updates on real movement.
         const prev = lastPropagatedRef.current;
         if (prev && approxMetersBetween(prev, coords) < MIN_MOVE_METERS) return;
         lastPropagatedRef.current = coords;
-
-        // Speed tier (with hysteresis) drives the dynamic camera zoom/pitch.
-        const speedMs = position.coords.speed;
-        if (speedMs != null && !isNaN(speedMs) && speedMs >= 0) {
-          const kmh = speedMs * 3.6;
-          setSpeedTier(prevTier => nextSpeedTier(kmh, prevTier));
-
-          // Límite de la vía en la que estás AHORA MISMO, no el de toda la
-          // ruta — un mismo trayecto puede cambiar de límite varias veces
-          // (ciudad, nacional, autovía...), así que se busca en qué
-          // segmento de la polilínea cae tu posición y se lee el límite
-          // de ESE segmento (misma idea que distanceAlongRoute, para el
-          // mismo problema: la línea recta no vale, hay que seguir la vía).
-          let limitKmh: number | null = null;
-          const liveRoute = routeRef.current;
-          if (liveRoute?.coordinates && liveRoute.maxspeedKmh) {
-            const segment = nearestRouteSegmentIndex(coords, liveRoute.coordinates);
-            if (segment != null) limitKmh = liveRoute.maxspeedKmh[segment] ?? null;
-          }
-          onSpeedChange?.({ kmh: Math.round(kmh), limitKmh });
-        } else {
-          onSpeedChange?.(null);
-        }
 
         reportGpsStatus('ok');
         setRawUserLocation(coords);

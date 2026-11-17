@@ -12,12 +12,17 @@ interface PlacePickerProps {
   placeholder?: string;
   initialValue?: string;
   onSelect: (place: PickedPlace) => void;
+  /** Ubicación real del usuario [lat, lng] — sin esto Mapbox ordena los
+   *  resultados por relevancia de texto a secas, así que una búsqueda
+   *  normal (p. ej. "blanca dona eivissa") puede devolver calles de otras
+   *  provincias antes que nada de donde estás de verdad. */
+  userLocation?: [number, number] | null;
 }
 
 /** Campo de texto con sugerencias de lugar (geocodificación directa de
  *  Mapbox) — para elegir un punto suelto, no para la navegación completa
  *  (que ya tiene su propio buscador en NavigationSearch). */
-const PlacePicker = ({ placeholder = 'Buscar dirección...', initialValue = '', onSelect }: PlacePickerProps) => {
+const PlacePicker = ({ placeholder = 'Buscar dirección...', initialValue = '', onSelect, userLocation }: PlacePickerProps) => {
   const [query, setQuery] = useState(initialValue);
   const [results, setResults] = useState<PickedPlace[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -40,6 +45,9 @@ const PlacePicker = ({ placeholder = 'Buscar dirección...', initialValue = '', 
           autocomplete: 'true',
           limit: '5',
         });
+        if (userLocation) {
+          params.set('proximity', `${userLocation[1]},${userLocation[0]}`);
+        }
         const res = await fetch(
           `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?${params.toString()}`,
         );
@@ -56,7 +64,7 @@ const PlacePicker = ({ placeholder = 'Buscar dirección...', initialValue = '', 
       }
     }, 300);
     return () => { cancelled = true; clearTimeout(timeoutId); };
-  }, [query, initialValue]);
+  }, [query, initialValue, userLocation]);
 
   useEffect(() => {
     const onClickOutside = (e: MouseEvent) => {

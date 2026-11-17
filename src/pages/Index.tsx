@@ -468,7 +468,11 @@ const Index = () => {
 
   // Ofrece un viaje habitual o puntual con un toque cuando toca — nunca
   // arranca solo. Si coinciden los dos a la vez (raro), gana el habitual.
-  const reminderEnabled = isDriverMode && !nav.isNavigating && !trip.showActiveTrip;
+  // Antes exigía tener el modo conductor ya encendido, pero programar un
+  // viaje no depende de eso — de hecho lo normal es programarlo SIN haber
+  // encendido el modo todavía, así que con esa condición el aviso nunca
+  // llegaba a saltar.
+  const reminderEnabled = !nav.isNavigating && !trip.showActiveTrip;
   const { upcoming: upcomingRecurringTrip, dismiss: dismissRecurringTrip } = useRecurringTripReminder(reminderEnabled);
   const { upcoming: upcomingScheduledTrip, dismiss: dismissScheduledTrip } = useScheduledTripReminder(reminderEnabled);
   const upcomingTripOffer = upcomingRecurringTrip

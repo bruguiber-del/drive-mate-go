@@ -351,6 +351,7 @@ const RecurringTripsSheet = ({ isOpen, onClose, currentDestination, currentLocat
                       placeholder="¿A dónde vas?"
                       initialValue={destination?.name ?? ''}
                       onSelect={setDestination}
+                      userLocation={currentLocation}
                     />
                     {currentDestination && !destination && (
                       <p className="text-[11px] text-muted-foreground mt-1">
@@ -382,6 +383,7 @@ const RecurringTripsSheet = ({ isOpen, onClose, currentDestination, currentLocat
                       placeholder="O busca una dirección fija..."
                       initialValue={origin?.name ?? ''}
                       onSelect={setOrigin}
+                      userLocation={currentLocation}
                     />
                     {origin && (
                       <p className="text-[11px] text-muted-foreground mt-1 truncate">Saldrás desde: {origin.name}</p>

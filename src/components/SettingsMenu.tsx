@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { User, History, Wallet, Shield, HelpCircle, LogOut, ChevronRight, X, CheckCircle, Car, CalendarClock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { overlayTop } from '@/lib/overlayLayout';
 
 interface SettingsMenuProps {
   isOpen: boolean;
@@ -58,8 +59,12 @@ const SettingsMenu = ({ isOpen, onClose, onNavigate, userName, userSubtitle, use
             className="fixed left-0 top-0 bottom-0 w-[82vw] max-w-sm z-50"
           >
             <div className="h-full bg-card border-r border-border p-6 flex flex-col">
-              {/* Header */}
-              <div className="flex items-center justify-between mb-6">
+              {/* Header — el panel ocupa toda la pantalla desde arriba
+                  (top-0), así que sin tener en cuenta el notch/isla
+                  dinámica, el título y la X quedaban tapados por la barra
+                  de estado del móvil. Mismo truco que el resto de avisos
+                  anclados arriba (overlayTop). */}
+              <div className="flex items-center justify-between mb-6 shrink-0" style={{ marginTop: overlayTop(0) }}>
                 <h1 className="text-2xl font-extrabold">
                   <span className="text-gradient">VI</span>
                   <span className="text-foreground">MATCH</span>
