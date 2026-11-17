@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MAPBOX_TOKEN } from '@/lib/mapboxConfig';
-import { findMatchingAirport } from '@/lib/majorAirports';
+import { findNamedPlace } from '@/lib/namedPlaces';
 import { haversineKm } from '@/lib/geo';
 import type { TravelMode } from '@/hooks/useRouting';
 
@@ -244,18 +244,19 @@ const NavigationSearch = ({
           place_name,
         }));
 
-        // Mapbox no tiene bien cargados algunos aeropuertos regionales
-        // como entrada propia — solo devuelve negocios dentro de ellos.
-        // Si la búsqueda coincide con un aeropuerto conocido, lo ponemos
-        // el primero, con coordenadas ya verificadas de la terminal.
-        const airport = findMatchingAirport(destination, userLocation);
-        if (airport) {
+        // Mapbox no tiene bien cargados algunos sitios conocidos (aeropuertos
+        // regionales, pabellones pequeños...) — solo devuelve negocios
+        // dentro de ellos, o nada en absoluto. Si la búsqueda coincide con
+        // uno de la lista propia (ver namedPlaces.ts), lo ponemos el
+        // primero, con coordenadas verificadas a mano.
+        const namedPlace = findNamedPlace(destination, userLocation);
+        if (namedPlace) {
           results.unshift({
-            id: `airport-${airport.name}`,
+            id: `named-${namedPlace.name}`,
             mapboxId: '',
-            name: airport.name,
-            place_name: airport.name,
-            localCoords: { lat: airport.lat, lng: airport.lng },
+            name: namedPlace.name,
+            place_name: namedPlace.name,
+            localCoords: { lat: namedPlace.lat, lng: namedPlace.lng },
           });
         }
 
