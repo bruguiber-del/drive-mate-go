@@ -176,6 +176,13 @@
       "when": 1794929334270,
       "tag": "0024_scheduled_trip_reminders_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1794930790425,
+      "tag": "0025_saved_places",
+      "breakpoints": true
     }
   ]
 }

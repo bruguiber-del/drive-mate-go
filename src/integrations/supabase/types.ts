@@ -332,6 +332,42 @@ export type Database = {
         }
         Relationships: []
       }
+      saved_places: {
+        Row: {
+          created_at: string
+          icon: string | null
+          id: string
+          kind: string
+          label: string
+          lat: number
+          lng: number
+          name: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          icon?: string | null
+          id?: string
+          kind?: string
+          label: string
+          lat: number
+          lng: number
+          name: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          icon?: string | null
+          id?: string
+          kind?: string
+          label?: string
+          lat?: number
+          lng?: number
+          name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       support_messages: {
         Row: {
           context: string | null
