@@ -14,7 +14,12 @@ const ToastViewport = React.forwardRef<
   <ToastPrimitives.Viewport
     ref={ref}
     className={cn(
-      "fixed top-0 z-[100] flex max-h-screen w-full flex-col-reverse p-4 sm:bottom-0 sm:right-0 sm:top-auto sm:flex-col md:max-w-[420px]",
+      // pt-[...] en vez de depender solo de p-4: en móvil (top-0, antes de
+      // sm:) esto se pega a la barra de estado/notch sin el margen de zona
+      // segura, así que un aviso se veía cortado por arriba y su botón de
+      // cerrar (absolute top-2) quedaba literalmente debajo de esa barra,
+      // fuera de donde puede llegar un toque.
+      "fixed top-0 z-[100] flex max-h-screen w-full flex-col-reverse p-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] sm:bottom-0 sm:right-0 sm:top-auto sm:pt-4 sm:flex-col md:max-w-[420px]",
       className,
     )}
     {...props}

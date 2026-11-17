@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { MAPBOX_TOKEN } from '@/lib/mapboxConfig';
 import { findNamedPlace } from '@/lib/namedPlaces';
 import { haversineKm } from '@/lib/geo';
+import { overlayTop } from '@/lib/overlayLayout';
 import type { TravelMode } from '@/hooks/useRouting';
 
 interface NavigationSearchProps {
@@ -455,8 +456,11 @@ const NavigationSearch = ({
           className="fixed inset-0 z-50 bg-background"
         >
           <div className="h-full flex flex-col">
-            {/* Header */}
-            <div className="p-4 border-b border-border">
+            {/* Header — esta pantalla ocupa todo el alto desde arriba
+                (fixed inset-0), así que sin contar el notch/isla dinámica
+                el título y la X quedaban tapados por la barra de estado,
+                igual que le pasaba al menú de ajustes (SettingsMenu). */}
+            <div className="p-4 border-b border-border shrink-0" style={{ paddingTop: overlayTop(16) }}>
               <div className="flex items-center gap-3">
                 <Button variant="ghost" size="icon-sm" onClick={onClose}>
                   <X className="w-5 h-5" />
