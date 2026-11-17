@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import DriverToggle from "@/components/DriverToggle";
 import PassengerToggle from "@/components/PassengerToggle";
 import RoadAlertButton from "@/components/RoadAlertButton";
+import SpeedometerBadge, { type SpeedInfo } from "@/components/SpeedometerBadge";
 import type { RoadAlertKind } from "@/lib/roadAlerts";
 import { OVERLAY_BOTTOM_PX, overlayBottom } from "@/lib/overlayLayout";
 
@@ -17,6 +18,8 @@ interface BottomActionBarProps {
   isPassengerMode: boolean;
   onPassengerToggle: () => void;
   onOpenPassengerSettings: () => void;
+  /** Velocidad actual — null cuando no hay dato de GPS todavía. */
+  speedInfo?: SpeedInfo | null;
   /** Posición real actual — para marcar dónde se avisa de un radar/policía/etc. */
   roadAlertLocation?: [number, number] | null;
   onReportRoadAlert?: (kind: RoadAlertKind, lat: number, lng: number) => Promise<{ ok: boolean; reason?: string }>;
@@ -35,6 +38,7 @@ const BottomActionBar = ({
   isPassengerMode,
   onPassengerToggle,
   onOpenPassengerSettings,
+  speedInfo,
   roadAlertLocation,
   onReportRoadAlert,
 }: BottomActionBarProps) => {
@@ -63,6 +67,11 @@ const BottomActionBar = ({
           movieron al centro para dejar esta columna libre solo para esto. */}
       <div className="fixed left-3 z-30 pointer-events-none" style={{ bottom: overlayBottom(OVERLAY_BOTTOM_PX.cornerControls) }}>
         <div className="flex flex-col items-start gap-2 pointer-events-auto">
+          {/* Mismo gap-2 que separa los modos conductor/pasajero entre sí,
+              a petición del usuario — antes el velocímetro vivía aparte,
+              bastante más arriba (overlayBottom propio), con un hueco
+              mucho mayor que el de estos dos botones entre sí. */}
+          {speedInfo && <SpeedometerBadge info={speedInfo} />}
           <div className="flex items-center gap-2">
             <DriverToggle isDriver={isDriverMode} onToggle={onDriverToggle} />
             {isDriverMode && (

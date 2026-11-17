@@ -6,7 +6,7 @@ import { useRecurringTripReminder } from "@/hooks/useRecurringTripReminder";
 import { useScheduledTripReminder } from "@/hooks/useScheduledTripReminder";
 import RecurringTripsSheet from "@/components/RecurringTripsSheet";
 import GpsStatusBanner from "@/components/GpsStatusBanner";
-import SpeedometerBadge, { type SpeedInfo } from "@/components/SpeedometerBadge";
+import { type SpeedInfo } from "@/components/SpeedometerBadge";
 import { useProfile } from "@/hooks/useProfile";
 import { submitDocumentForVerification } from "@/lib/documentVerification";
 import type { GpsStatus } from "@/components/MapView";
@@ -1850,22 +1850,6 @@ const Index = () => {
         {/* Top Bar */}
         <GpsStatusBanner status={gpsStatus} />
 
-        {/* Velocímetro — a qué velocidad vas ahora mismo, en rojo si te
-            pasas del límite de la vía en la que estás. Encima del modo
-            conductor, como se pidió — antes usaba overlayTop (desde
-            ARRIBA) en vez de overlayBottom (desde ABAJO, como el resto de
-            esta columna izquierda), así que no quedaba ni cerca. Siempre
-            visible, haya o no destino puesto — antes solo aparecía
-            navegando, pero se pidió que esté siempre en el mapa. */}
-        {speedInfo && (
-          <div
-            className="fixed left-3 z-30 pointer-events-none"
-            style={{ bottom: overlayBottom(OVERLAY_BOTTOM_PX.speedometer) }}
-          >
-            <SpeedometerBadge info={speedInfo} />
-          </div>
-        )}
-
         {/* Viaje habitual o puntual a su hora — un toque para empezarlo,
             nunca arranca solo. Solo antes de navegar, para no interferir
             con un viaje ya en marcha. */}
@@ -2023,6 +2007,7 @@ const Index = () => {
           isPassengerMode={isPassengerMode}
           onPassengerToggle={handlePassengerToggle}
           onOpenPassengerSettings={modals.openPassengerSettings}
+          speedInfo={speedInfo}
           roadAlertLocation={realUserLocation}
           onReportRoadAlert={roadAlerts.reportAlert}
         />

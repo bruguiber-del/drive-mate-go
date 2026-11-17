@@ -6,17 +6,17 @@ export const OVERLAY_BOTTOM_PX = {
   // gratuitos tapaba el botón de centrar/zoom en esa esquina.
   /** Modo conductor/pasajero (izquierda) y zoom/centrar (derecha). */
   cornerControls: 60,
-  /** Lupa de añadir parada (izquierda), justo encima de los modos. */
-  addStopButton: 130,
+  /** Lupa de añadir parada (izquierda), justo encima del velocímetro (que a
+   *  su vez ya está encima de los modos conductor/pasajero — ver
+   *  BottomActionBar). 130 se quedaba tapado detrás del modo conductor en
+   *  cuanto el velocímetro pasó a formar parte de esa misma columna. */
+  addStopButton: 255,
   /** Chapas de recogida/bajada de pasajeros (derecha), encima del zoom. */
   stopPills: 160,
   /** Total "Compensado" centrado abajo. */
   compensatedBadge: 70,
   /** Chapa de aceptar solicitud de pasajero (derecha). */
   acceptPill: 320,
-  /** Velocímetro — encima de la lupa de añadir parada (130), que a su vez
-   *  ya está encima de los modos conductor/pasajero. */
-  speedometer: 200,
 } as const;
 
 /** Altura respetando la zona segura del móvil (muesca, barra de inicio). */

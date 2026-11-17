@@ -65,16 +65,19 @@ const RoadAlertButton = ({ location, onReport }: RoadAlertButtonProps) => {
 
   return (
     <>
-      <Button
-        variant="glass"
-        size="icon"
-        className="w-8 h-8 rounded-full shadow-lg pointer-events-auto border border-warning/40"
+      {/* Mismo tamaño y lenguaje visual que el velocímetro (círculo grande,
+          borde grueso, sombra) en vez del icono pequeño de antes — a
+          petición del usuario, que no le convencía el diseño anterior. */}
+      <button
+        type="button"
         onClick={() => setOpen(true)}
         aria-label="Avisar de un radar, policía u otro problema en la carretera"
         disabled={!location}
+        className="relative w-16 h-16 rounded-full flex flex-col items-center justify-center shrink-0 border-4 border-warning bg-card shadow-lg pointer-events-auto transition-colors disabled:opacity-40"
       >
-        <AlertTriangle className="w-4 h-4 text-warning" />
-      </Button>
+        <AlertTriangle className="w-6 h-6 text-warning" />
+        <span className="text-[9px] font-bold leading-none mt-1 text-warning">Avisar</span>
+      </button>
 
       <AnimatePresence>
         {open && (

@@ -484,7 +484,7 @@ const MapView = ({
     // "giraba" de verdad. Ahora solo lo disparan el propio arrastre del
     // mapa y los botones de zoom (que sí cambian lo que ves), expuestos
     // como __mapPauseFollow junto a __mapZoomIn/__mapZoomOut más abajo.
-    const RESUME_FOLLOW_MS = 20000;
+    const RESUME_FOLLOW_MS = 10000;
     const pauseFollowAndScheduleResume = () => {
       reportFollowing(false);
       if (resumeFollowTimerRef.current !== null) {
@@ -493,6 +493,14 @@ const MapView = ({
       resumeFollowTimerRef.current = window.setTimeout(() => {
         reportFollowing(true);
         resumeFollowTimerRef.current = null;
+        // El seguimiento normal (más abajo) no fuerza zoom mientras no
+        // navegas, para no pelearse con un zoom manual del usuario — pero
+        // esta reanudación automática sí debe "acercarse" a donde estás,
+        // como se pidió, no solo recentrar con el zoom que hubiera quedado.
+        const ul = userLocationRef.current;
+        if (ul && map.current) {
+          map.current.easeTo({ center: [ul[1], ul[0]], zoom: Math.max(map.current.getZoom(), 16), duration: 800 });
+        }
       }, RESUME_FOLLOW_MS);
     };
 
