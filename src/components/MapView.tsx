@@ -3,8 +3,9 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { useRouting, RouteData, TravelMode } from '@/hooks/useRouting';
 import type { RoadAlert } from '@/hooks/useRoadAlerts';
-import { ROAD_ALERT_LABEL, RADAR_FORCE_FIELD_RADIUS_M } from '@/lib/roadAlerts';
+import { ROAD_ALERT_LABEL, RADAR_FORCE_FIELD_RADIUS_M, RADAR_TRUST_CONFIRMATIONS } from '@/lib/roadAlerts';
 import { useDeviceHeading } from '@/hooks/useDeviceHeading';
+import { useOfficialRadars } from '@/hooks/useOfficialRadars';
 import { MAPBOX_TOKEN, MAPBOX_STYLE } from '@/lib/mapboxConfig';
 import {
   MIN_MOVE_METERS,
@@ -116,6 +117,12 @@ interface MapViewProps {
    *  en el mapa — estilo Waze. */
   roadAlerts?: RoadAlert[];
   onConfirmRoadAlert?: (alert: RoadAlert, stillThere: boolean) => void;
+  /** Los avisos de carretera que de verdad se enseñan en el mapa — incluye
+   *  los radares "de base" (OpenStreetMap) y excluye los reportados que
+   *  todavía no tienen suficientes confirmaciones. Para que el aviso de
+   *  voz/banner (fuera de este componente) avise exactamente de los
+   *  mismos, no de la lista cruda de `roadAlerts`. */
+  onVisibleRoadAlertsChange?: (alerts: RoadAlert[]) => void;
 }
 
 // ── Visual constants ─────────────────────────────────────────────────────────
@@ -168,6 +175,7 @@ const MapView = ({
   driverPickupPoint,
   roadAlerts,
   onConfirmRoadAlert,
+  onVisibleRoadAlertsChange,
 }: MapViewProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -339,6 +347,36 @@ const MapView = ({
     if (!markerLocation || !route || route.coordinates.length < 2) return markerLocation;
     return nearestPointOnRoute(markerLocation, route.coordinates) ?? markerLocation;
   }, [markerLocation, route]);
+
+  // Radares fijos "de base" (OpenStreetMap) alrededor de la posición actual
+  // — se enseñan sin que ningún usuario los tenga que reportar primero.
+  // Solo mientras hay ruta activa, igual que el resto de avisos de carretera
+  // tiene sentido sobre todo navegando.
+  const officialRadars = useOfficialRadars(!!showRoute, userLocation);
+
+  // Avisos reportados por usuarios que de verdad se enseñan: un radar NUEVO
+  // (no el de base) necesita varias confirmaciones antes de fiarse — quien
+  // lo reportó lo sigue viendo mientras tanto, para saber que se guardó.
+  const visibleRoadAlerts = useMemo((): RoadAlert[] => {
+    const trusted = (roadAlerts ?? []).filter((a) => {
+      if (a.kind !== 'radar' && a.kind !== 'radar_tramo') return true;
+      return a.isMine || a.confirmations >= RADAR_TRUST_CONFIRMATIONS;
+    });
+    const official: RoadAlert[] = officialRadars.map((r) => ({
+      id: r.id,
+      kind: 'radar',
+      lat: r.lat,
+      lng: r.lng,
+      createdAt: '',
+      expiresAt: '9999-12-31T23:59:59.999Z',
+      confirmations: Infinity,
+      isMine: false,
+      isOfficial: true,
+    }));
+    return [...official, ...trusted];
+  }, [roadAlerts, officialRadars]);
+
+  useEffect(() => { onVisibleRoadAlertsChange?.(visibleRoadAlerts); }, [visibleRoadAlerts, onVisibleRoadAlertsChange]);
 
   /** ¿Hay movimiento real suficiente para fiarse del rumbo del GPS? (~15 m)
    *  Antes eran 30m — se orientaba bien pero tardaba en notarse al
@@ -1000,7 +1038,7 @@ const MapView = ({
     // lleva círculo (es un control a lo largo de la vía, no en un punto).
     const radarZones = {
       type: 'FeatureCollection' as const,
-      features: (roadAlerts ?? [])
+      features: visibleRoadAlerts
         .filter((a) => a.kind === 'radar')
         .map((a) => toCircleGeoJSON({ lat: a.lat, lng: a.lng }, RADAR_FORCE_FIELD_RADIUS_M)),
     };
@@ -1023,39 +1061,54 @@ const MapView = ({
       });
     }
 
-    if (!roadAlerts?.length) {
+    if (!visibleRoadAlerts.length) {
       requestAnimationFrame(updateMarkerLabelVisibility);
       return;
     }
 
-    for (const alert of roadAlerts) {
+    for (const alert of visibleRoadAlerts) {
       // El radar de tramo necesita decir cuánto dura el control — el resto
-      // de tipos no llevan ningún dato extra en la etiqueta.
+      // de tipos no llevan ningún dato extra en la etiqueta. Un radar
+      // reportado que todavía no ha llegado a las confirmaciones que hacen
+      // falta solo lo ve quien lo puso — se le avisa de que sigue pendiente.
+      const pending = !alert.isOfficial && alert.isMine && alert.confirmations < RADAR_TRUST_CONFIRMATIONS
+        && (alert.kind === 'radar' || alert.kind === 'radar_tramo');
       const label =
-        alert.kind === 'radar_tramo' && alert.lengthKm
+        (alert.kind === 'radar_tramo' && alert.lengthKm
           ? `${ROAD_ALERT_LABEL[alert.kind]} · ${alert.lengthKm}km`
-          : ROAD_ALERT_LABEL[alert.kind];
+          : ROAD_ALERT_LABEL[alert.kind]) + (pending ? ' (pendiente de confirmar)' : '');
       const el = buildRoadAlertMarkerEl(label);
 
       const popupEl = document.createElement('div');
       popupEl.style.cssText = 'display:flex;flex-direction:column;gap:6px;min-width:150px;';
       const title = document.createElement('p');
-      title.textContent = `${label} — ¿sigue ahí?`;
       title.style.cssText = 'font-size:12px;font-weight:600;color:#111;margin:0;';
       popupEl.appendChild(title);
-      const row = document.createElement('div');
-      row.style.cssText = 'display:flex;gap:6px;';
-      const yesBtn = document.createElement('button');
-      yesBtn.textContent = 'Sigue ahí';
-      yesBtn.style.cssText = 'flex:1;font-size:11px;padding:4px 8px;border-radius:8px;background:#16a34a;color:white;border:none;';
-      yesBtn.onclick = () => onConfirmRoadAlert?.(alert, true);
-      const noBtn = document.createElement('button');
-      noBtn.textContent = 'Ya no está';
-      noBtn.style.cssText = 'flex:1;font-size:11px;padding:4px 8px;border-radius:8px;background:#dc2626;color:white;border:none;';
-      noBtn.onclick = () => onConfirmRoadAlert?.(alert, false);
-      row.appendChild(yesBtn);
-      row.appendChild(noBtn);
-      popupEl.appendChild(row);
+
+      // Un radar "de base" (OpenStreetMap) no tiene fila en road_alerts —
+      // no hay nada que confirmar/descartar, solo se informa de la fuente.
+      if (alert.isOfficial) {
+        title.textContent = label;
+        const sourceNote = document.createElement('p');
+        sourceNote.textContent = 'Radar fijo ya existente (datos de OpenStreetMap)';
+        sourceNote.style.cssText = 'font-size:11px;color:#555;margin:0;';
+        popupEl.appendChild(sourceNote);
+      } else {
+        title.textContent = `${label} — ¿sigue ahí?`;
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;gap:6px;';
+        const yesBtn = document.createElement('button');
+        yesBtn.textContent = 'Sigue ahí';
+        yesBtn.style.cssText = 'flex:1;font-size:11px;padding:4px 8px;border-radius:8px;background:#16a34a;color:white;border:none;';
+        yesBtn.onclick = () => onConfirmRoadAlert?.(alert, true);
+        const noBtn = document.createElement('button');
+        noBtn.textContent = 'Ya no está';
+        noBtn.style.cssText = 'flex:1;font-size:11px;padding:4px 8px;border-radius:8px;background:#dc2626;color:white;border:none;';
+        noBtn.onclick = () => onConfirmRoadAlert?.(alert, false);
+        row.appendChild(yesBtn);
+        row.appendChild(noBtn);
+        popupEl.appendChild(row);
+      }
 
       const popup = new mapboxgl.Popup({ offset: 20, closeButton: true }).setDOMContent(popupEl);
 
@@ -1066,7 +1119,7 @@ const MapView = ({
       roadAlertMarkersRef.current.push(marker);
     }
     requestAnimationFrame(updateMarkerLabelVisibility);
-  }, [roadAlerts, mapReady, onConfirmRoadAlert, updateMarkerLabelVisibility]);
+  }, [visibleRoadAlerts, mapReady, onConfirmRoadAlert, updateMarkerLabelVisibility]);
 
   // ── Google-Maps-like 3D camera when navigating ────────────────────────────
   useEffect(() => {

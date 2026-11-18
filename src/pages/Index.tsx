@@ -24,7 +24,7 @@ import { X, Search, Loader2, CalendarClock, Locate } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getManeuverIcon } from "@/lib/maneuverIcons";
 import { useVoiceGuidance } from "@/hooks/useVoiceGuidance";
-import { useRoadAlerts } from "@/hooks/useRoadAlerts";
+import { useRoadAlerts, type RoadAlert } from "@/hooks/useRoadAlerts";
 import { ROAD_ALERT_LABEL, ROAD_ALERT_WARN_DISTANCE_M } from "@/lib/roadAlerts";
 import { useToast } from "@/components/ui/use-toast";
 import { ToastAction } from "@/components/ui/toast";
@@ -1850,6 +1850,14 @@ const Index = () => {
   // ── Avisos de carretera (radar, policía, accidente...) estilo Waze ────────
   const roadAlerts = useRoadAlerts(!!realUserLocation);
 
+  // Lo que MapView de verdad enseña en el mapa: incluye los radares "de
+  // base" (OpenStreetMap, sin fila en road_alerts) y excluye los
+  // reportados que aún no tienen suficientes confirmaciones — el aviso de
+  // voz/banner de abajo tiene que avisar exactamente de esos mismos, ni
+  // más (uno sin confirmar que a lo mejor no existe) ni menos (un radar
+  // de base que sí se ve en el mapa pero aquí se quedaría mudo).
+  const [visibleRoadAlerts, setVisibleRoadAlerts] = useState<RoadAlert[]>([]);
+
   // Avisa (voz + banner) al acercarte a uno — antes no había nada de esto,
   // solo la ruta y el tráfico que ya da Mapbox. Aproximación sencilla a
   // propósito: distancia recta a tu posición actual, no proyectada sobre
@@ -1858,7 +1866,7 @@ const Index = () => {
   const warnedAlertIdsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!nav.isNavigating || !realUserLocation) return;
-    for (const alert of roadAlerts.alerts) {
+    for (const alert of visibleRoadAlerts) {
       if (warnedAlertIdsRef.current.has(alert.id)) continue;
       const dist = approxMetersBetween(realUserLocation, [alert.lat, alert.lng]);
       if (dist > ROAD_ALERT_WARN_DISTANCE_M) continue;
@@ -1871,7 +1879,7 @@ const Index = () => {
         try { window.speechSynthesis?.speak(utter); } catch { /* noop */ }
       }
     }
-  }, [nav.isNavigating, realUserLocation, roadAlerts.alerts, toast, voice.isMuted]);
+  }, [nav.isNavigating, realUserLocation, visibleRoadAlerts, toast, voice.isMuted]);
 
   // Parar desde el botón rojo cierra el viaje igual que el fin normal (con
   // valoración de los pasajeros) si lo había; luego corta la navegación.
@@ -1936,6 +1944,7 @@ const Index = () => {
         previewWaypoints={previewWaypoints}
         roadAlerts={roadAlerts.alerts}
         onConfirmRoadAlert={roadAlerts.confirmAlert}
+        onVisibleRoadAlertsChange={setVisibleRoadAlerts}
       >
         {/* Top Bar */}
         <GpsStatusBanner status={gpsStatus} />

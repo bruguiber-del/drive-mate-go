@@ -54,3 +54,12 @@ export const RADAR_FORCE_FIELD_RADIUS_M = 800;
 /** Rango razonable (km) para la duración de un radar de tramo al
  *  reportarlo — evita que alguien meta un número absurdo por error. */
 export const RADAR_TRAMO_KM_RANGE = { min: 1, max: 30, default: 3 } as const;
+
+/** Confirmaciones ("sigue ahí") que necesita un radar NUEVO reportado por
+ *  un usuario antes de enseñarse a los demás — así una sola persona no
+ *  puede inventarse un radar que no existe. Mientras no llega a este
+ *  número solo lo ve quien lo reportó (para que sepa que se guardó). No
+ *  afecta a los radares "de base" (ya existentes en OpenStreetMap) ni al
+ *  resto de tipos de aviso (policía, obras...), que se siguen enseñando
+ *  en cuanto se reportan. */
+export const RADAR_TRUST_CONFIRMATIONS = 2;

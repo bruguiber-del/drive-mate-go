@@ -18,6 +18,10 @@ export interface RoadAlert {
   isMine: boolean;
   /** Solo en kind === 'radar_tramo': cuántos km dura el control. */
   lengthKm?: number | null;
+  /** true = radar "de base" (ya mapeado en OpenStreetMap), no un aviso
+   *  reportado desde la app — no tiene fila en road_alerts, así que no se
+   *  puede confirmar/descartar como al resto. */
+  isOfficial?: boolean;
 }
 
 const POLL_MS = 30000;
