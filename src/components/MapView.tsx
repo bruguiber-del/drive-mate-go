@@ -601,21 +601,24 @@ const MapView = ({
   //    a propósito ──────────────────────────────────────────────────────────
   // iOS Safari exige que DeviceOrientationEvent.requestPermission() se llame
   // dentro de un gesto del usuario — pedirlo en un efecto sin más no hace
-  // nada ahí, así que hace falta ENGANCHARSE a algún toque real. Antes esto
-  // escuchaba solo en el propio mapa — pero si el primer toque de verdad del
-  // usuario era sobre el buscador, "Casa", un botón... (lo más habitual al
-  // abrir la app) nunca llegaba a dispararse, y la brújula se quedaba sin
-  // pedir permiso para siempre sin que nada lo avisara. Ahora escucha en
-  // `document` y en fase de CAPTURA: así el primer toque en CUALQUIER sitio
-  // de la app lo dispara, sin depender de dónde toque el usuario primero, y
-  // sin que ningún botón pueda "tragárselo" deteniendo la propagación (la
-  // captura se dispara de camino HACIA el objetivo, antes de que eso pase).
+  // nada ahí, así que hace falta ENGANCHARSE a algún toque real. Escucha en
+  // `document` y en fase de CAPTURA para que el primer toque en CUALQUIER
+  // sitio de la app lo dispare (buscador, "Casa", cualquier botón...), sin
+  // depender de que el usuario toque el mapa en sí, y sin que ningún botón
+  // intermedio pueda "tragárselo" deteniendo la propagación.
+  //
+  // El evento tiene que ser 'click', no 'pointerdown'/'touchstart': Safari
+  // en iOS no siempre reconoce un pointerdown/touchstart suelto como gesto
+  // "de verdad" para una API tan sensible como esta — la llamada no da
+  // error, simplemente deniega en silencio sin enseñar ningún aviso. 'click'
+  // es el evento con el que Apple prueba y documenta esta función en
+  // concreto, y sigue disparándose con el primer toque normal en pantalla.
   useEffect(() => {
     const handleFirstTouch = () => {
       requestCompassPermission();
     };
-    document.addEventListener('pointerdown', handleFirstTouch, { once: true, capture: true });
-    return () => document.removeEventListener('pointerdown', handleFirstTouch, { capture: true });
+    document.addEventListener('click', handleFirstTouch, { once: true, capture: true });
+    return () => document.removeEventListener('click', handleFirstTouch, { capture: true });
   }, [requestCompassPermission]);
 
   // Reintenta watchPosition cada 4s mientras el GPS no esté "ok" — ver el
