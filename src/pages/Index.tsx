@@ -1858,6 +1858,27 @@ const Index = () => {
   // de base que sí se ve en el mapa pero aquí se quedaría mudo).
   const [visibleRoadAlerts, setVisibleRoadAlerts] = useState<RoadAlert[]>([]);
 
+  // Para el botón de "activar brújula": MapView intenta pedir el permiso
+  // solo al primer toque sobre el mapa, pero eso es invisible — si el
+  // aviso nativo de iOS nunca llega a salir (navegador sin soporte,
+  // permiso ya denegado antes...) hace falta un botón explícito para
+  // reintentarlo, que además se oculta solo en cuanto ya está concedido.
+  const [compassPermissionState, setCompassPermissionState] = useState<'unknown' | 'granted' | 'denied' | 'unsupported'>('unknown');
+  const handleRequestCompassPermission = useCallback(async () => {
+    const fn = (window as any).__mapRequestCompassPermission as (() => Promise<boolean>) | undefined;
+    if (!fn) return;
+    const granted = await fn();
+    if (granted) {
+      toast({ title: 'Brújula activada', duration: 3000 });
+    } else {
+      toast({
+        title: 'No se pudo activar la brújula',
+        description: 'Revisa en Ajustes del iPhone > Safari (o esta app) que el acceso a Movimiento y orientación esté permitido.',
+        duration: 6000,
+      });
+    }
+  }, [toast]);
+
   // Avisa (voz + banner) al acercarte a uno — antes no había nada de esto,
   // solo la ruta y el tráfico que ya da Mapbox. Aproximación sencilla a
   // propósito: distancia recta a tu posición actual, no proyectada sobre
@@ -1945,6 +1966,7 @@ const Index = () => {
         roadAlerts={roadAlerts.alerts}
         onConfirmRoadAlert={roadAlerts.confirmAlert}
         onVisibleRoadAlertsChange={setVisibleRoadAlerts}
+        onCompassPermissionChange={setCompassPermissionState}
       >
         {/* Top Bar */}
         <GpsStatusBanner status={gpsStatus} />
@@ -2112,6 +2134,8 @@ const Index = () => {
           speedInfo={speedInfo}
           roadAlertLocation={realUserLocation}
           onReportRoadAlert={roadAlerts.reportAlert}
+          compassPermissionGranted={compassPermissionState === 'granted'}
+          onRequestCompassPermission={handleRequestCompassPermission}
         />
       </MapView>
       </Suspense>

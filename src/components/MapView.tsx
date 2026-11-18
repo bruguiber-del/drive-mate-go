@@ -130,6 +130,9 @@ interface MapViewProps {
    *  voz/banner (fuera de este componente) avise exactamente de los
    *  mismos, no de la lista cruda de `roadAlerts`. */
   onVisibleRoadAlertsChange?: (alerts: RoadAlert[]) => void;
+  /** Para que el botón de brújula (fuera de este componente) sepa si ya
+   *  hace falta mostrarse o si ocultarse porque ya está concedido. */
+  onCompassPermissionChange?: (state: 'unknown' | 'granted' | 'denied' | 'unsupported') => void;
 }
 
 // ── Visual constants ─────────────────────────────────────────────────────────
@@ -183,6 +186,7 @@ const MapView = ({
   roadAlerts,
   onConfirmRoadAlert,
   onVisibleRoadAlertsChange,
+  onCompassPermissionChange,
 }: MapViewProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -301,7 +305,13 @@ const MapView = ({
   const [userHeading, setUserHeading] = useState<number | null>(null);
   // Rumbo de brújula real del dispositivo — responde a girar el móvil en la
   // mano, esté parado o en movimiento (a diferencia del rumbo GPS de abajo).
-  const { heading: compassHeading, requestPermission: requestCompassPermission } = useDeviceHeading();
+  const {
+    heading: compassHeading,
+    permissionState: compassPermissionState,
+    requestPermission: requestCompassPermission,
+  } = useDeviceHeading();
+
+  useEffect(() => { onCompassPermissionChange?.(compassPermissionState); }, [compassPermissionState, onCompassPermissionChange]);
   const [positionHistory, setPositionHistory] = useState<[number, number][]>([]);
   const [mapReady, setMapReady] = useState(false);
   const [speedTier, setSpeedTier] = useState<SpeedTier>('city');
@@ -562,9 +572,15 @@ const MapView = ({
     map.current.on('dragstart', pauseFollowAndScheduleResume);
     map.current.on('dragend', pauseFollowAndScheduleResume);
     (window as any).__mapPauseFollow = pauseFollowAndScheduleResume;
+    // El primer toque sobre el mapa ya intenta pedir permiso de brújula
+    // (más abajo), pero eso es invisible — si no salta el aviso nativo de
+    // iOS (navegador sin soporte, permiso ya denegado antes...) hace falta
+    // un botón explícito para reintentarlo y ver qué ha pasado de verdad.
+    (window as any).__mapRequestCompassPermission = requestCompassPermission;
 
     return () => {
       delete (window as any).__mapPauseFollow;
+      delete (window as any).__mapRequestCompassPermission;
       if (resumeFollowTimerRef.current !== null) {
         window.clearTimeout(resumeFollowTimerRef.current);
         resumeFollowTimerRef.current = null;

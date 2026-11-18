@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Settings, Locate, Navigation } from "lucide-react";
+import { Settings, Locate, Navigation, Compass } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import DriverToggle from "@/components/DriverToggle";
 import PassengerToggle from "@/components/PassengerToggle";
@@ -23,6 +23,9 @@ interface BottomActionBarProps {
   /** Posición real actual — para marcar dónde se avisa de un radar/policía/etc. */
   roadAlertLocation?: [number, number] | null;
   onReportRoadAlert?: (kind: RoadAlertKind, lat: number, lng: number) => Promise<{ ok: boolean; reason?: string }>;
+  /** true = ya concedido, el botón de brújula se oculta solo. */
+  compassPermissionGranted?: boolean;
+  onRequestCompassPermission?: () => void;
 }
 
 /** Bottom overlay: the "start driving" CTA; the driver/passenger mode
@@ -41,6 +44,8 @@ const BottomActionBar = ({
   speedInfo,
   roadAlertLocation,
   onReportRoadAlert,
+  compassPermissionGranted,
+  onRequestCompassPermission,
 }: BottomActionBarProps) => {
   return (
     <>
@@ -131,6 +136,13 @@ const BottomActionBar = ({
             <Button variant="glass" size="icon" className="w-8 h-8" onClick={() => (window as any).__mapCenterOnUser?.()}>
               <Locate className="w-4 h-4 text-primary" />
             </Button>
+            {/* Solo mientras no esté concedido — una vez activada la
+                brújula, este botón ya no hace falta y estorba. */}
+            {!compassPermissionGranted && onRequestCompassPermission && (
+              <Button variant="glass" size="icon" className="w-8 h-8" onClick={onRequestCompassPermission}>
+                <Compass className="w-4 h-4 text-primary" />
+              </Button>
+            )}
           </div>
         </div>
       </div>
