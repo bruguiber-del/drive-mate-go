@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { CapgoCompass } from '@capgo/capacitor-compass';
 
 /** Safari en iOS expone un campo propio con el rumbo absoluto ya resuelto;
  *  el resto de navegadores solo dan alpha (relativo al punto donde estaba
@@ -15,6 +17,17 @@ type PermissionState = 'unknown' | 'granted' | 'denied' | 'unsupported';
  * responde al instante a girar el móvil en la mano, quieto o no. Antes el
  * marcador de ubicación solo giraba con el curso GPS o apuntaba siempre al
  * destino, así que girar el teléfono parado no hacía nada.
+ *
+ * Dos fuentes de datos completamente distintas según dónde se ejecute:
+ * - App nativa (empaquetada con Capacitor, en el iPhone de verdad): usa
+ *   @capgo/capacitor-compass, que lee el CLLocationManager real de iOS —
+ *   el mismo permiso NATIVO que usa Google Maps (Ajustes > Privacidad >
+ *   Localización), que se pide solo al abrir, sin ningún toque, y que iOS
+ *   recuerda para siempre entre sesiones.
+ * - Web normal (el sitio abierto en Safari, sin empaquetar): usa la API
+ *   web DeviceOrientationEvent, que por restricción de Apple SIEMPRE exige
+ *   un gesto real del usuario para pedirse, en cada carga de página —
+ *   ninguna web puede evitar esto, ni siquiera la propia Google Maps web.
  */
 /** Distancia angular con signo entre dos rumbos (-180..180), sin el salto
  *  raro de cruzar 0°/360° que da una resta directa. */
@@ -27,6 +40,7 @@ export function useDeviceHeading() {
   const [permissionState, setPermissionState] = useState<PermissionState>('unknown');
   const listenerAttachedRef = useRef(false);
   const lastCommittedRef = useRef<number | null>(null);
+  const isNative = Capacitor.isNativePlatform();
 
   // El sensor dispara a 30-60 Hz (más rápido que el GPS), y cada valor nuevo
   // re-renderizaba todo lo que depende del rumbo — incluida la cámara del
@@ -40,6 +54,59 @@ export function useDeviceHeading() {
     lastCommittedRef.current = value;
     setHeading(value);
   }, []);
+
+  // ── Rama nativa ──────────────────────────────────────────────────────────
+  const nativeHandleRef = useRef<{ remove: () => Promise<void> } | null>(null);
+
+  const startNativeListening = useCallback(async () => {
+    if (nativeHandleRef.current) return;
+    nativeHandleRef.current = await CapgoCompass.addListener('headingChange', (event) => {
+      commitHeading(event.value);
+    });
+    await CapgoCompass.startListening();
+  }, [commitHeading]);
+
+  const requestPermissionNative = useCallback(async (): Promise<boolean> => {
+    try {
+      const status = await CapgoCompass.requestPermissions();
+      const granted = status.compass === 'granted';
+      setPermissionState(granted ? 'granted' : 'denied');
+      if (granted) await startNativeListening();
+      return granted;
+    } catch {
+      setPermissionState('unsupported');
+      return false;
+    }
+  }, [startNativeListening]);
+
+  useEffect(() => {
+    if (!isNative) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const status = await CapgoCompass.checkPermissions();
+        if (cancelled) return;
+        if (status.compass === 'granted') {
+          setPermissionState('granted');
+          await startNativeListening();
+        } else {
+          // A diferencia de la web, este permiso NO exige ningún gesto del
+          // usuario — es el permiso nativo de Localización de iOS, así que
+          // se puede pedir solo, nada más abrir la app.
+          await requestPermissionNative();
+        }
+      } catch {
+        if (!cancelled) setPermissionState('unsupported');
+      }
+    })();
+    return () => {
+      cancelled = true;
+      nativeHandleRef.current?.remove();
+      nativeHandleRef.current = null;
+      CapgoCompass.stopListening().catch(() => { /* ya se estaba parando sola */ });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isNative]);
 
   const handleOrientation = useCallback((event: Event) => {
     const e = event as CompassOrientationEvent;
@@ -73,7 +140,7 @@ export function useDeviceHeading() {
    *  antes de que el sensor dispare ningún evento — llamar a esto fuera de
    *  un gesto (p. ej. en un useEffect) no hace nada en Safari. Android y
    *  escritorio no piden permiso, así que ahí esto solo engancha el listener. */
-  const requestPermission = useCallback(async (): Promise<boolean> => {
+  const requestPermissionWeb = useCallback(async (): Promise<boolean> => {
     const DOE = (typeof window !== 'undefined' ? window.DeviceOrientationEvent : undefined) as
       | (typeof DeviceOrientationEvent & { requestPermission?: () => Promise<'granted' | 'denied'> })
       | undefined;
@@ -98,6 +165,8 @@ export function useDeviceHeading() {
   }, [attachListener]);
 
   useEffect(() => {
+    // La rama nativa de más arriba ya se encarga enteramente de esto.
+    if (isNative) return;
     if (typeof window === 'undefined' || !('DeviceOrientationEvent' in window)) {
       setPermissionState('unsupported');
       return;
@@ -113,7 +182,11 @@ export function useDeviceHeading() {
       setPermissionState('granted');
     }
     return detachListener;
-  }, [attachListener, detachListener]);
+  }, [isNative, attachListener, detachListener]);
+
+  const requestPermission = useCallback((): Promise<boolean> => {
+    return isNative ? requestPermissionNative() : requestPermissionWeb();
+  }, [isNative, requestPermissionNative, requestPermissionWeb]);
 
   return { heading, permissionState, requestPermission };
 }

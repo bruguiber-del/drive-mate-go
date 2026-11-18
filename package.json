@@ -13,6 +13,11 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@capacitor/cli": "^8.6.2",
+    "@capacitor/core": "^8.6.2",
+    "@capacitor/ios": "^8.6.2",
+    "@capacitor/motion": "^8.0.1",
+    "@capgo/capacitor-compass": "^8.1.26",
     "@fontsource/outfit": "^5.2.8",
     "@hookform/resolvers": "^3.10.0",
     "@lovable.dev/cloud-auth-js": "^1.1.2",
