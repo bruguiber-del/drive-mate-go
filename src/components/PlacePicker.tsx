@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { MapPin, Loader2 } from 'lucide-react';
 import { MAPBOX_TOKEN } from '@/lib/mapboxConfig';
+import { normalizeSearchQuery } from '@/lib/searchQueryNormalize';
 
 export interface PickedPlace {
   name: string;
@@ -54,7 +55,7 @@ const PlacePicker = ({ placeholder = 'Buscar dirección...', initialValue = '', 
       try {
         const fetchSuggestions = async (q: string): Promise<Suggestion[]> => {
           const params = new URLSearchParams({
-            q,
+            q: normalizeSearchQuery(q),
             access_token: MAPBOX_TOKEN,
             session_token: sessionTokenRef.current,
             language: 'es',

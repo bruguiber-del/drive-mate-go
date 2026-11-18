@@ -7,6 +7,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { MAPBOX_TOKEN } from '@/lib/mapboxConfig';
 import { findNamedPlace } from '@/lib/namedPlaces';
+import { normalizeSearchQuery } from '@/lib/searchQueryNormalize';
 import { haversineKm } from '@/lib/geo';
 import { overlayTop } from '@/lib/overlayLayout';
 import type { TravelMode } from '@/hooks/useRouting';
@@ -193,7 +194,7 @@ const NavigationSearch = ({
       try {
         const fetchSuggestions = async (q: string) => {
           const params = new URLSearchParams({
-            q,
+            q: normalizeSearchQuery(q),
             access_token: MAPBOX_TOKEN,
             session_token: sessionTokenRef.current,
             language: 'es',
@@ -525,6 +526,16 @@ const NavigationSearch = ({
                   placeholder="Buscar destino, restaurante, tienda..."
                   value={destination}
                   onChange={(e) => setDestination(e.target.value)}
+                  onKeyDown={(e) => {
+                    // Antes, darle a Intro no hacía nada — había que esperar
+                    // a que terminara de buscar y tocar el primer resultado
+                    // a mano. Esto va al primero de la lista directamente,
+                    // como en Google Maps.
+                    if (e.key === 'Enter' && searchResults.length > 0) {
+                      e.preventDefault();
+                      handleSelectResult(searchResults[0]);
+                    }
+                  }}
                   autoFocus
                   className="w-full pl-10 pr-12 py-4 bg-muted rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary text-lg"
                 />
