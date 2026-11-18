@@ -132,6 +132,51 @@ export function nearestRouteSegmentIndex(point: [number, number], route: [number
   return best.segment;
 }
 
+/**
+ * Bearing (0-360) desde `point` hacia un punto `lookAheadM` metros más
+ * adelante SOBRE LA POLILÍNEA de la ruta — es decir, hacia dónde va la
+ * CARRETERA desde aquí, no hacia dónde apunta el GPS o la brújula en este
+ * instante. A diferencia del rumbo por puntos GPS consecutivos (que puede
+ * ir a saltos por ruido, o quedarse plano parado en un semáforo) o de la
+ * brújula (que un imán del coche puede desviar), esto sigue el trazado
+ * real de la vía: si vas recto y la carretera gira a la derecha un poco
+ * más adelante, el rumbo ya lo anticipa en vez de esperar a estar en la
+ * curva para notarlo.
+ *
+ * Devuelve null si el punto no está lo bastante cerca de la ruta (desvío
+ * real) o si la ruta es demasiado corta.
+ */
+export function bearingAlongRoute(
+  point: [number, number],
+  route: [number, number][],
+  lookAheadM: number,
+): number | null {
+  const segment = nearestRouteSegmentIndex(point, route);
+  const snapped = nearestPointOnRoute(point, route);
+  if (segment == null || !snapped) return null;
+
+  let from = snapped;
+  let remaining = lookAheadM;
+  for (let i = segment + 1; i < route.length; i += 1) {
+    const to = route[i];
+    const segLen = approxMetersBetween(from, to);
+    if (segLen >= remaining) {
+      const t = remaining / segLen;
+      const targetLat = from[0] + (to[0] - from[0]) * t;
+      const targetLng = from[1] + (to[1] - from[1]) * t;
+      return computeBearing(snapped, { lat: targetLat, lng: targetLng });
+    }
+    remaining -= segLen;
+    from = to;
+  }
+  // La ruta se acaba antes de llegar a lookAheadM — apunta al último
+  // punto que quede, mejor que nada (ya casi has llegado al destino). Si
+  // ya estás prácticamente EN ese último punto no queda ningún rumbo que
+  // tenga sentido mostrar.
+  const last = route[route.length - 1];
+  return approxMetersBetween(snapped, last) > 0.5 ? computeBearing(snapped, { lat: last[0], lng: last[1] }) : null;
+}
+
 /** Por debajo de esto no merece la pena recortar la ruta ya recorrida —
  *  más allá, el desvío real ya dispara un recálculo de ruta aparte (ver
  *  useRouting), así que la línea vieja se sustituye entera pronto de

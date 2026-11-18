@@ -3,6 +3,7 @@ import {
   approxMetersBetween,
   cumulativeDistanceExceeds,
   computeBearing,
+  bearingAlongRoute,
   markerScreenRotation,
   nextSpeedTier,
   nearestPointOnRoute,
@@ -235,6 +236,65 @@ describe('nearestRouteSegmentIndex', () => {
 
   it('returns null for a real detour, far from the route', () => {
     expect(nearestRouteSegmentIndex([0.0015, 0.01], threeSegmentRoute)).toBeNull();
+  });
+});
+
+describe('bearingAlongRoute', () => {
+  const straightNorthRoute: [number, number][] = [
+    [0, 0],
+    [0.001, 0],
+    [0.002, 0],
+    [0.003, 0],
+  ];
+
+  it('returns null for a real detour, far from the route', () => {
+    expect(bearingAlongRoute([0.0015, 0.01], straightNorthRoute, 30)).toBeNull();
+  });
+
+  it('points north along a straight north-heading route', () => {
+    const bearing = bearingAlongRoute([0.00001, 0], straightNorthRoute, 30);
+    expect(bearing).not.toBeNull();
+    expect(bearing!).toBeCloseTo(0, 0);
+  });
+
+  // Carretera que va recto al norte y luego gira al este — igual que "ir
+  // recto por una calle para luego girar a la derecha".
+  const routeWithTurn: [number, number][] = [
+    [0, 0],
+    [0.001, 0],
+    [0.001, 0.001],
+  ];
+
+  it('anticipates an upcoming turn before reaching it', () => {
+    // A ~11m de la esquina, todavía en el tramo que va al norte — con 30m
+    // de anticipación, el rumbo ya se inclina hacia el este, no se queda
+    // plano en "norte" hasta llegar físicamente al giro.
+    const bearing = bearingAlongRoute([0.0009, 0], routeWithTurn, 30);
+    expect(bearing).not.toBeNull();
+    expect(bearing!).toBeGreaterThan(30);
+    expect(bearing!).toBeLessThan(90);
+  });
+
+  it('points straight along the current segment well before any turn', () => {
+    const bearing = bearingAlongRoute([0.0001, 0], routeWithTurn, 30);
+    expect(bearing).not.toBeNull();
+    expect(bearing!).toBeCloseTo(0, 0);
+  });
+
+  it('aims at the last point when the route ends before the lookahead distance', () => {
+    const shortRoute: [number, number][] = [[0, 0], [0.0001, 0]];
+    const bearing = bearingAlongRoute([0, 0], shortRoute, 30);
+    expect(bearing).not.toBeNull();
+    expect(bearing!).toBeCloseTo(0, 0);
+  });
+
+  it('returns null once already at the end of the route', () => {
+    const shortRoute: [number, number][] = [[0, 0], [0.0001, 0]];
+    expect(bearingAlongRoute([0.0001, 0], shortRoute, 30)).toBeNull();
+  });
+
+  it('returns null when the route has fewer than 2 points', () => {
+    expect(bearingAlongRoute([0, 0], [[0, 0]], 30)).toBeNull();
   });
 });
 

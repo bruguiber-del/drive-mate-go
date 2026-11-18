@@ -12,6 +12,7 @@ import {
   approxMetersBetween,
   cumulativeDistanceExceeds,
   computeBearing,
+  bearingAlongRoute,
   markerScreenRotation,
   nextSpeedTier,
   nearestPointOnRoute,
@@ -55,6 +56,12 @@ function isNearImportantManeuver(
   if (distance == null) return false;
   return isImportantManeuver(type ?? undefined, modifier ?? undefined) && distance < IMPORTANT_MANEUVER_ZOOM_DISTANCE_M;
 }
+
+/** Cuánto por delante, sobre la propia ruta, se mira para saber hacia
+ *  dónde orientar el mapa — ver bearingAlongRoute(). Ni tan poco que sea
+ *  puro ruido de la posición exacta, ni tan lejos que tarde en reflejar
+ *  un giro cercano. */
+const ROUTE_HEADING_LOOKAHEAD_M = 30;
 
 interface MapViewProps {
   children?: React.ReactNode;
@@ -399,6 +406,16 @@ const MapView = ({
   const getHeading = useCallback((): number => {
     if (simulatedHeading != null) return simulatedHeading;
 
+    // Con ruta activa y estando de verdad sobre ella, el propio trazado de
+    // la carretera manda sobre cualquier otra señal: es "hacia dónde tengo
+    // que seguir", no hacia dónde apunta el GPS o la brújula en este
+    // instante — ni se queda plano parado en un semáforo, ni un giro lo
+    // pilla por sorpresa porque ya lo anticipa un poco antes de llegar.
+    if (markerLocation && route && route.coordinates.length >= 2) {
+      const ahead = bearingAlongRoute(markerLocation, route.coordinates, ROUTE_HEADING_LOOKAHEAD_M);
+      if (ahead != null) return ahead;
+    }
+
     // Con movimiento real confirmado por GPS (conduciendo, en bici...) el
     // rumbo de desplazamiento manda sobre la brújula — el imán del móvil
     // dentro de un coche (soporte magnético, altavoces, chasis metálico)
@@ -432,7 +449,7 @@ const MapView = ({
       return (Math.atan2(dLng, dLat) * 180) / Math.PI;
     }
     return 0;
-  }, [simulatedHeading, compassHeading, userHeading, positionHistory, hasReliableMovement, bearingToTarget, showRoute]);
+  }, [simulatedHeading, markerLocation, route, compassHeading, userHeading, positionHistory, hasReliableMovement, bearingToTarget, showRoute]);
 
   const centerOnUser = useCallback(() => {
     if (!map.current || !userLocation) return;
