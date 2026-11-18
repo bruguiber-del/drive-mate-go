@@ -691,7 +691,11 @@ const MapView = ({
       // Compensa la rotación del propio mapa para que el icono no gire el
       // doble de lo debido — ver markerScreenRotation() para el porqué.
       const markerRotation = markerScreenRotation(heading, m.getBearing());
-      const el = buildUserMarkerEl(!!showRoute, markerRotation);
+      // El cono de brújula sigue la orientación REAL del móvil, no el rumbo
+      // de viaje combinado — null si todavía no hay lectura (sin permiso o
+      // sin sensor) para no enseñar un cono con un rumbo inventado.
+      const coneRotation = compassHeading != null ? markerScreenRotation(compassHeading, m.getBearing()) : null;
+      const el = buildUserMarkerEl(!!showRoute, markerRotation, coneRotation);
 
       if (!userMarkerRef.current) {
         userMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: 'center' })
@@ -718,8 +722,13 @@ const MapView = ({
           // (varias veces por segundo) crea un elemento nuevo sin rotación
           // de partida, así que el "transition" CSS nunca tiene nada desde
           // donde animar y la flecha salta en vez de girar con suavidad.
-          const wrapper = cur.firstElementChild as HTMLElement | null;
+          const wrapper = cur.querySelector('[data-wrapper]') as HTMLElement | null;
           if (wrapper) wrapper.style.transform = `rotate(${markerRotation}deg)`;
+          const cone = cur.querySelector('[data-cone]') as HTMLElement | null;
+          if (cone) {
+            cone.style.display = coneRotation == null ? 'none' : 'block';
+            if (coneRotation != null) cone.style.transform = `rotate(${coneRotation}deg)`;
+          }
         }
       }
 
@@ -757,7 +766,7 @@ const MapView = ({
       const id = setTimeout(tryMount, 500);
       return () => clearTimeout(id);
     }
-  }, [rawUserLocation, simulatedPosition, displayLocation, mapReady, showRoute, isNavigating, simulatedHeading, getHeading, animateUserMarkerTo, upcomingManeuverType, upcomingManeuverModifier, distanceToManeuver]);
+  }, [rawUserLocation, simulatedPosition, displayLocation, mapReady, showRoute, isNavigating, simulatedHeading, getHeading, compassHeading, animateUserMarkerTo, upcomingManeuverType, upcomingManeuverModifier, distanceToManeuver]);
 
   // ── Destination marker ────────────────────────────────────────────────────
   useEffect(() => {

@@ -69,25 +69,56 @@ export const buildMarkerEl = (color: string, iconPath: string, label?: string, d
   return el;
 };
 
+/** Tamaño (px) del cono de brújula — bastante más grande que el punto en
+ *  sí para que se note como un "foco" alrededor, no como un adorno pegado. */
+const COMPASS_CONE_SIZE = 140;
+
 // Siempre una flecha orientable, navegando o no — antes, sin ruta activa,
 // era un punto plano sin ninguna dirección; ahora que el rumbo puede venir
 // de la brújula del dispositivo (útil incluso parado), tiene sentido
 // enseñarlo también en reposo. La rotación en grados (heading) ya viene
 // resuelta desde fuera: brújula > GPS > "apunta al destino".
-export const buildUserMarkerEl = (showRoute: boolean, heading: number) => {
+//
+// `compassRotation` es DISTINTO de `heading`: la flecha de arriba sigue el
+// rumbo combinado (GPS/brújula/ruta) para saber hacia dónde VAS, pero el
+// cono de luz (como en Google Maps) tiene que seguir SOLO la brújula real
+// del móvil — hacia dónde estás físicamente orientado tú, que puede ser
+// justo el contrario si llevas el móvil al revés o te das la vuelta parado.
+// null cuando no hay lectura de brújula todavía (sin permiso o sin sensor):
+// en ese caso no se dibuja ningún cono, mejor que enseñar uno con un rumbo
+// inventado.
+export const buildUserMarkerEl = (showRoute: boolean, heading: number, compassRotation: number | null) => {
   const el = document.createElement('div');
   el.style.pointerEvents = 'none';
   el.innerHTML = `
-    <div style="transform: rotate(${heading}deg); transition: transform 0.15s linear;">
-      <div style="
-        width:${showRoute ? 30 : 26}px;height:${showRoute ? 30 : 26}px;border-radius:9999px;
-        background:${ROUTE_COLOR};border:2px solid white;
-        box-shadow:0 4px 12px rgba(0,0,0,0.5);
-        display:flex;align-items:center;justify-content:center;
+    <div style="position:relative;width:${COMPASS_CONE_SIZE}px;height:${COMPASS_CONE_SIZE}px;display:flex;align-items:center;justify-content:center;">
+      <div data-cone style="
+        position:absolute;top:0;left:0;width:${COMPASS_CONE_SIZE}px;height:${COMPASS_CONE_SIZE}px;
+        transform: rotate(${compassRotation ?? 0}deg);
+        transform-origin:center;transition: transform 0.2s linear;
+        display:${compassRotation == null ? 'none' : 'block'};
       ">
-        <svg width="${showRoute ? 16 : 14}" height="${showRoute ? 16 : 14}" viewBox="0 0 24 24" fill="white">
-          <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/>
+        <svg width="${COMPASS_CONE_SIZE}" height="${COMPASS_CONE_SIZE}" viewBox="-70 -70 140 140" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <radialGradient id="userCompassConeGrad" cx="0" cy="0" r="70" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="${ROUTE_COLOR}" stop-opacity="0.55"/>
+              <stop offset="100%" stop-color="${ROUTE_COLOR}" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+          <path d="M0,0 L-35,-62 A70,70 0 0,1 35,-62 Z" fill="url(#userCompassConeGrad)"/>
         </svg>
+      </div>
+      <div data-wrapper style="transform: rotate(${heading}deg); transition: transform 0.15s linear;">
+        <div style="
+          width:${showRoute ? 30 : 26}px;height:${showRoute ? 30 : 26}px;border-radius:9999px;
+          background:${ROUTE_COLOR};border:2px solid white;
+          box-shadow:0 4px 12px rgba(0,0,0,0.5);
+          display:flex;align-items:center;justify-content:center;
+        ">
+          <svg width="${showRoute ? 16 : 14}" height="${showRoute ? 16 : 14}" viewBox="0 0 24 24" fill="white">
+            <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/>
+          </svg>
+        </div>
       </div>
     </div>`;
   return el;
