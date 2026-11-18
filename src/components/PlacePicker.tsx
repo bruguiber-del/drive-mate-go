@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { MapPin, Loader2 } from 'lucide-react';
 import { MAPBOX_TOKEN } from '@/lib/mapboxConfig';
-import { normalizeSearchQuery } from '@/lib/searchQueryNormalize';
+import { normalizeSearchQuery, dropTrailingN, mergeDeWithTrailingN, FAR_SUGGESTION_THRESHOLD_M } from '@/lib/searchQueryNormalize';
 
 export interface PickedPlace {
   name: string;
@@ -13,6 +13,7 @@ interface Suggestion {
   mapboxId: string;
   name: string;
   placeName: string;
+  distanceM: number | null;
 }
 
 interface PlacePickerProps {
@@ -77,23 +78,56 @@ const PlacePicker = ({ placeholder = 'Buscar dirección...', initialValue = '', 
                 mapboxId: s.mapbox_id,
                 name: s.name as string,
                 placeName: [s.name, s.full_address ?? s.place_formatted].filter(Boolean).join(' · '),
+                distanceM: typeof s.distance === 'number' ? s.distance : null,
               }))
             : [];
         };
 
+        // "Cerca" de verdad, no solo "hay algo" — Mapbox puede preferir
+        // una coincidencia de texto exacta pero a cientos de km antes que
+        // una parecida pero al lado (confirmado contra la propia API).
+        const hasNearbyResult = (list: Suggestion[]) =>
+          list.some((s) => s.distanceM == null || s.distanceM <= FAR_SUGGESTION_THRESHOLD_M);
+        const goodEnough = (list: Suggestion[]) => (userLocation ? hasNearbyResult(list) : list.length > 0);
+
         // Igual que en NavigationSearch: si la búsqueda completa no da
-        // nada, se reintenta quitando la última palabra una a una (p. ej.
-        // "blanca dona pabellón" no daba nada, "blanca dona" sí).
+        // nada bueno cerca, se reintenta quitando la última palabra una a
+        // una (p. ej. "blanca dona pabellón" no daba nada, "blanca dona" sí).
         let found = await fetchSuggestions(query);
-        if (!cancelled && found.length === 0) {
+        if (!cancelled && !goodEnough(found)) {
           const words = query.trim().split(/\s+/);
-          for (let n = words.length - 1; n >= 1 && found.length === 0; n--) {
-            found = await fetchSuggestions(words.slice(0, n).join(' '));
+          for (let n = words.length - 1; n >= 1 && !goodEnough(found); n--) {
+            const retry = await fetchSuggestions(words.slice(0, n).join(' '));
             if (cancelled) return;
+            if (retry.length > 0) found = retry;
+          }
+        }
+        // Alguna palabra termina en "-on"/"-ón" (Aragón, Castellón...) y
+        // el nombre real es la forma catalana en "-ó".
+        if (!cancelled && !goodEnough(found)) {
+          const words = query.trim().split(/\s+/);
+          for (let i = 0; i < words.length && !goodEnough(found); i++) {
+            const alt = dropTrailingN(words[i]);
+            if (!alt) continue;
+            const variant = [...words.slice(0, i), alt, ...words.slice(i + 1)].join(' ');
+            const retry = await fetchSuggestions(variant);
+            if (cancelled) return;
+            if (retry.length > 0) found = retry;
+          }
+        }
+        // Último recurso: "de Aragón" a la española, cuando el nombre
+        // real catalán no lleva "de" en absoluto, lleva "d'" pegado
+        // ("d'Aragó") — se prueba fusionando ambas palabras en una.
+        if (!cancelled && !goodEnough(found)) {
+          const merged = mergeDeWithTrailingN(query.trim().split(/\s+/));
+          if (merged) {
+            const retry = await fetchSuggestions(merged.join(' '));
+            if (cancelled) return;
+            if (retry.length > 0) found = retry;
           }
         }
         if (cancelled) return;
-        setSuggestions(found);
+        setSuggestions([...found].sort((a, b) => (a.distanceM ?? Infinity) - (b.distanceM ?? Infinity)));
       } catch {
         if (!cancelled) setSuggestions([]);
       } finally {

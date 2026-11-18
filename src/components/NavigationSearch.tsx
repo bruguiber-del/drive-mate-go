@@ -7,7 +7,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { MAPBOX_TOKEN } from '@/lib/mapboxConfig';
 import { findNamedPlace } from '@/lib/namedPlaces';
-import { normalizeSearchQuery } from '@/lib/searchQueryNormalize';
+import { normalizeSearchQuery, dropTrailingN, mergeDeWithTrailingN, FAR_SUGGESTION_THRESHOLD_M } from '@/lib/searchQueryNormalize';
 import { haversineKm } from '@/lib/geo';
 import { overlayTop } from '@/lib/overlayLayout';
 import type { TravelMode } from '@/hooks/useRouting';
@@ -216,18 +216,52 @@ const NavigationSearch = ({
           return Array.isArray(data.suggestions) ? data.suggestions : [];
         };
 
+        // "Cerca" de verdad, no solo "hay algo" — Mapbox puede preferir
+        // una coincidencia de texto exacta pero a cientos de km antes que
+        // una parecida pero al lado (confirmado contra la propia API:
+        // "carrer de aragon 92" solo da direcciones en Valencia/Castellón,
+        // nunca la de Eivissa, aunque exista con ese nombre cerca).
+        const hasNearbyResult = (list: { distance?: number }[]) =>
+          list.some((s) => typeof s.distance !== 'number' || s.distance <= FAR_SUGGESTION_THRESHOLD_M);
+        const goodEnough = (list: { distance?: number }[]) => (userLocation ? hasNearbyResult(list) : list.length > 0);
+
         // Mapbox no encuentra nada si a un nombre de sitio le sigue una
         // palabra genérica de categoría que no sabe ligar bien (p. ej.
         // "blanca dona pabellón" no da nada, pero "blanca dona" sí) —
         // Google Maps sí resuelve eso. Como paliativo gratuito, si la
-        // búsqueda completa no da resultados se reintenta quitando la
-        // última palabra, una a una, hasta dar con algo.
+        // búsqueda completa no da nada bueno cerca se reintenta quitando
+        // la última palabra, una a una, hasta dar con algo.
         let suggestions = await fetchSuggestions(destination);
-        if (!cancelled && suggestions.length === 0) {
+        if (!cancelled && !goodEnough(suggestions)) {
           const words = destination.trim().split(/\s+/);
-          for (let n = words.length - 1; n >= 1 && suggestions.length === 0; n--) {
-            suggestions = await fetchSuggestions(words.slice(0, n).join(' '));
+          for (let n = words.length - 1; n >= 1 && !goodEnough(suggestions); n--) {
+            const retry = await fetchSuggestions(words.slice(0, n).join(' '));
             if (cancelled) return;
+            if (retry.length > 0) suggestions = retry;
+          }
+        }
+        // Alguna palabra termina en "-on"/"-ón" (Aragón, Castellón...) y
+        // el nombre real es la forma catalana en "-ó".
+        if (!cancelled && !goodEnough(suggestions)) {
+          const words = destination.trim().split(/\s+/);
+          for (let i = 0; i < words.length && !goodEnough(suggestions); i++) {
+            const alt = dropTrailingN(words[i]);
+            if (!alt) continue;
+            const variant = [...words.slice(0, i), alt, ...words.slice(i + 1)].join(' ');
+            const retry = await fetchSuggestions(variant);
+            if (cancelled) return;
+            if (retry.length > 0) suggestions = retry;
+          }
+        }
+        // Último recurso: "de Aragón" a la española, cuando el nombre
+        // real catalán no lleva "de" en absoluto, lleva "d'" pegado
+        // ("d'Aragó") — se prueba fusionando ambas palabras en una.
+        if (!cancelled && !goodEnough(suggestions)) {
+          const merged = mergeDeWithTrailingN(destination.trim().split(/\s+/));
+          if (merged) {
+            const retry = await fetchSuggestions(merged.join(' '));
+            if (cancelled) return;
+            if (retry.length > 0) suggestions = retry;
           }
         }
         if (cancelled) return;
@@ -241,12 +275,14 @@ const NavigationSearch = ({
             ...(Array.isArray(s.poi_category) ? s.poi_category : s.poi_category ? [s.poi_category] : []),
             ...(Array.isArray(s.poi_category_ids) ? s.poi_category_ids : []),
           ]),
+          distance: typeof s.distance === 'number' ? s.distance : Infinity,
           order: i,
         }));
 
-        // Estable: lugares importantes primero, negocios genéricos al final,
-        // conservando el orden de relevancia de Mapbox dentro de cada grupo.
-        mapped.sort((a: any, b: any) => a.rank - b.rank || a.order - b.order);
+        // Estable: lugares importantes primero, el más cercano dentro de
+        // cada grupo, y el orden de relevancia de Mapbox como último
+        // desempate.
+        mapped.sort((a: any, b: any) => a.rank - b.rank || a.distance - b.distance || a.order - b.order);
 
         const results: SearchResult[] = mapped.map(({ id, mapboxId, name, place_name }: any) => ({
           id,
