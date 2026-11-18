@@ -100,11 +100,28 @@ export function useRecurringTrips() {
     if (error) await reload();
   }, [reload]);
 
+  // Antes solo se podía borrar y crear de cero para cambiar cualquier cosa
+  // (destino, hora, días...) de un viaje ya guardado.
+  const updateTrip = useCallback(async (id: string, trip: NewRecurringTrip) => {
+    const { error } = await supabase.from('recurring_trips').update({
+      destination_name: trip.destinationName,
+      destination_lat: trip.destinationLat,
+      destination_lng: trip.destinationLng,
+      origin_name: trip.originName ?? null,
+      origin_lat: trip.originLat ?? null,
+      origin_lng: trip.originLng ?? null,
+      departure_time: trip.departureTime,
+      days_of_week: trip.daysOfWeek,
+    }).eq('id', id);
+    if (error) throw new Error(error.message || 'No se pudo actualizar el viaje habitual');
+    await reload();
+  }, [reload]);
+
   const removeTrip = useCallback(async (id: string) => {
     setTrips((prev) => prev.filter((t) => t.id !== id));
     const { error } = await supabase.from('recurring_trips').delete().eq('id', id);
     if (error) await reload();
   }, [reload]);
 
-  return { trips, isAuthenticated, loading, addTrip, toggleActive, removeTrip };
+  return { trips, isAuthenticated, loading, addTrip, updateTrip, toggleActive, removeTrip };
 }

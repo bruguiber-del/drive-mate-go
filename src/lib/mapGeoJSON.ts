@@ -1,17 +1,6 @@
-// Pure GeoJSON builders used by MapView's route/trail layers.
+// Pure GeoJSON builders used by MapView's route/alert layers.
 
 export const ROUTE_COLOR = 'hsl(199, 89%, 48%)';
-
-/** Converts a plain [lat, lng][] polyline into a single GeoJSON LineString. */
-export const toLineGeoJSON = (coords: [number, number][]): GeoJSON.Feature<GeoJSON.LineString> => ({
-  type: 'Feature',
-  properties: {},
-  geometry: {
-    type: 'LineString',
-    // Convert [lat, lng] -> [lng, lat] for GeoJSON
-    coordinates: coords.map(([lat, lng]) => [lng, lat]),
-  },
-});
 
 /** Polígono circular (GeoJSON) de radio `radiusM` metros alrededor de
  *  `center` — para el "campo de fuerza" rojo de los radares puntuales.

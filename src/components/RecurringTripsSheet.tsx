@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { Plus, Trash2, Clock, MapPin, Navigation, LocateFixed, Loader2, Repeat, CalendarDays } from 'lucide-react';
+import { Plus, Trash2, Pencil, Clock, MapPin, Navigation, LocateFixed, Loader2, Repeat, CalendarDays } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/use-toast';
 import { MAPBOX_TOKEN } from '@/lib/mapboxConfig';
-import type { useRecurringTrips, NewRecurringTrip } from '@/hooks/useRecurringTrips';
-import type { useScheduledTrips, NewScheduledTrip } from '@/hooks/useScheduledTrips';
+import type { useRecurringTrips, NewRecurringTrip, RecurringTrip } from '@/hooks/useRecurringTrips';
+import type { useScheduledTrips, NewScheduledTrip, ScheduledTrip } from '@/hooks/useScheduledTrips';
 import PlacePicker, { type PickedPlace } from '@/components/PlacePicker';
 import {
   Drawer,
@@ -52,20 +52,22 @@ function formatScheduledDate(iso: string): string {
   return `${d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} · ${time}`;
 }
 
-/** 'YYYY-MM-DDTHH:mm' en hora local, para el input datetime-local — mañana
- *  a las 9:00 por defecto. */
-function defaultOnceValue(): string {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  d.setHours(9, 0, 0, 0);
+/** 'YYYY-MM-DDTHH:mm' en hora local, para el input datetime-local. */
+function toLocalDatetimeValue(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function nowLocalValue(): string {
+/** Mañana a las 9:00 por defecto, para un viaje puntual nuevo. */
+function defaultOnceValue(): string {
   const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  d.setDate(d.getDate() + 1);
+  d.setHours(9, 0, 0, 0);
+  return toLocalDatetimeValue(d);
+}
+
+function nowLocalValue(): string {
+  return toLocalDatetimeValue(new Date());
 }
 
 const RecurringTripsSheet = ({ isOpen, onClose, currentDestination, currentLocation, recurring, scheduled }: RecurringTripsSheetProps) => {
@@ -82,6 +84,10 @@ const RecurringTripsSheet = ({ isOpen, onClose, currentDestination, currentLocat
   const [origin, setOrigin] = useState<PickedPlace | null>(null);
   const [locatingOrigin, setLocatingOrigin] = useState(false);
   const [saving, setSaving] = useState(false);
+  // null = formulario para AÑADIR un viaje nuevo; con valor = editando uno
+  // ya guardado (antes solo se podía borrar y volver a crearlo entero para
+  // cambiar cualquier cosa, destino incluido).
+  const [editing, setEditing] = useState<{ id: string; kind: 'weekly' | 'once' } | null>(null);
 
   const isAuthenticated = recurring.isAuthenticated;
 
@@ -121,7 +127,27 @@ const RecurringTripsSheet = ({ isOpen, onClose, currentDestination, currentLocat
       currentDestination ? { name: currentDestination.name, lat: currentDestination.lat, lng: currentDestination.lng } : null,
     );
     setOrigin(null);
+    setEditing(null);
     setShowForm(false);
+  };
+
+  const openEditRecurring = (t: RecurringTrip) => {
+    setEditing({ id: t.id, kind: 'weekly' });
+    setRepeatMode('weekly');
+    setDays(t.daysOfWeek);
+    setTime(t.departureTime);
+    setDestination({ name: t.destinationName, lat: t.destinationLat, lng: t.destinationLng });
+    setOrigin(t.originName && t.originLat != null && t.originLng != null ? { name: t.originName, lat: t.originLat, lng: t.originLng } : null);
+    setShowForm(true);
+  };
+
+  const openEditScheduled = (t: ScheduledTrip) => {
+    setEditing({ id: t.id, kind: 'once' });
+    setRepeatMode('once');
+    setOnceAt(toLocalDatetimeValue(new Date(t.scheduledAt)));
+    setDestination({ name: t.destinationName, lat: t.destinationLat, lng: t.destinationLng });
+    setOrigin(t.originName && t.originLat != null && t.originLng != null ? { name: t.originName, lat: t.originLat, lng: t.originLng } : null);
+    setShowForm(true);
   };
 
   const handleSave = async () => {
@@ -139,8 +165,13 @@ const RecurringTripsSheet = ({ isOpen, onClose, currentDestination, currentLocat
           daysOfWeek: days,
           ...(origin ? { originName: origin.name, originLat: origin.lat, originLng: origin.lng } : {}),
         };
-        await recurring.addTrip(payload);
-        toast({ title: 'Viaje habitual guardado', duration: 1800 });
+        if (editing?.kind === 'weekly') {
+          await recurring.updateTrip(editing.id, payload);
+          toast({ title: 'Viaje habitual actualizado', duration: 1800 });
+        } else {
+          await recurring.addTrip(payload);
+          toast({ title: 'Viaje habitual guardado', duration: 1800 });
+        }
       } else {
         const payload: NewScheduledTrip = {
           destinationName: destination.name,
@@ -149,8 +180,13 @@ const RecurringTripsSheet = ({ isOpen, onClose, currentDestination, currentLocat
           scheduledAt: new Date(onceAt).toISOString(),
           ...(origin ? { originName: origin.name, originLat: origin.lat, originLng: origin.lng } : {}),
         };
-        await scheduled.addTrip(payload);
-        toast({ title: 'Viaje programado', duration: 1800 });
+        if (editing?.kind === 'once') {
+          await scheduled.updateTrip(editing.id, payload);
+          toast({ title: 'Viaje actualizado', duration: 1800 });
+        } else {
+          await scheduled.addTrip(payload);
+          toast({ title: 'Viaje programado', duration: 1800 });
+        }
       }
       resetForm();
     } catch (err) {
@@ -203,26 +239,37 @@ const RecurringTripsSheet = ({ isOpen, onClose, currentDestination, currentLocat
                             </p>
                           </div>
                           <div className="flex flex-col items-end gap-2 shrink-0">
-                            <button
-                              type="button"
-                              role="switch"
-                              aria-checked={t.active}
-                              onClick={() => recurring.toggleActive(t.id, !t.active)}
-                              className={cn(
-                                'w-9 h-5 rounded-full transition-colors relative shrink-0',
-                                t.active ? 'bg-primary' : 'bg-muted-foreground/30',
-                              )}
-                            >
-                              <span
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] font-medium text-muted-foreground">
+                                {t.active ? 'Activo' : 'Pausado'}
+                              </span>
+                              <button
+                                type="button"
+                                role="switch"
+                                aria-checked={t.active}
+                                aria-label={t.active ? 'Pausar viaje habitual' : 'Activar viaje habitual'}
+                                onClick={() => recurring.toggleActive(t.id, !t.active)}
                                 className={cn(
-                                  'absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform',
-                                  t.active ? 'translate-x-[18px]' : 'translate-x-0.5',
+                                  'w-9 h-5 rounded-full transition-colors relative shrink-0',
+                                  t.active ? 'bg-primary' : 'bg-muted-foreground/30',
                                 )}
-                              />
-                            </button>
-                            <Button variant="ghost" size="icon-sm" className="h-6 w-6" onClick={() => recurring.removeTrip(t.id)}>
-                              <Trash2 className="w-3.5 h-3.5 text-destructive" />
-                            </Button>
+                              >
+                                <span
+                                  className={cn(
+                                    'absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform',
+                                    t.active ? 'translate-x-[18px]' : 'translate-x-0.5',
+                                  )}
+                                />
+                              </button>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button variant="ghost" size="icon-sm" className="h-6 w-6" onClick={() => openEditRecurring(t)} aria-label="Editar viaje habitual">
+                                <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+                              </Button>
+                              <Button variant="ghost" size="icon-sm" className="h-6 w-6" onClick={() => recurring.removeTrip(t.id)} aria-label="Borrar viaje habitual">
+                                <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -248,9 +295,14 @@ const RecurringTripsSheet = ({ isOpen, onClose, currentDestination, currentLocat
                               {t.originName ?? 'Desde tu ubicación en ese momento'}
                             </p>
                           </div>
-                          <Button variant="ghost" size="icon-sm" className="h-6 w-6 shrink-0" onClick={() => scheduled.cancelTrip(t.id)}>
-                            <Trash2 className="w-3.5 h-3.5 text-destructive" />
-                          </Button>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <Button variant="ghost" size="icon-sm" className="h-6 w-6" onClick={() => openEditScheduled(t)} aria-label="Editar viaje">
+                              <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+                            </Button>
+                            <Button variant="ghost" size="icon-sm" className="h-6 w-6" onClick={() => scheduled.cancelTrip(t.id)} aria-label="Cancelar viaje">
+                              <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -265,12 +317,19 @@ const RecurringTripsSheet = ({ isOpen, onClose, currentDestination, currentLocat
                 </Button>
               ) : (
                 <div className="glass rounded-xl p-4 space-y-4">
+                  {editing && (
+                    <p className="text-xs font-semibold text-primary -mb-1">Editando viaje</p>
+                  )}
+                  {/* Cambiar entre "cada semana"/"solo una vez" al EDITAR
+                      cambiaría de tabla entera (viaje habitual <-> puntual),
+                      así que se deja fijo a como ya estaba guardado. */}
                   <div className="flex gap-1.5 bg-muted/50 rounded-lg p-1">
                     <button
                       type="button"
+                      disabled={!!editing}
                       onClick={() => setRepeatMode('weekly')}
                       className={cn(
-                        'flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium transition-colors',
+                        'flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium transition-colors disabled:opacity-50',
                         repeatMode === 'weekly' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground',
                       )}
                     >
@@ -279,9 +338,10 @@ const RecurringTripsSheet = ({ isOpen, onClose, currentDestination, currentLocat
                     </button>
                     <button
                       type="button"
+                      disabled={!!editing}
                       onClick={() => setRepeatMode('once')}
                       className={cn(
-                        'flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium transition-colors',
+                        'flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium transition-colors disabled:opacity-50',
                         repeatMode === 'once' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground',
                       )}
                     >
@@ -408,7 +468,7 @@ const RecurringTripsSheet = ({ isOpen, onClose, currentDestination, currentLocat
                       onClick={handleSave}
                       disabled={saving || !destination || (repeatMode === 'weekly' ? days.length === 0 : !onceAt)}
                     >
-                      Guardar
+                      {editing ? 'Guardar cambios' : 'Guardar'}
                     </Button>
                   </div>
                 </div>

@@ -95,5 +95,25 @@ export function useScheduledTrips() {
     if (error) await reload();
   }, [reload]);
 
-  return { trips, isAuthenticated, loading, addTrip, cancelTrip };
+  // Antes solo se podía cancelar y programar de cero para cambiar cualquier
+  // cosa (destino, fecha, hora...) de un viaje ya guardado.
+  const updateTrip = useCallback(async (id: string, trip: NewScheduledTrip) => {
+    const { error } = await supabase.from('trips').update({
+      destination_name: trip.destinationName,
+      destination_lat: trip.destinationLat,
+      destination_lng: trip.destinationLng,
+      origin_name: trip.originName ?? null,
+      origin_lat: trip.originLat ?? null,
+      origin_lng: trip.originLng ?? null,
+      scheduled_at: trip.scheduledAt,
+      // Al cambiar la hora, el aviso push debe poder saltar otra vez para
+      // el nuevo momento — si no, se quedaría marcado como "ya avisado"
+      // del momento ANTERIOR y nunca llegaría el de la hora nueva.
+      reminder_sent_at: null,
+    }).eq('id', id);
+    if (error) throw new Error(error.message || 'No se pudo actualizar el viaje');
+    await reload();
+  }, [reload]);
+
+  return { trips, isAuthenticated, loading, addTrip, updateTrip, cancelTrip };
 }

@@ -21,7 +21,6 @@ import {
 } from '@/lib/mapGeo';
 import {
   ROUTE_COLOR,
-  toLineGeoJSON,
   toRouteGeoJSON,
   toCircleGeoJSON,
   nearestCoordIndex,
@@ -122,15 +121,11 @@ interface MapViewProps {
 // ── Visual constants ─────────────────────────────────────────────────────────
 export type GpsStatus = 'searching' | 'ok' | 'denied' | 'lost' | 'unavailable';
 
-const TRAIL_COLOR = 'hsl(199, 89%, 48%)';
-
 // ── Source/layer IDs ─────────────────────────────────────────────────────────
 const SRC_ROUTE = 'vm-route';
 const LYR_ROUTE = 'vm-route-line';
 const LYR_ROUTE_TRAFFIC = 'vm-route-traffic';
 const LYR_ROUTE_BEFORE_STOP = 'vm-route-before-stop';
-const SRC_TRAIL = 'vm-trail';
-const LYR_TRAIL = 'vm-trail-line';
 const SRC_PREVIEW = 'vm-preview';
 const LYR_PREVIEW = 'vm-preview-line';
 const SRC_DRIVER_ROUTE = 'vm-driver-route';
@@ -763,37 +758,6 @@ const MapView = ({
       return () => clearTimeout(id);
     }
   }, [rawUserLocation, simulatedPosition, displayLocation, mapReady, showRoute, isNavigating, simulatedHeading, getHeading, animateUserMarkerTo, upcomingManeuverType, upcomingManeuverModifier, distanceToManeuver]);
-
-  // ── Trail line during navigation ──────────────────────────────────────────
-  useEffect(() => {
-    if (!map.current || !mapReady) return;
-    const m = map.current;
-    if (!m.isStyleLoaded()) return;
-
-    if (showRoute && positionHistory.length > 1) {
-      const data = toLineGeoJSON(positionHistory);
-      const src = m.getSource(SRC_TRAIL) as mapboxgl.GeoJSONSource | undefined;
-      if (src) {
-        src.setData(data);
-      } else {
-        m.addSource(SRC_TRAIL, { type: 'geojson', data });
-        m.addLayer({
-          id: LYR_TRAIL,
-          type: 'line',
-          source: SRC_TRAIL,
-          paint: {
-            'line-color': TRAIL_COLOR,
-            'line-width': 3,
-            'line-opacity': 0.4,
-            'line-dasharray': [2, 3],
-          },
-        });
-      }
-    } else {
-      if (m.getLayer(LYR_TRAIL)) m.removeLayer(LYR_TRAIL);
-      if (m.getSource(SRC_TRAIL)) m.removeSource(SRC_TRAIL);
-    }
-  }, [positionHistory, mapReady, showRoute]);
 
   // ── Destination marker ────────────────────────────────────────────────────
   useEffect(() => {
