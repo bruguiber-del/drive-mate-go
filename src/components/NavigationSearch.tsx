@@ -199,7 +199,11 @@ const NavigationSearch = ({
             language: 'es',
             country: 'es',
             limit: '8',
-            types: 'poi,address,place',
+            // "street" aparte de "address": una calle buscada sin número
+            // (p. ej. "Carrer de Aragón") es su propio tipo en Mapbox, no
+            // una "address" — sin esto no aparecía nunca, por bien que se
+            // escribiera.
+            types: 'poi,address,place,street',
           });
           if (userLocation) {
             params.set('proximity', `${userLocation[1]},${userLocation[0]}`);

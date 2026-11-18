@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Plus, Trash2, Loader2, LocateFixed } from 'lucide-react';
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { Plus, Trash2, Loader2, LocateFixed, Map as MapIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/use-toast';
@@ -7,6 +7,12 @@ import { MAPBOX_TOKEN } from '@/lib/mapboxConfig';
 import type { useSavedPlaces, SavedPlaceKind } from '@/hooks/useSavedPlaces';
 import { SAVED_PLACE_ICON_OPTIONS, getSavedPlaceIcon } from '@/lib/savedPlaceIcons';
 import PlacePicker, { type PickedPlace } from '@/components/PlacePicker';
+
+// mapbox-gl es una librería enorme — igual que MapView en Index.tsx, se
+// carga solo cuando hace falta de verdad (al abrir el selector de mapa),
+// no en el arranque de toda la app. Sin esto, mapbox-gl se colaba en el
+// bundle principal aunque nadie llegara a abrir este selector nunca.
+const MapLocationPicker = lazy(() => import('@/components/MapLocationPicker'));
 import {
   Drawer,
   DrawerContent,
@@ -39,6 +45,7 @@ const SavedPlacesSheet = ({ isOpen, onClose, currentLocation, places, initialKin
   const [place, setPlace] = useState<PickedPlace | null>(null);
   const [saving, setSaving] = useState(false);
   const [locating, setLocating] = useState(false);
+  const [showMapPicker, setShowMapPicker] = useState(false);
 
   const hasHome = places.places.some((p) => p.kind === 'home');
   const hasWork = places.places.some((p) => p.kind === 'work');
@@ -208,21 +215,33 @@ const SavedPlacesSheet = ({ isOpen, onClose, currentLocation, places, initialKin
                     </>
                   )}
 
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="w-full justify-start"
-                    disabled={locating}
-                    onClick={handleUseCurrentLocation}
-                  >
-                    {locating ? (
-                      <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
-                    ) : (
-                      <LocateFixed className="w-4 h-4 mr-1.5" />
-                    )}
-                    Usar mi ubicación actual
-                  </Button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="justify-start"
+                      disabled={locating}
+                      onClick={handleUseCurrentLocation}
+                    >
+                      {locating ? (
+                        <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                      ) : (
+                        <LocateFixed className="w-4 h-4 mr-1.5" />
+                      )}
+                      Mi ubicación
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="justify-start"
+                      onClick={() => setShowMapPicker(true)}
+                    >
+                      <MapIcon className="w-4 h-4 mr-1.5" />
+                      Elegir en el mapa
+                    </Button>
+                  </div>
 
                   {/* key fuerza a PlacePicker a remontar (y recoger el
                       nuevo initialValue) cuando el sitio se resuelve desde
@@ -259,6 +278,20 @@ const SavedPlacesSheet = ({ isOpen, onClose, currentLocation, places, initialKin
           )}
         </div>
       </DrawerContent>
+
+      {showMapPicker && (
+        <Suspense fallback={null}>
+          <MapLocationPicker
+            isOpen={showMapPicker}
+            onClose={() => setShowMapPicker(false)}
+            onConfirm={(picked) => {
+              setPlace(picked);
+              setShowMapPicker(false);
+            }}
+            initialCenter={currentLocation}
+          />
+        </Suspense>
+      )}
     </Drawer>
   );
 };

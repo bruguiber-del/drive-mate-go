@@ -1666,7 +1666,11 @@ const Index = () => {
   // recorrido A LO LARGO de la ruta (distanceAlongRoute, que proyecta
   // sobre la polilínea real) y se busca en qué paso cae esa distancia —
   // inmune a que dos puntos de maniobra distintos queden cerca en el mapa.
-  const currentStepIndex = useMemo(() => {
+  // Tramo que estás recorriendo AHORA MISMO (el de la carretera en la que
+  // ya estás, tras haber hecho su maniobra de entrada) — para la distancia
+  // restante/ETA, que necesita sumar lo que queda de ESTE tramo, no del
+  // siguiente.
+  const travelingLegIndex = useMemo(() => {
     const steps = nav.currentRoute?.steps;
     const coordinates = nav.currentRoute?.coordinates;
     if (!steps?.length || !coordinates?.length || !realUserLocation) return -1;
@@ -1683,6 +1687,19 @@ const Index = () => {
     }
     return steps.length - 1;
   }, [nav.currentRoute, realUserLocation]);
+
+  // La maniobra a ENSEÑAR (icono, "gira a la derecha", carriles...) es la
+  // que viene DESPUÉS del tramo que se está recorriendo — steps[i].distance
+  // es la distancia de ESE tramo HASTA la maniobra que lo cierra, así que
+  // la maniobra de steps[i] ya quedó atrás (se hizo para ENTRAR en el
+  // tramo). Enseñar steps[travelingLegIndex] en vez de steps[travelingLegIndex+1]
+  // hacía que apareciera siempre la indicación de un giro ya pasado, con
+  // su distancia e icono — el giro de verdad, más cercano, no se veía.
+  const currentStepIndex = useMemo(() => {
+    const steps = nav.currentRoute?.steps;
+    if (!steps?.length || travelingLegIndex < 0) return -1;
+    return Math.min(travelingLegIndex + 1, steps.length - 1);
+  }, [nav.currentRoute, travelingLegIndex]);
 
   const currentStep = useMemo(() => {
     const steps = nav.currentRoute?.steps;
@@ -1709,15 +1726,19 @@ const Index = () => {
   // solo lo que queda desde el tramo actual en vez del viaje completo.
   const liveETA = useMemo(() => {
     const steps = nav.currentRoute?.steps;
-    if (!steps?.length || currentStepIndex < 0) return nav.dynamicETA;
-    const remaining = steps.slice(currentStepIndex);
+    // travelingLegIndex (no currentStepIndex, que ahora es la maniobra
+    // siguiente) — lo que falta por recorrer empieza en el tramo donde
+    // estás AHORA, no un tramo por delante, o la distancia/tiempo
+    // restantes se quedarían cortos por el tramo entero que ya falta.
+    if (!steps?.length || travelingLegIndex < 0) return nav.dynamicETA;
+    const remaining = steps.slice(travelingLegIndex);
     const seconds = remaining.reduce((sum, s) => sum + s.duration, 0);
     const meters = remaining.reduce((sum, s) => sum + s.distance, 0);
     return {
       minutes: Math.ceil(seconds / 60),
       distanceKm: (meters / 1000).toFixed(1),
     };
-  }, [nav.currentRoute, currentStepIndex, nav.dynamicETA]);
+  }, [nav.currentRoute, travelingLegIndex, nav.dynamicETA]);
 
   const passengerChipStop = useMemo<PassengerStopPill | null>(() => {
     const d = driverSim.currentDriver;
