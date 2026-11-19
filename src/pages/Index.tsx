@@ -2021,6 +2021,7 @@ const Index = () => {
           onSelectSavedPlace={handleSelectSavedPlace}
           onManageSavedPlaces={() => { setSavedPlacesInitialKind(null); setShowSavedPlaces(true); }}
           onAddSavedPlaceKind={handleAddSavedPlaceKind}
+          onReorderSavedPlaces={savedPlaces.reorderPlaces}
         />
 
         {/* Buscando conductor (modo pasajero) — antes no había ningún aviso

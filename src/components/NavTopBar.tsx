@@ -1,9 +1,89 @@
+import { useRef } from "react";
+import { Reorder, useDragControls } from "framer-motion";
 import { Menu, Volume2, VolumeX, X, Plus, Home, Briefcase } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import SearchBar from "@/components/SearchBar";
 import type { TravelMode } from "@/hooks/useRouting";
 import type { SavedPlace, SavedPlaceKind } from "@/hooks/useSavedPlaces";
 import { getSavedPlaceIcon } from "@/lib/savedPlaceIcons";
+
+const LONG_PRESS_MS = 400;
+const MOVE_CANCEL_PX = 10;
+
+/** Una chapa de sitio guardado en la fila rápida — mantener pulsada (sin
+ *  moverse) la pone en modo "arrastrar" para cambiarla de sitio; un toque
+ *  normal (soltar antes de los 400ms) la selecciona como siempre, igual
+ *  que los iconos de la pantalla de inicio de iOS.
+ *
+ *  dragListener={false} + dragControls propios: framer-motion solo fuerza
+ *  touch-action:none en el elemento cuando SÍ hay dragListener (se
+ *  comprueba en su propio código fuente) — con dragListener={false} el
+ *  scroll horizontal normal de la fila sigue intacto hasta que se llama a
+ *  dragControls.start() a propósito, así que no hace falta nada especial
+ *  para no romper el scroll mientras no se mantiene pulsado. */
+const DraggableChip = ({
+  place,
+  onSelect,
+}: {
+  place: SavedPlace;
+  onSelect: (p: SavedPlace) => void;
+}) => {
+  const dragControls = useDragControls();
+  const pressTimerRef = useRef<number | null>(null);
+  const startRef = useRef<{ x: number; y: number } | null>(null);
+  const draggedRef = useRef(false);
+  const Icon = getSavedPlaceIcon(place);
+
+  const clearPressTimer = () => {
+    if (pressTimerRef.current != null) {
+      window.clearTimeout(pressTimerRef.current);
+      pressTimerRef.current = null;
+    }
+  };
+
+  return (
+    <Reorder.Item
+      as="button"
+      type="button"
+      value={place}
+      dragListener={false}
+      dragControls={dragControls}
+      onPointerDown={(e: React.PointerEvent<HTMLButtonElement>) => {
+        startRef.current = { x: e.clientX, y: e.clientY };
+        draggedRef.current = false;
+        clearPressTimer();
+        pressTimerRef.current = window.setTimeout(() => {
+          pressTimerRef.current = null;
+          draggedRef.current = true;
+          dragControls.start(e);
+        }, LONG_PRESS_MS);
+      }}
+      onPointerMove={(e: React.PointerEvent<HTMLButtonElement>) => {
+        if (pressTimerRef.current == null || !startRef.current) return;
+        // Se ha movido antes de cumplirse los 400ms — es un scroll de la
+        // fila, no un mantener pulsado; se deja el toque sin tocar nada.
+        if (Math.abs(e.clientX - startRef.current.x) > MOVE_CANCEL_PX || Math.abs(e.clientY - startRef.current.y) > MOVE_CANCEL_PX) {
+          clearPressTimer();
+        }
+      }}
+      onPointerUp={clearPressTimer}
+      onPointerCancel={clearPressTimer}
+      onClick={() => {
+        // Tras un mantener-pulsado-para-mover, soltar no debe además
+        // "seleccionarlo" como si fuera un toque normal.
+        if (draggedRef.current) {
+          draggedRef.current = false;
+          return;
+        }
+        onSelect(place);
+      }}
+      className="shrink-0 flex items-center gap-1.5 pl-2 pr-3 py-1.5 rounded-full glass text-xs font-medium text-foreground select-none"
+    >
+      <Icon className="w-3.5 h-3.5 text-primary shrink-0" />
+      {place.label}
+    </Reorder.Item>
+  );
+};
 
 interface NavTopBarProps {
   onOpenMenu: () => void;
@@ -25,6 +105,9 @@ interface NavTopBarProps {
   /** Casa/Trabajo sin guardar todavía — abre el formulario de Ajustes ya
    *  con ese tipo elegido, en vez de mandar a elegirlo otra vez a mano. */
   onAddSavedPlaceKind: (kind: SavedPlaceKind) => void;
+  /** Mantener pulsado y arrastrar una chapa en esta fila reordena aquí
+   *  mismo — mismo "position" compartido que el orden de Ajustes. */
+  onReorderSavedPlaces: (ordered: SavedPlace[]) => void;
 }
 
 /** Top bar: hamburger menu, the universal destination search bar, and — only
@@ -44,10 +127,14 @@ const NavTopBar = ({
   onSelectSavedPlace,
   onManageSavedPlaces,
   onAddSavedPlaceKind,
+  onReorderSavedPlaces,
 }: NavTopBarProps) => {
   const homePlace = savedPlaces.find((p) => p.kind === 'home') ?? null;
   const workPlace = savedPlaces.find((p) => p.kind === 'work') ?? null;
-  const otherPlaces = savedPlaces.filter((p) => p.kind === 'other');
+  // Casa, Trabajo y el resto, todos en una sola fila reordenable — ya no
+  // van fijos primero: el orden lo decide quien reordene (aquí o en
+  // Ajustes, mismo campo "position" para los dos sitios).
+  const orderedPlaces = [...savedPlaces].sort((a, b) => a.position - b.position);
   // Descompone la espera en dos fases con nombre, en vez de un "Navegando..."
   // fijo mientras no hay nada que ver todavía — así se nota qué está pasando.
   const statusText = !isNavigating
@@ -121,40 +208,39 @@ const NavTopBar = ({
           el propio buscador. */}
       {!isNavigating && (
         <div className="pointer-events-auto flex gap-2 mt-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <button
-            type="button"
-            onClick={() => (homePlace ? onSelectSavedPlace(homePlace) : onAddSavedPlaceKind('home'))}
-            className={`shrink-0 flex items-center gap-1.5 pl-2 pr-3 py-1.5 rounded-full text-xs font-medium ${
-              homePlace ? 'glass text-foreground' : 'border border-dashed border-muted-foreground/40 text-muted-foreground'
-            }`}
+          {/* Casa/Trabajo sin guardar todavía: invitan a configurarlos, fijos
+              delante — no hay nada real que reordenar hasta que existan. */}
+          {!homePlace && (
+            <button
+              type="button"
+              onClick={() => onAddSavedPlaceKind('home')}
+              className="shrink-0 flex items-center gap-1.5 pl-2 pr-3 py-1.5 rounded-full text-xs font-medium border border-dashed border-muted-foreground/40 text-muted-foreground"
+            >
+              <Home className="w-3.5 h-3.5 shrink-0" />
+              Casa
+            </button>
+          )}
+          {!workPlace && (
+            <button
+              type="button"
+              onClick={() => onAddSavedPlaceKind('work')}
+              className="shrink-0 flex items-center gap-1.5 pl-2 pr-3 py-1.5 rounded-full text-xs font-medium border border-dashed border-muted-foreground/40 text-muted-foreground"
+            >
+              <Briefcase className="w-3.5 h-3.5 shrink-0" />
+              Trabajo
+            </button>
+          )}
+          <Reorder.Group
+            as="div"
+            axis="x"
+            values={orderedPlaces}
+            onReorder={onReorderSavedPlaces}
+            className="shrink-0 flex gap-2"
           >
-            <Home className={`w-3.5 h-3.5 shrink-0 ${homePlace ? 'text-primary' : ''}`} />
-            Casa
-          </button>
-          <button
-            type="button"
-            onClick={() => (workPlace ? onSelectSavedPlace(workPlace) : onAddSavedPlaceKind('work'))}
-            className={`shrink-0 flex items-center gap-1.5 pl-2 pr-3 py-1.5 rounded-full text-xs font-medium ${
-              workPlace ? 'glass text-foreground' : 'border border-dashed border-muted-foreground/40 text-muted-foreground'
-            }`}
-          >
-            <Briefcase className={`w-3.5 h-3.5 shrink-0 ${workPlace ? 'text-primary' : ''}`} />
-            Trabajo
-          </button>
-          {otherPlaces.map((p) => {
-            const Icon = getSavedPlaceIcon(p);
-            return (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => onSelectSavedPlace(p)}
-                className="shrink-0 flex items-center gap-1.5 pl-2 pr-3 py-1.5 rounded-full glass text-xs font-medium text-foreground"
-              >
-                <Icon className="w-3.5 h-3.5 text-primary shrink-0" />
-                {p.label}
-              </button>
-            );
-          })}
+            {orderedPlaces.map((p) => (
+              <DraggableChip key={p.id} place={p} onSelect={onSelectSavedPlace} />
+            ))}
+          </Reorder.Group>
           <button
             type="button"
             onClick={onManageSavedPlaces}
