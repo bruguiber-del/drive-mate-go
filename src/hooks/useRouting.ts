@@ -233,9 +233,31 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
             const laneBanner = (s.bannerInstructions ?? []).find(
               (b: any) => Array.isArray(b?.sub?.components) && b.sub.components.some((c: any) => c.type === 'lane'),
             );
-            const lanes = laneBanner?.sub.components
+            let lanes = laneBanner?.sub.components
               .filter((c: any) => c.type === 'lane')
               .map((c: any) => ({ indications: c.indications ?? [], active: !!c.active }));
+
+            // No todos los tramos traen ese banner (p. ej. una salida de
+            // autovía sencilla a veces no lo incluye) aunque Mapbox sí sepa
+            // qué carril coger — esa misma info también viaja, siempre,
+            // en el último "intersection" del tramo (justo donde está la
+            // maniobra). Se usa como respaldo para no perder la guía de
+            // carril solo porque falte el banner.
+            if (!lanes || lanes.length === 0) {
+              const intersectionsWithLanes = (s.intersections ?? []).filter(
+                (isec) => Array.isArray(isec.lanes) && isec.lanes.length > 0,
+              );
+              const lastIntersection = intersectionsWithLanes[intersectionsWithLanes.length - 1];
+              if (lastIntersection) {
+                // "active" es el carril recomendado; en respuestas antiguas
+                // de Mapbox puede faltar, así que si no viene se usa
+                // "valid" (carril que sí lleva a seguir la ruta) en su lugar.
+                lanes = lastIntersection.lanes.map((l) => ({
+                  indications: l.indications ?? [],
+                  active: l.active != null ? !!l.active : !!l.valid,
+                }));
+              }
+            }
 
             return {
               instruction: s.maneuver?.instruction ?? '',

@@ -63,6 +63,16 @@ function isNearImportantManeuver(
  *  un giro cercano. */
 const ROUTE_HEADING_LOOKAHEAD_M = 30;
 
+/** Precisión mínima (metros) para aceptar el primer fix "rápido" de baja
+ *  precisión al abrir el navegador — ver el comentario junto a su uso. */
+const QUICK_FIX_MAX_ACCURACY_M = 100;
+
+/** Por debajo de esto, una velocidad calculada (de coords.speed o del
+ *  desplazamiento entre fixes) se trata como "parado" — el ruido normal
+ *  del propio GPS hace que un móvil quieto reporte 1-4 km/h de vez en
+ *  cuando, y eso hacía que el velocímetro nunca marcara un 0 estable. */
+const SPEED_DEADBAND_KMH = 5;
+
 interface MapViewProps {
   children?: React.ReactNode;
   destination?: { lng: number; lat: number; name: string } | null;
@@ -658,12 +668,18 @@ const MapView = ({
     navigator.geolocation.getCurrentPosition(
       (position) => {
         if (quickFixApplied || rawUserLocationRef.current) return;
+        // Un fix de baja precisión (wifi/red, a veces hasta un minuto viejo)
+        // puede estar a cientos de metros de donde estás de verdad — eso
+        // hacía que al entrar en el navegador se viera un momento una calle
+        // equivocada antes de que el GPS de verdad corrigiera. Si no es lo
+        // bastante preciso, se descarta y se espera al watchPosition real.
+        if (position.coords.accuracy > QUICK_FIX_MAX_ACCURACY_M) return;
         quickFixApplied = true;
         setRawUserLocation([position.coords.latitude, position.coords.longitude]);
         reportGpsStatus('ok');
       },
       () => { /* sin red/permiso: el watchPosition de abajo sigue intentándolo */ },
-      { enableHighAccuracy: false, timeout: 5000, maximumAge: 60000 },
+      { enableHighAccuracy: false, timeout: 5000, maximumAge: 15000 },
     );
 
     watchIdRef.current = navigator.geolocation.watchPosition(
@@ -703,6 +719,7 @@ const MapView = ({
         } else {
           kmh = 0;
         }
+        if (kmh < SPEED_DEADBAND_KMH) kmh = 0;
         lastSpeedSampleRef.current = { coords, t: now, kmh };
 
         setSpeedTier(prevTier => nextSpeedTier(kmh, prevTier));

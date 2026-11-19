@@ -30,11 +30,16 @@ const ManeuverBadge = ({
   const exit = ROUNDABOUT_TYPES.has(step.maneuver.type.toLowerCase()) ? step.maneuver.exit : undefined;
   const box = size === "lg" ? "w-14 h-14 rounded-xl" : "w-11 h-11 rounded-lg";
   const icon = size === "lg" ? "w-8 h-8" : "w-6 h-6";
+  // El número de salida es la parte que de verdad hay que leer de un
+  // vistazo en una rotonda — antes salía como una insignia pequeña (18px,
+  // texto de 10px) fácil de no ver conduciendo. Mucho más grande que el
+  // resto de insignias de la app a propósito.
+  const exitBadge = size === "lg" ? "min-w-[28px] h-[28px] text-base -top-2 -right-2" : "min-w-[22px] h-[22px] text-sm -top-1.5 -right-1.5";
   return (
     <div className={`relative ${box} bg-primary flex items-center justify-center shrink-0 shadow-lg shadow-primary/30`}>
       <ManeuverIcon className={`${icon} text-primary-foreground`} strokeWidth={2.5} />
       {exit != null && (
-        <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-warning text-warning-foreground text-[10px] font-bold flex items-center justify-center border-2 border-background">
+        <span className={`absolute ${exitBadge} px-1.5 rounded-full bg-warning text-warning-foreground font-extrabold flex items-center justify-center border-2 border-background shadow-md`}>
           {exit}
         </span>
       )}
@@ -175,7 +180,17 @@ const NavigationOverlays = ({
               <p className="text-2xl font-extrabold text-foreground leading-none tabular-nums">
                 {formatDistance(distanceToManeuver ?? currentStep.distance)}
               </p>
-              <p className="text-base font-medium text-muted-foreground leading-tight line-clamp-2 mt-1">
+              {/* En una rotonda, qué salida tomar es la parte crítica de la
+                  frase — antes salía igual de pequeña y apagada que el
+                  resto de instrucciones, costaba leerla de reojo
+                  conduciendo. Aquí se destaca más grande y en negrita. */}
+              <p
+                className={
+                  ROUNDABOUT_TYPES.has(currentStep.maneuver.type.toLowerCase())
+                    ? "text-lg font-bold text-foreground leading-snug line-clamp-2 mt-1"
+                    : "text-base font-medium text-muted-foreground leading-tight line-clamp-2 mt-1"
+                }
+              >
                 {currentStep.instruction}
               </p>
               {currentStep.lanes && <LaneGuidance lanes={currentStep.lanes} />}

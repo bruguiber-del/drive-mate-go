@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 export type SavedPlaceKind = 'home' | 'work' | 'other';
@@ -12,6 +12,8 @@ export interface SavedPlace {
   name: string;
   lat: number;
   lng: number;
+  /** Orden elegido a mano arrastrando la lista — no depende de kind/fecha. */
+  position: number;
 }
 
 export interface NewSavedPlace {
@@ -32,6 +34,7 @@ function rowToPlace(row: any): SavedPlace {
     name: row.name,
     lat: row.lat,
     lng: row.lng,
+    position: row.position,
   };
 }
 
@@ -41,6 +44,8 @@ export function useSavedPlaces() {
   const [places, setPlaces] = useState<SavedPlace[]>([]);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
+  const placesRef = useRef<SavedPlace[]>([]);
+  placesRef.current = places;
 
   const reload = useCallback(async () => {
     const { data: userData } = await supabase.auth.getUser();
@@ -55,9 +60,7 @@ export function useSavedPlaces() {
       .from('saved_places')
       .select('*')
       .eq('user_id', uid)
-      // Casa y trabajo primero (si existen), luego el resto por fecha.
-      .order('kind', { ascending: true })
-      .order('created_at', { ascending: true });
+      .order('position', { ascending: true });
     if (!error && data) setPlaces(data.map(rowToPlace));
     setLoading(false);
   }, []);
@@ -68,6 +71,9 @@ export function useSavedPlaces() {
     const { data: userData } = await supabase.auth.getUser();
     const uid = userData?.user?.id;
     if (!uid) throw new Error('Inicia sesión para guardar un sitio');
+    // Un sitio nuevo va al final de la lista, no revuelve el orden que ya
+    // haya elegido el usuario a mano.
+    const nextPosition = placesRef.current.reduce((max, p) => Math.max(max, p.position), -1) + 1;
     const { error } = await supabase.from('saved_places').insert({
       user_id: uid,
       kind: place.kind,
@@ -76,6 +82,7 @@ export function useSavedPlaces() {
       name: place.name,
       lat: place.lat,
       lng: place.lng,
+      position: nextPosition,
     });
     if (error) {
       // Único índice: ya hay una Casa/Trabajo guardada — mensaje claro en
@@ -94,5 +101,18 @@ export function useSavedPlaces() {
     if (error) await reload();
   }, [reload]);
 
-  return { places, isAuthenticated, loading, addPlace, removePlace };
+  // Recibe la lista ya en el orden nuevo (lo que suelta el drag) — se
+  // aplica al estado local al instante (para que no "rebote" mientras
+  // llega la respuesta) y se manda cada posición a Supabase en paralelo.
+  // RLS ya limita cada update a las filas del propio usuario (no hace
+  // falta mandar user_id ni el resto de campos, solo lo que cambia).
+  const reorderPlaces = useCallback(async (orderedPlaces: SavedPlace[]) => {
+    setPlaces(orderedPlaces);
+    const results = await Promise.all(
+      orderedPlaces.map((p, i) => supabase.from('saved_places').update({ position: i }).eq('id', p.id)),
+    );
+    if (results.some((r) => r.error)) await reload();
+  }, [reload]);
+
+  return { places, isAuthenticated, loading, addPlace, removePlace, reorderPlaces };
 }

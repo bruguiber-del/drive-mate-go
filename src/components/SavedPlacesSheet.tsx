@@ -1,10 +1,11 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { Plus, Trash2, Loader2, LocateFixed, Map as MapIcon } from 'lucide-react';
+import { Reorder, useDragControls } from 'framer-motion';
+import { Plus, Trash2, Loader2, LocateFixed, Map as MapIcon, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/use-toast';
 import { MAPBOX_TOKEN } from '@/lib/mapboxConfig';
-import type { useSavedPlaces, SavedPlaceKind } from '@/hooks/useSavedPlaces';
+import type { useSavedPlaces, SavedPlace, SavedPlaceKind } from '@/hooks/useSavedPlaces';
 import { SAVED_PLACE_ICON_OPTIONS, getSavedPlaceIcon } from '@/lib/savedPlaceIcons';
 import PlacePicker, { type PickedPlace } from '@/components/PlacePicker';
 
@@ -35,6 +36,47 @@ interface SavedPlacesSheetProps {
 }
 
 const KIND_LABEL: Record<SavedPlaceKind, string> = { home: 'Casa', work: 'Trabajo', other: '' };
+
+/** Una fila arrastrable de la lista — el tirador (GripVertical) es lo único
+ *  que arranca el arrastre (dragListener={false} + dragControls propios),
+ *  así un toque en "Borrar" no se confunde nunca con un intento de arrastre. */
+const SavedPlaceRow = ({ place: p, onRemove }: { place: SavedPlace; onRemove: (id: string) => void }) => {
+  const dragControls = useDragControls();
+  const Icon = getSavedPlaceIcon(p);
+  return (
+    <Reorder.Item
+      value={p}
+      dragListener={false}
+      dragControls={dragControls}
+      className="glass rounded-xl p-3 flex items-center gap-3 bg-background"
+    >
+      <button
+        type="button"
+        className="shrink-0 text-muted-foreground/60 cursor-grab touch-none active:cursor-grabbing"
+        onPointerDown={(e) => dragControls.start(e)}
+        aria-label={`Reordenar ${p.label}`}
+      >
+        <GripVertical className="w-4 h-4" />
+      </button>
+      <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
+        <Icon className="w-4 h-4 text-primary" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-foreground truncate">{p.label}</p>
+        <p className="text-xs text-muted-foreground truncate">{p.name}</p>
+      </div>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        className="h-6 w-6 shrink-0"
+        onClick={() => onRemove(p.id)}
+        aria-label={`Borrar ${p.label}`}
+      >
+        <Trash2 className="w-3.5 h-3.5 text-destructive" />
+      </Button>
+    </Reorder.Item>
+  );
+};
 
 const SavedPlacesSheet = ({ isOpen, onClose, currentLocation, places, initialKind }: SavedPlacesSheetProps) => {
   const { toast } = useToast();
@@ -138,31 +180,16 @@ const SavedPlacesSheet = ({ isOpen, onClose, currentLocation, places, initialKin
           ) : (
             <>
               {!places.loading && places.places.length > 0 && (
-                <div className="space-y-2 mb-4">
-                  {places.places.map((p) => {
-                    const Icon = getSavedPlaceIcon(p);
-                    return (
-                      <div key={p.id} className="glass rounded-xl p-3 flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
-                          <Icon className="w-4 h-4 text-primary" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-semibold text-foreground truncate">{p.label}</p>
-                          <p className="text-xs text-muted-foreground truncate">{p.name}</p>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="h-6 w-6 shrink-0"
-                          onClick={() => places.removePlace(p.id)}
-                          aria-label={`Borrar ${p.label}`}
-                        >
-                          <Trash2 className="w-3.5 h-3.5 text-destructive" />
-                        </Button>
-                      </div>
-                    );
-                  })}
-                </div>
+                <Reorder.Group
+                  axis="y"
+                  values={places.places}
+                  onReorder={places.reorderPlaces}
+                  className="space-y-2 mb-4"
+                >
+                  {places.places.map((p) => (
+                    <SavedPlaceRow key={p.id} place={p} onRemove={places.removePlace} />
+                  ))}
+                </Reorder.Group>
               )}
 
               {showForm ? (
