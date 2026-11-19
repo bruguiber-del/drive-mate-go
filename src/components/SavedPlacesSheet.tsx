@@ -40,12 +40,12 @@ const KIND_LABEL: Record<SavedPlaceKind, string> = { home: 'Casa', work: 'Trabaj
 /** Una fila de la lista, con DOS formas de moverla: un tirador propio
  *  (GripVertical) que arranca el arrastre con dragControls, y las flechas
  *  como alternativa siempre fiable. El cajón (vaul) tiene su propio gesto
- *  de "deslizar para cerrar" sobre todo el contenido, que antes se comía
- *  cualquier intento de arrastre en la fila entera — por eso el arrastre
- *  SOLO arranca desde este tirador concreto (dragListener={false} +
- *  dragControls.start en su propio onPointerDown), nunca desde un toque en
- *  cualquier otro punto de la fila. Si aun así el gesto del cajón se lo
- *  llegara a comer, las flechas siguen ahí sin ningún conflicto posible. */
+ *  de "deslizar para cerrar" sobre todo el contenido, que se adelantaba y
+ *  se comía cualquier intento de arrastre en la fila — el primer intento
+ *  (sin esto) fallaba siempre por esto mismo. `data-vaul-no-drag` es el
+ *  escape hatch que el propio vaul expone para marcar un elemento (y sus
+ *  hijos) como excluido de ese gesto; sin él, da igual qué tirador se use,
+ *  vaul se queda con el toque antes de que framer-motion pueda arrancar. */
 const SavedPlaceRow = ({
   place: p,
   isFirst,
@@ -82,6 +82,7 @@ const SavedPlaceRow = ({
     >
       <button
         type="button"
+        data-vaul-no-drag
         onPointerDown={(e) => dragControls.start(e)}
         aria-label={`Arrastrar ${p.label}`}
         className="shrink-0 -ml-1 p-1 text-muted-foreground/50 cursor-grab touch-none active:cursor-grabbing"
