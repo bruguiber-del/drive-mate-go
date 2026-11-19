@@ -342,6 +342,7 @@ export type Database = {
           lat: number
           lng: number
           name: string
+          position: number
           user_id: string
         }
         Insert: {
@@ -353,6 +354,7 @@ export type Database = {
           lat: number
           lng: number
           name: string
+          position?: number
           user_id: string
         }
         Update: {
@@ -364,6 +366,7 @@ export type Database = {
           lat?: number
           lng?: number
           name?: string
+          position?: number
           user_id?: string
         }
         Relationships: []

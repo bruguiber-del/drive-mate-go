@@ -183,6 +183,13 @@
       "when": 1794930790425,
       "tag": "0025_saved_places",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1795105707260,
+      "tag": "0026_saved_places_position",
+      "breakpoints": true
     }
   ]
 }
