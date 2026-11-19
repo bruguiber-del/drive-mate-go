@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { Plus, Trash2, Loader2, LocateFixed, Map as MapIcon, ChevronUp, ChevronDown } from 'lucide-react';
+import { Reorder, useDragControls } from 'framer-motion';
+import { Plus, Trash2, Loader2, LocateFixed, Map as MapIcon, ChevronUp, ChevronDown, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/use-toast';
@@ -36,11 +37,15 @@ interface SavedPlacesSheetProps {
 
 const KIND_LABEL: Record<SavedPlaceKind, string> = { home: 'Casa', work: 'Trabajo', other: '' };
 
-/** Una fila de la lista con flechas para moverla — no arrastre: este cajón
- *  (vaul) ya tiene su propio gesto de "deslizar para cerrar" sobre todo el
- *  contenido, que se adelanta y se come el toque antes de que le llegue a
- *  cualquier arrastre propio (así fallaba la versión con Reorder/drag).
- *  Las flechas evitan ese conflicto de raíz: un toque es siempre un toque. */
+/** Una fila de la lista, con DOS formas de moverla: un tirador propio
+ *  (GripVertical) que arranca el arrastre con dragControls, y las flechas
+ *  como alternativa siempre fiable. El cajón (vaul) tiene su propio gesto
+ *  de "deslizar para cerrar" sobre todo el contenido, que antes se comía
+ *  cualquier intento de arrastre en la fila entera — por eso el arrastre
+ *  SOLO arranca desde este tirador concreto (dragListener={false} +
+ *  dragControls.start en su propio onPointerDown), nunca desde un toque en
+ *  cualquier otro punto de la fila. Si aun así el gesto del cajón se lo
+ *  llegara a comer, las flechas siguen ahí sin ningún conflicto posible. */
 const SavedPlaceRow = ({
   place: p,
   isFirst,
@@ -63,14 +68,26 @@ const SavedPlaceRow = ({
   onMoveDown: () => void;
   onRemove: (id: string) => void;
 }) => {
+  const dragControls = useDragControls();
   const Icon = getSavedPlaceIcon(p);
   return (
-    <div
+    <Reorder.Item
+      value={p}
+      dragListener={false}
+      dragControls={dragControls}
       className={cn(
-        'glass rounded-xl p-3 flex items-center gap-3 transition-colors duration-500',
+        'glass rounded-xl p-3 flex items-center gap-3 transition-colors duration-500 bg-background',
         justMoved && 'ring-2 ring-primary bg-primary/10',
       )}
     >
+      <button
+        type="button"
+        onPointerDown={(e) => dragControls.start(e)}
+        aria-label={`Arrastrar ${p.label}`}
+        className="shrink-0 -ml-1 p-1 text-muted-foreground/50 cursor-grab touch-none active:cursor-grabbing"
+      >
+        <GripVertical className="w-4 h-4" />
+      </button>
       <div className="flex flex-col shrink-0 -my-1">
         <button
           type="button"
@@ -107,7 +124,7 @@ const SavedPlaceRow = ({
       >
         <Trash2 className="w-3.5 h-3.5 text-destructive" />
       </Button>
-    </div>
+    </Reorder.Item>
   );
 };
 
@@ -231,7 +248,12 @@ const SavedPlacesSheet = ({ isOpen, onClose, currentLocation, places, initialKin
           ) : (
             <>
               {!places.loading && places.places.length > 0 && (
-                <div className="space-y-2 mb-4">
+                <Reorder.Group
+                  axis="y"
+                  values={places.places}
+                  onReorder={places.reorderPlaces}
+                  className="space-y-2 mb-4"
+                >
                   {places.places.map((p, i) => (
                     <SavedPlaceRow
                       key={p.id}
@@ -244,7 +266,7 @@ const SavedPlacesSheet = ({ isOpen, onClose, currentLocation, places, initialKin
                       onRemove={places.removePlace}
                     />
                   ))}
-                </div>
+                </Reorder.Group>
               )}
 
               {showForm ? (
