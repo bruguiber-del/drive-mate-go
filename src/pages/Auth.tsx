@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
+import { App as CapacitorApp } from '@capacitor/app';
+import { Browser } from '@capacitor/browser';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,6 +24,12 @@ async function recordTermsAcceptance() {
 }
 
 const PENDING_TERMS_KEY = 'vimatch_terms_accepted_pending';
+
+/** Esquema propio (registrado en Info.plist) al que Google redirige de
+ *  vuelta cuando se inicia sesión desde la app nativa — en la web, Google
+ *  vuelve a la propia URL del sitio, pero eso no existe dentro de la app
+ *  empaquetada, hace falta un esquema que iOS sepa devolver a la app. */
+const NATIVE_OAUTH_REDIRECT = 'app.vimatch.ios://auth-callback';
 
 /** Only same-origin relative paths are accepted as post-login targets. */
 function safeNext(raw: string | null): string {
@@ -95,7 +104,28 @@ const Auth = () => {
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) window.location.replace(next);
     });
-    return () => sub.subscription.unsubscribe();
+
+    // En la app nativa, Google no vuelve recargando esta página (aquí no
+    // hay "página" que recargar) — vuelve abriendo la app por su esquema
+    // propio. Hay que coger el "code" de esa URL a mano y canjearlo por la
+    // sesión; en cuanto exchangeCodeForSession() la crea, el listener de
+    // arriba hace el resto exactamente igual que con email/teléfono.
+    let urlListenerHandle: { remove: () => void } | undefined;
+    if (Capacitor.isNativePlatform()) {
+      CapacitorApp.addListener('appUrlOpen', async ({ url }) => {
+        if (!url.startsWith(NATIVE_OAUTH_REDIRECT)) return;
+        Browser.close().catch(() => { /* puede que ya estuviera cerrado */ });
+        const code = new URL(url).searchParams.get('code');
+        if (!code) return;
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        if (error) toast.error('No se pudo completar el inicio de sesión con Google');
+      }).then((handle) => { urlListenerHandle = handle; });
+    }
+
+    return () => {
+      sub.subscription.unsubscribe();
+      urlListenerHandle?.remove();
+    };
   }, [next]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -137,16 +167,33 @@ const Auth = () => {
     // Google aleja de esta página — localStorage sobrevive el viaje de ida
     // y vuelta, el estado de React no.
     localStorage.setItem(PENDING_TERMS_KEY, '1');
-    const { error } = await supabase.auth.signInWithOAuth({
+    const isNative = Capacitor.isNativePlatform();
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/auth?next=${encodeURIComponent(next)}` },
+      options: {
+        redirectTo: isNative ? NATIVE_OAUTH_REDIRECT : `${window.location.origin}/auth?next=${encodeURIComponent(next)}`,
+        // En la app nativa abrimos NOSOTROS el navegador del sistema más
+        // abajo — si dejamos que Supabase navegue la propia WebView de la
+        // app hacia Google, Google lo rechaza directamente (no permite
+        // iniciar sesión dentro de un WebView embebido).
+        skipBrowserRedirect: isNative,
+      },
     });
     if (error) {
       localStorage.removeItem(PENDING_TERMS_KEY);
       toast.error('No se pudo iniciar sesión con Google');
       setBusy(false);
+      return;
     }
-    // Si no hay error, el navegador ya está navegando hacia Google.
+    if (isNative && data?.url) {
+      await Browser.open({ url: data.url });
+      // A diferencia de la web (que navega fuera de la página entera), aquí
+      // la propia app sigue viva debajo del navegador del sistema — si el
+      // usuario cancela y vuelve sin completar el login, el botón se habría
+      // quedado "ocupado" para siempre.
+      setBusy(false);
+    }
+    // Si no es nativo y no hay error, el navegador ya está navegando hacia Google.
   };
 
   return (

@@ -26,6 +26,15 @@
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>VIMATCH usa tu ubicación para guiarte por la ruta y orientar el mapa hacia donde tienes que ir.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>app.vimatch.ios</string>
+			</array>
+		</dict>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
