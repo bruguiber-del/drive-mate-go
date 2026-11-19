@@ -61,7 +61,6 @@ export function useSavedPlaces() {
       .select('*')
       .eq('user_id', uid)
       .order('position', { ascending: true });
-    console.log('[savedPlaces] reload() orden real en BD:', data?.map((d) => `${d.label}:${d.position}`), error?.message);
     if (!error && data) setPlaces(data.map(rowToPlace));
     setLoading(false);
   }, []);
@@ -121,13 +120,22 @@ export function useSavedPlaces() {
   // podía traer de vuelta un orden a medias (unas filas ya actualizadas,
   // otras no) — se veía como si tardara o se revirtiera sola. Con upsert,
   // es una sola petición atómica.
+  //
+  // El `position` de cada sitio se recalcula AQUÍ, en memoria, antes de
+  // guardar nada — no solo al mandarlo a Supabase. Sin esto, el array
+  // quedaba reordenado pero cada objeto se quedaba con su `position`
+  // vieja hasta el siguiente reload(): cualquier pantalla que pinte la
+  // lista tal cual (Ajustes) se veía bien al instante, pero una que
+  // reordene por `position` (la barra de arriba) seguía mostrando el
+  // orden antiguo hasta cerrar y volver a abrir la app.
   const reorderPlaces = useCallback(async (orderedPlaces: SavedPlace[]) => {
-    setPlaces(orderedPlaces);
+    const withPositions = orderedPlaces.map((p, i) => ({ ...p, position: i }));
+    setPlaces(withPositions);
     const { data: userData } = await supabase.auth.getUser();
     const uid = userData?.user?.id;
     if (!uid) return;
     const { error } = await supabase.from('saved_places').upsert(
-      orderedPlaces.map((p, i) => ({
+      withPositions.map((p) => ({
         id: p.id,
         user_id: uid,
         kind: p.kind,
@@ -136,7 +144,7 @@ export function useSavedPlaces() {
         name: p.name,
         lat: p.lat,
         lng: p.lng,
-        position: i,
+        position: p.position,
       })),
     );
     if (error) await reload();

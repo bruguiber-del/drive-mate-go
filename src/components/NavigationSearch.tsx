@@ -175,9 +175,13 @@ const NavigationSearch = ({
     if (isOpen) {
       sessionTokenRef.current = newSessionToken();
       setRecentDestinations(loadRecentDestinations());
-      console.log('[navSearch] savedPlaces al abrir:', savedPlaces.map((p) => `${p.label}:${p.position}`));
     }
-  }, [isOpen, savedPlaces]);
+  }, [isOpen]);
+
+  // Mismo orden elegido a mano que en la barra de arriba — sin esto se
+  // pintaba el array tal cual llegaba, que es correcto casi siempre pero
+  // no es lo que determina el orden real (ver `reorderPlaces`).
+  const orderedSavedPlaces = [...savedPlaces].sort((a, b) => a.position - b.position);
 
   useEffect(() => {
     if (!destination.trim()) {
@@ -674,9 +678,9 @@ const NavigationSearch = ({
             {/* Lugares guardados y destinos recientes - only show when no search results/category active */}
             {!activeCategory && searchResults.length === 0 && !destination && (
               <div className="flex-1 p-4 overflow-auto">
-                {savedPlaces.length > 0 && (
+                {orderedSavedPlaces.length > 0 && (
                   <div className="flex gap-2 mb-4 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                    {savedPlaces.map((p) => {
+                    {orderedSavedPlaces.map((p) => {
                       const Icon = getSavedPlaceIcon(p);
                       return (
                         <button
