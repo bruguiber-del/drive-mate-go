@@ -100,8 +100,10 @@ const NavigationOverlays = ({
             // "top-24" era un valor fijo que no contaba con la barra superior
             // creciendo por la zona segura del notch/isla dinámica — en esos
             // móviles la barra ya no cabía antes del logo y se solapaban.
-            // Mismo margen de siempre, mas lo que ocupe la zona segura.
-            style={{ top: overlayTop(96) }}
+            // Mismo margen de siempre, mas lo que ocupe la zona segura. Subido
+            // de 96 a 136 porque la fila de Casa/Trabajo/sitios guardados bajo
+            // el buscador se añadió después y quedaba pegada al logo.
+            style={{ top: overlayTop(136) }}
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
