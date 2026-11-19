@@ -61,6 +61,7 @@ export function useSavedPlaces() {
       .select('*')
       .eq('user_id', uid)
       .order('position', { ascending: true });
+    console.log('[savedPlaces] reload() orden real en BD:', data?.map((d) => `${d.label}:${d.position}`), error?.message);
     if (!error && data) setPlaces(data.map(rowToPlace));
     setLoading(false);
   }, []);

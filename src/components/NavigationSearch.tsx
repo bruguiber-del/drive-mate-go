@@ -175,8 +175,9 @@ const NavigationSearch = ({
     if (isOpen) {
       sessionTokenRef.current = newSessionToken();
       setRecentDestinations(loadRecentDestinations());
+      console.log('[navSearch] savedPlaces al abrir:', savedPlaces.map((p) => `${p.label}:${p.position}`));
     }
-  }, [isOpen]);
+  }, [isOpen, savedPlaces]);
 
   useEffect(() => {
     if (!destination.trim()) {
