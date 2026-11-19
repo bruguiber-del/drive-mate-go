@@ -1619,8 +1619,14 @@ const Index = () => {
   // va de pasajero — antes solo se forzaba "coche" para el conductor, así
   // que si el pasajero había buscado su destino en modo "a pie" (o en
   // bici), la ruta y el tiempo restante del viaje entero se seguían
-  // calculando andando, aunque fuera a recogerle un coche.
-  const effectiveTravelMode: TravelMode = trip.showActiveTrip ? "driving" : nav.travelMode;
+  // calculando andando, aunque fuera a recogerle un coche. EXCEPTO justo
+  // antes de que te recojan (tripStatus "waiting"): ahí todavía vas a pie
+  // de verdad hacia el punto de encuentro, así que esa fase concreta sigue
+  // respetando el modo real (el efecto de más abajo lo pone a "walking").
+  const effectiveTravelMode: TravelMode =
+    trip.showActiveTrip && !(trip.activeTripRole === "passenger" && trip.tripStatus === "waiting")
+      ? "driving"
+      : nav.travelMode;
 
   // Adónde viene el conductor a buscarte — un punto de encuentro explícito,
   // o tu ubicación real si es puerta a puerta. Antes, puerta a puerta no
@@ -1631,6 +1637,28 @@ const Index = () => {
       ? trip.meetingPoint ??
         (realUserLocation ? { lat: realUserLocation[0], lng: realUserLocation[1], name: "Tu ubicación" } : null)
       : null;
+
+  // En cuanto el conductor conecta con un punto de encuentro explícito, la
+  // navegación a pie del propio pasajero se redirige ahí — antes, si antes
+  // de que te emparejaran habías buscado a pie un destino cualquiera (o
+  // ninguno), la app te seguía guiando hacia ESE sitio en vez de hacia
+  // donde te espera el conductor de verdad. Puerta a puerta (sin
+  // meetingPoint explícito) no hay adónde redirigir — el coche viene a ti.
+  const navigatedMeetingPointRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (trip.activeTripRole !== "passenger" || !trip.showActiveTrip || trip.tripStatus !== "waiting" || !trip.meetingPoint) {
+      navigatedMeetingPointRef.current = null;
+      return;
+    }
+    const key = `${trip.meetingPoint.lat},${trip.meetingPoint.lng}`;
+    if (navigatedMeetingPointRef.current === key) return;
+    navigatedMeetingPointRef.current = key;
+    nav.handleNavigate(trip.meetingPoint.name, { lat: trip.meetingPoint.lat, lng: trip.meetingPoint.lng }, 'walking');
+    // "nav" entero es un objeto nuevo en cada render (no memoizado) — meterlo
+    // en las deps dispararía este efecto todo el rato, justo lo que el ref
+    // de arriba evita. handleNavigate en sí ya es estable (useCallback).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trip.activeTripRole, trip.showActiveTrip, trip.tripStatus, trip.meetingPoint, nav.handleNavigate]);
 
   // Hacia dónde vas TÚ (recogida → tu destino) — para que el conductor
   // simulado se invente viniendo de una zona desde la que recogerte
@@ -2108,6 +2136,7 @@ const Index = () => {
           showActiveTrip={trip.showActiveTrip}
           isDriverMode={isDriverMode}
           activeTripRole={trip.activeTripRole}
+          tripStatus={effectiveTripStatus}
           hasPassenger={effectiveHasPassenger}
           hasStartedDriving={nav.hasStartedDriving}
           currentStep={currentStep}

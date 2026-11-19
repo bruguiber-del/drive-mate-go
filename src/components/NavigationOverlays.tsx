@@ -6,6 +6,7 @@ import { overlayTop } from "@/lib/overlayLayout";
 import LaneGuidance from "@/components/LaneGuidance";
 import type { RouteStep } from "@/hooks/useRouting";
 import type { TripLeg } from "@/hooks/useWaypoints";
+import type { TripStatus } from "@/hooks/useTripLifecycle";
 
 const LEG_LABELS: Record<TripLeg, string> = {
   to_meeting_point: "Ve a recoger al pasajero",
@@ -52,6 +53,10 @@ interface NavigationOverlaysProps {
   showActiveTrip: boolean;
   isDriverMode: boolean;
   activeTripRole: "driver" | "passenger";
+  /** Solo hace falta para saber si un pasajero ya ha sido recogido — antes
+   *  de eso, él también tiene su propio aviso giro a giro (andando hacia
+   *  el punto de encuentro), no solo el conductor. */
+  tripStatus?: TripStatus;
   hasPassenger: boolean;
   hasStartedDriving: boolean;
   currentStep: RouteStep | null;
@@ -77,6 +82,7 @@ const NavigationOverlays = ({
   showActiveTrip,
   isDriverMode,
   activeTripRole,
+  tripStatus,
   hasPassenger,
   hasStartedDriving,
   currentStep,
@@ -214,8 +220,14 @@ const NavigationOverlays = ({
       {/* Aviso unificado — maniobra + fase del viaje activo. Mismo criterio
           que el banner de arriba (distancia grande, icono grande con
           insignia de salida en rotondas) pero un punto más compacto para
-          dejar sitio a la fase del viaje (recogida/bajada) y el ETA. */}
-      {showActiveTrip && activeTripRole === "driver" && hasStartedDriving && currentStep && (
+          dejar sitio a la fase del viaje (recogida/bajada) y el ETA.
+          También para el PASAJERO mientras anda hacia el punto de
+          encuentro (antes de que lo recojan) — antes solo existía para el
+          conductor, así que el pasajero se quedaba sin ningún giro a giro
+          propio aunque su navegación ya estuviera redirigida allí. */}
+      {showActiveTrip &&
+        (activeTripRole === "driver" || (activeTripRole === "passenger" && tripStatus === "waiting")) &&
+        hasStartedDriving && currentStep && (
         <motion.div
           className="absolute left-4 right-4 pointer-events-none z-10"
           style={{ top: overlayTop(64) }}
@@ -238,7 +250,9 @@ const NavigationOverlays = ({
               <p className="text-[11px] font-medium text-foreground leading-tight line-clamp-1 mt-0.5">
                 {currentStep.instruction}
               </p>
-              <p className="text-[9px] text-muted-foreground leading-tight line-clamp-1">{LEG_LABELS[currentLeg]}</p>
+              <p className="text-[9px] text-muted-foreground leading-tight line-clamp-1">
+                {activeTripRole === "passenger" ? "Ve al punto de encuentro" : LEG_LABELS[currentLeg]}
+              </p>
             </div>
           </div>
         </motion.div>
