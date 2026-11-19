@@ -113,6 +113,7 @@ const SavedPlacesSheet = ({ isOpen, onClose, currentLocation, places, initialKin
   const movePlace = (index: number, direction: -1 | 1) => {
     const target = index + direction;
     if (target < 0 || target >= places.places.length) return;
+    console.log('[savedPlaces] movePlace snapshot:', places.places.map((p) => p.label), 'index', index, 'target', target);
     const reordered = [...places.places];
     [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
     places.reorderPlaces(reordered);
