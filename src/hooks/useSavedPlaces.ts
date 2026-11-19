@@ -112,17 +112,33 @@ export function useSavedPlaces() {
     if (error) await reload();
   }, [reload]);
 
-  // Recibe la lista ya en el orden nuevo (lo que suelta el drag) — se
+  // Recibe la lista ya en el orden nuevo (subir/bajar en Ajustes) — se
   // aplica al estado local al instante (para que no "rebote" mientras
-  // llega la respuesta) y se manda cada posición a Supabase en paralelo.
-  // RLS ya limita cada update a las filas del propio usuario (no hace
-  // falta mandar user_id ni el resto de campos, solo lo que cambia).
+  // llega la respuesta) y se guarda en UNA sola petición. Antes mandaba
+  // una petición de update por sitio EN PARALELO: si cualquiera de ellas
+  // iba más lenta que las demás o fallaba, se disparaba un reload() que
+  // podía traer de vuelta un orden a medias (unas filas ya actualizadas,
+  // otras no) — se veía como si tardara o se revirtiera sola. Con upsert,
+  // es una sola petición atómica.
   const reorderPlaces = useCallback(async (orderedPlaces: SavedPlace[]) => {
     setPlaces(orderedPlaces);
-    const results = await Promise.all(
-      orderedPlaces.map((p, i) => supabase.from('saved_places').update({ position: i }).eq('id', p.id)),
+    const { data: userData } = await supabase.auth.getUser();
+    const uid = userData?.user?.id;
+    if (!uid) return;
+    const { error } = await supabase.from('saved_places').upsert(
+      orderedPlaces.map((p, i) => ({
+        id: p.id,
+        user_id: uid,
+        kind: p.kind,
+        icon: p.icon,
+        label: p.label,
+        name: p.name,
+        lat: p.lat,
+        lng: p.lng,
+        position: i,
+      })),
     );
-    if (results.some((r) => r.error)) await reload();
+    if (error) await reload();
   }, [reload]);
 
   return { places, isAuthenticated, loading, addPlace, removePlace, reorderPlaces };
