@@ -418,22 +418,38 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <div className="glass rounded-xl p-4">
-                    <label className="text-sm text-muted-foreground">Nombre completo</label>
-                    <p className="font-medium text-foreground">{profile?.fullName || 'Sin especificar'}</p>
-                  </div>
-                  <div className="glass rounded-xl p-4">
-                    <label className="text-sm text-muted-foreground">Teléfono</label>
-                    <p className="font-medium text-foreground">{profile?.phone || 'Sin especificar'}</p>
-                  </div>
-                  <div className="glass rounded-xl p-4">
-                    <label className="text-sm text-muted-foreground">País</label>
-                    <p className="font-medium text-foreground">{countryName(profile?.country ?? null)}</p>
-                  </div>
-                  <div className="glass rounded-xl p-4">
-                    <label className="text-sm text-muted-foreground">Ciudad</label>
-                    <p className="font-medium text-foreground">{profile?.city || 'Sin especificar'}</p>
-                  </div>
+                  {/* Cada campo entra en edición al tocarlo, no solo desde
+                      "Editar" arriba — un toque en cualquiera de ellos hace
+                      justo lo mismo que ese botón (misma startEditing, que
+                      ya precarga los cuatro campos a la vez). */}
+                  <button type="button" onClick={startEditing} className="w-full text-left glass rounded-xl p-4 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <label className="text-sm text-muted-foreground">Nombre completo</label>
+                      <p className="font-medium text-foreground truncate">{profile?.fullName || 'Sin especificar'}</p>
+                    </div>
+                    <Pencil className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0" />
+                  </button>
+                  <button type="button" onClick={startEditing} className="w-full text-left glass rounded-xl p-4 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <label className="text-sm text-muted-foreground">Teléfono</label>
+                      <p className="font-medium text-foreground truncate">{profile?.phone || 'Sin especificar'}</p>
+                    </div>
+                    <Pencil className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0" />
+                  </button>
+                  <button type="button" onClick={startEditing} className="w-full text-left glass rounded-xl p-4 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <label className="text-sm text-muted-foreground">País</label>
+                      <p className="font-medium text-foreground truncate">{countryName(profile?.country ?? null)}</p>
+                    </div>
+                    <Pencil className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0" />
+                  </button>
+                  <button type="button" onClick={startEditing} className="w-full text-left glass rounded-xl p-4 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <label className="text-sm text-muted-foreground">Ciudad</label>
+                      <p className="font-medium text-foreground truncate">{profile?.city || 'Sin especificar'}</p>
+                    </div>
+                    <Pencil className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0" />
+                  </button>
                 </div>
               )}
             </div>
