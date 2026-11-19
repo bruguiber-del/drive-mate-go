@@ -120,12 +120,22 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
 
   if (!isOpen) return null;
 
+  // Si el perfil todavía no ha llegado de Supabase (un fallo de red al
+  // cargar, por ejemplo), "Sin especificar" se ve en pantalla exactamente
+  // igual que un campo vacío de verdad — entrar en edición en ese momento
+  // precargaría los campos en blanco, y guardar así borraría de verdad los
+  // datos reales que sí había en la base de datos. Mejor no dejar editar
+  // todavía que arriesgarse a eso.
   const startEditing = () => {
-    setDraftName(profile?.fullName ?? '');
-    setDraftPhone(profile?.phone ?? '');
-    const country = profile?.country ?? 'ES';
+    if (!profile) {
+      toast({ title: 'Espera a que carguen tus datos', description: 'Inténtalo de nuevo en un momento.', duration: 2500 });
+      return;
+    }
+    setDraftName(profile.fullName ?? '');
+    setDraftPhone(profile.phone ?? '');
+    const country = profile.country ?? 'ES';
     setDraftCountry(country);
-    const split = splitCityForCountry(country, profile?.city ?? null);
+    const split = splitCityForCountry(country, profile.city ?? null);
     setDraftCity(split.city);
     setDraftCustomCity(split.customCity);
     setIsEditing(true);
