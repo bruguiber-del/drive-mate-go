@@ -199,11 +199,18 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
       // modo coche. maxspeed (para el velocímetro) solo tiene sentido ahí
       // también — a pie/bici no hay límite de velocidad que mostrar.
       const congestionParam = profile === 'driving' ? '&annotations=congestion,maxspeed' : '';
+      // A pie: sin esto, Mapbox trataba parques/caminos peatonales igual que
+      // cualquier calle y a veces prefería un rodeo por calzada aunque
+      // hubiera un camino más corto — walkway_bias=1 (máximo) le dice que
+      // prefiera caminos/senderos peatonales siempre que exista uno.
+      // alternatives=true + quedarse con la de menor duración es un extra
+      // de seguridad por si la ruta "recomendada" no fuera la más corta.
+      const walkingParam = profile === 'walking' ? '&walkway_bias=1&alternatives=true' : '';
       const url =
         `${MAPBOX_DIRECTIONS_BASE}/${MAPBOX_PROFILE[profile]}/${points.join(';')}` +
         `?geometries=geojson&overview=full&steps=true` +
         `&voice_instructions=true&banner_instructions=true` +
-        `${congestionParam}&voice_units=metric` +
+        `${congestionParam}${walkingParam}&voice_units=metric` +
         `&language=es&access_token=${MAPBOX_TOKEN}`;
 
       const response = await fetch(url);
@@ -214,7 +221,7 @@ export function useRouting({ origin, destination, intermediateWaypoints, enabled
       }
       if (!data?.routes || data.routes.length === 0) throw new Error('No route found');
 
-      const routeData = data.routes[0];
+      const routeData = data.routes.reduce((best, r) => (r.duration < best.duration ? r : best), data.routes[0]);
 
       // GeoJSON [lng, lat] -> [lat, lng]
       const coordinates: [number, number][] = routeData.geometry.coordinates.map(
