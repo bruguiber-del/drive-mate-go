@@ -65,7 +65,18 @@ export function useSavedPlaces() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { reload(); }, [reload]);
+  // Un solo reload() al montar no bastaba: en la app nativa, al abrir en
+  // frío, Supabase tarda un poco en restaurar la sesión guardada — si este
+  // reload() se ejecutaba antes de que terminara, getUser() no encontraba
+  // a nadie todavía y Casa/Trabajo se quedaban sin cargar para siempre (no
+  // había nada que disparara un segundo intento). Suscribirse a los
+  // cambios de sesión asegura un reload() más en cuanto la sesión esté de
+  // verdad lista, igual que ya hace useVehicles para el mismo problema.
+  useEffect(() => {
+    reload();
+    const { data: sub } = supabase.auth.onAuthStateChange(() => { reload(); });
+    return () => sub.subscription.unsubscribe();
+  }, [reload]);
 
   const addPlace = useCallback(async (place: NewSavedPlace) => {
     const { data: userData } = await supabase.auth.getUser();
