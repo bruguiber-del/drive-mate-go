@@ -1,6 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { Reorder, useDragControls } from 'framer-motion';
-import { Plus, Trash2, Loader2, LocateFixed, Map as MapIcon, GripVertical } from 'lucide-react';
+import { Plus, Trash2, Loader2, LocateFixed, Map as MapIcon, ChevronUp, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/use-toast';
@@ -37,27 +36,49 @@ interface SavedPlacesSheetProps {
 
 const KIND_LABEL: Record<SavedPlaceKind, string> = { home: 'Casa', work: 'Trabajo', other: '' };
 
-/** Una fila arrastrable de la lista — el tirador (GripVertical) es lo único
- *  que arranca el arrastre (dragListener={false} + dragControls propios),
- *  así un toque en "Borrar" no se confunde nunca con un intento de arrastre. */
-const SavedPlaceRow = ({ place: p, onRemove }: { place: SavedPlace; onRemove: (id: string) => void }) => {
-  const dragControls = useDragControls();
+/** Una fila de la lista con flechas para moverla — no arrastre: este cajón
+ *  (vaul) ya tiene su propio gesto de "deslizar para cerrar" sobre todo el
+ *  contenido, que se adelanta y se come el toque antes de que le llegue a
+ *  cualquier arrastre propio (así fallaba la versión con Reorder/drag).
+ *  Las flechas evitan ese conflicto de raíz: un toque es siempre un toque. */
+const SavedPlaceRow = ({
+  place: p,
+  isFirst,
+  isLast,
+  onMoveUp,
+  onMoveDown,
+  onRemove,
+}: {
+  place: SavedPlace;
+  isFirst: boolean;
+  isLast: boolean;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  onRemove: (id: string) => void;
+}) => {
   const Icon = getSavedPlaceIcon(p);
   return (
-    <Reorder.Item
-      value={p}
-      dragListener={false}
-      dragControls={dragControls}
-      className="glass rounded-xl p-3 flex items-center gap-3 bg-background"
-    >
-      <button
-        type="button"
-        className="shrink-0 text-muted-foreground/60 cursor-grab touch-none active:cursor-grabbing"
-        onPointerDown={(e) => dragControls.start(e)}
-        aria-label={`Reordenar ${p.label}`}
-      >
-        <GripVertical className="w-4 h-4" />
-      </button>
+    <div className="glass rounded-xl p-3 flex items-center gap-3">
+      <div className="flex flex-col shrink-0 -my-1">
+        <button
+          type="button"
+          disabled={isFirst}
+          onClick={onMoveUp}
+          aria-label={`Subir ${p.label}`}
+          className="p-1 text-muted-foreground disabled:opacity-25 disabled:pointer-events-none"
+        >
+          <ChevronUp className="w-4 h-4" />
+        </button>
+        <button
+          type="button"
+          disabled={isLast}
+          onClick={onMoveDown}
+          aria-label={`Bajar ${p.label}`}
+          className="p-1 text-muted-foreground disabled:opacity-25 disabled:pointer-events-none"
+        >
+          <ChevronDown className="w-4 h-4" />
+        </button>
+      </div>
       <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
         <Icon className="w-4 h-4 text-primary" />
       </div>
@@ -74,7 +95,7 @@ const SavedPlaceRow = ({ place: p, onRemove }: { place: SavedPlace; onRemove: (i
       >
         <Trash2 className="w-3.5 h-3.5 text-destructive" />
       </Button>
-    </Reorder.Item>
+    </div>
   );
 };
 
@@ -88,6 +109,14 @@ const SavedPlacesSheet = ({ isOpen, onClose, currentLocation, places, initialKin
   const [saving, setSaving] = useState(false);
   const [locating, setLocating] = useState(false);
   const [showMapPicker, setShowMapPicker] = useState(false);
+
+  const movePlace = (index: number, direction: -1 | 1) => {
+    const target = index + direction;
+    if (target < 0 || target >= places.places.length) return;
+    const reordered = [...places.places];
+    [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
+    places.reorderPlaces(reordered);
+  };
 
   const hasHome = places.places.some((p) => p.kind === 'home');
   const hasWork = places.places.some((p) => p.kind === 'work');
@@ -180,16 +209,19 @@ const SavedPlacesSheet = ({ isOpen, onClose, currentLocation, places, initialKin
           ) : (
             <>
               {!places.loading && places.places.length > 0 && (
-                <Reorder.Group
-                  axis="y"
-                  values={places.places}
-                  onReorder={places.reorderPlaces}
-                  className="space-y-2 mb-4"
-                >
-                  {places.places.map((p) => (
-                    <SavedPlaceRow key={p.id} place={p} onRemove={places.removePlace} />
+                <div className="space-y-2 mb-4">
+                  {places.places.map((p, i) => (
+                    <SavedPlaceRow
+                      key={p.id}
+                      place={p}
+                      isFirst={i === 0}
+                      isLast={i === places.places.length - 1}
+                      onMoveUp={() => movePlace(i, -1)}
+                      onMoveDown={() => movePlace(i, 1)}
+                      onRemove={places.removePlace}
+                    />
                   ))}
-                </Reorder.Group>
+                </div>
               )}
 
               {showForm ? (

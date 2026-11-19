@@ -115,10 +115,21 @@ const Auth = () => {
       CapacitorApp.addListener('appUrlOpen', async ({ url }) => {
         if (!url.startsWith(NATIVE_OAUTH_REDIRECT)) return;
         Browser.close().catch(() => { /* puede que ya estuviera cerrado */ });
-        const code = new URL(url).searchParams.get('code');
-        if (!code) return;
-        const { error } = await supabase.auth.exchangeCodeForSession(code);
-        if (error) toast.error('No se pudo completar el inicio de sesión con Google');
+        // El token viene en el FRAGMENTO (#access_token=...), no en la query
+        // (?code=...) — confirmado inspeccionando la URL real con el Web
+        // Inspector de Safari. new URL(...).searchParams NUNCA lo habría
+        // encontrado ahí, por eso antes fallaba en silencio.
+        const hashIndex = url.indexOf('#');
+        const hashParams = new URLSearchParams(hashIndex >= 0 ? url.slice(hashIndex + 1) : '');
+        const access_token = hashParams.get('access_token');
+        const refresh_token = hashParams.get('refresh_token');
+        if (!access_token || !refresh_token) {
+          const queryParams = new URL(url).searchParams;
+          toast.error(`Google: ${queryParams.get('error_description') || queryParams.get('error') || 'sin sesión en la respuesta'}`);
+          return;
+        }
+        const { error } = await supabase.auth.setSession({ access_token, refresh_token });
+        if (error) toast.error('No se pudo completar el inicio de sesión con Google: ' + error.message);
       }).then((handle) => { urlListenerHandle = handle; });
     }
 
@@ -177,6 +188,10 @@ const Auth = () => {
         // app hacia Google, Google lo rechaza directamente (no permite
         // iniciar sesión dentro de un WebView embebido).
         skipBrowserRedirect: isNative,
+        // Sin esto, si el navegador del sistema ya tenía una sesión de
+        // Google abierta, Google entraba directo con esa cuenta sin
+        // preguntar — nunca dejaba elegir otra si el usuario tiene varias.
+        queryParams: { prompt: 'select_account' },
       },
     });
     if (error) {
