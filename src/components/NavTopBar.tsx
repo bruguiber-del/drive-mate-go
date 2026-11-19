@@ -1,5 +1,4 @@
 import { useRef } from "react";
-import { Reorder, useDragControls } from "framer-motion";
 import { Menu, Volume2, VolumeX, X, Plus, Home, Briefcase } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import SearchBar from "@/components/SearchBar";
@@ -10,28 +9,31 @@ import { getSavedPlaceIcon } from "@/lib/savedPlaceIcons";
 const LONG_PRESS_MS = 400;
 const MOVE_CANCEL_PX = 10;
 
-/** Una chapa de sitio guardado en la fila rápida — mantener pulsada (sin
- *  moverse) la pone en modo "arrastrar" para cambiarla de sitio; un toque
- *  normal (soltar antes de los 400ms) la selecciona como siempre, igual
- *  que los iconos de la pantalla de inicio de iOS.
+/** Una chapa de sitio guardado en la fila rápida. Mantener pulsada (sin
+ *  moverse) abre "Lugares guardados", donde ya se puede reordenar de
+ *  verdad con flechas; un toque normal (soltar antes de los 400ms) la
+ *  selecciona como siempre.
  *
- *  dragListener={false} + dragControls propios: framer-motion solo fuerza
- *  touch-action:none en el elemento cuando SÍ hay dragListener (se
- *  comprueba en su propio código fuente) — con dragListener={false} el
- *  scroll horizontal normal de la fila sigue intacto hasta que se llama a
- *  dragControls.start() a propósito, así que no hace falta nada especial
- *  para no romper el scroll mientras no se mantiene pulsado. */
-const DraggableChip = ({
+ *  Arrastrar aquí mismo para reordenar NO es viable: en cuanto el dedo se
+ *  mueve lo más mínimo (algo que pasa sin querer con cualquier mano real,
+ *  a diferencia de un ratón), el propio navegador decide por su cuenta que
+ *  es un gesto de scroll de la fila y se lo queda — ninguna lógica en JS
+ *  puede ganarle esa carrera. Por eso se cancela el mantener-pulsado en
+ *  cuanto hay el más mínimo movimiento (es justo lo que YA iba a pasar de
+ *  todas formas) y se deja esa fila como lo que es: una fila que se
+ *  desplaza con el dedo, no una lista que se reordena ahí mismo. */
+const SavedPlaceChip = ({
   place,
   onSelect,
+  onLongPress,
 }: {
   place: SavedPlace;
   onSelect: (p: SavedPlace) => void;
+  onLongPress: () => void;
 }) => {
-  const dragControls = useDragControls();
   const pressTimerRef = useRef<number | null>(null);
   const startRef = useRef<{ x: number; y: number } | null>(null);
-  const draggedRef = useRef(false);
+  const longPressedRef = useRef(false);
   const Icon = getSavedPlaceIcon(place);
 
   const clearPressTimer = () => {
@@ -42,26 +44,20 @@ const DraggableChip = ({
   };
 
   return (
-    <Reorder.Item
-      as="button"
+    <button
       type="button"
-      value={place}
-      dragListener={false}
-      dragControls={dragControls}
       onPointerDown={(e: React.PointerEvent<HTMLButtonElement>) => {
         startRef.current = { x: e.clientX, y: e.clientY };
-        draggedRef.current = false;
+        longPressedRef.current = false;
         clearPressTimer();
         pressTimerRef.current = window.setTimeout(() => {
           pressTimerRef.current = null;
-          draggedRef.current = true;
-          dragControls.start(e);
+          longPressedRef.current = true;
+          onLongPress();
         }, LONG_PRESS_MS);
       }}
       onPointerMove={(e: React.PointerEvent<HTMLButtonElement>) => {
         if (pressTimerRef.current == null || !startRef.current) return;
-        // Se ha movido antes de cumplirse los 400ms — es un scroll de la
-        // fila, no un mantener pulsado; se deja el toque sin tocar nada.
         if (Math.abs(e.clientX - startRef.current.x) > MOVE_CANCEL_PX || Math.abs(e.clientY - startRef.current.y) > MOVE_CANCEL_PX) {
           clearPressTimer();
         }
@@ -69,10 +65,8 @@ const DraggableChip = ({
       onPointerUp={clearPressTimer}
       onPointerCancel={clearPressTimer}
       onClick={() => {
-        // Tras un mantener-pulsado-para-mover, soltar no debe además
-        // "seleccionarlo" como si fuera un toque normal.
-        if (draggedRef.current) {
-          draggedRef.current = false;
+        if (longPressedRef.current) {
+          longPressedRef.current = false;
           return;
         }
         onSelect(place);
@@ -81,7 +75,7 @@ const DraggableChip = ({
     >
       <Icon className="w-3.5 h-3.5 text-primary shrink-0" />
       {place.label}
-    </Reorder.Item>
+    </button>
   );
 };
 
@@ -105,9 +99,6 @@ interface NavTopBarProps {
   /** Casa/Trabajo sin guardar todavía — abre el formulario de Ajustes ya
    *  con ese tipo elegido, en vez de mandar a elegirlo otra vez a mano. */
   onAddSavedPlaceKind: (kind: SavedPlaceKind) => void;
-  /** Mantener pulsado y arrastrar una chapa en esta fila reordena aquí
-   *  mismo — mismo "position" compartido que el orden de Ajustes. */
-  onReorderSavedPlaces: (ordered: SavedPlace[]) => void;
 }
 
 /** Top bar: hamburger menu, the universal destination search bar, and — only
@@ -127,7 +118,6 @@ const NavTopBar = ({
   onSelectSavedPlace,
   onManageSavedPlaces,
   onAddSavedPlaceKind,
-  onReorderSavedPlaces,
 }: NavTopBarProps) => {
   const homePlace = savedPlaces.find((p) => p.kind === 'home') ?? null;
   const workPlace = savedPlaces.find((p) => p.kind === 'work') ?? null;
@@ -230,17 +220,9 @@ const NavTopBar = ({
               Trabajo
             </button>
           )}
-          <Reorder.Group
-            as="div"
-            axis="x"
-            values={orderedPlaces}
-            onReorder={onReorderSavedPlaces}
-            className="shrink-0 flex gap-2"
-          >
-            {orderedPlaces.map((p) => (
-              <DraggableChip key={p.id} place={p} onSelect={onSelectSavedPlace} />
-            ))}
-          </Reorder.Group>
+          {orderedPlaces.map((p) => (
+            <SavedPlaceChip key={p.id} place={p} onSelect={onSelectSavedPlace} onLongPress={onManageSavedPlaces} />
+          ))}
           <button
             type="button"
             onClick={onManageSavedPlaces}
