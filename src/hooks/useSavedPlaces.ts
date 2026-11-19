@@ -48,7 +48,6 @@ export function useSavedPlaces() {
   placesRef.current = places;
 
   const reload = useCallback(async () => {
-    console.log('[savedPlaces] reload() llamado');
     const { data: userData } = await supabase.auth.getUser();
     const uid = userData?.user?.id;
     setIsAuthenticated(!!uid);
@@ -62,7 +61,6 @@ export function useSavedPlaces() {
       .select('*')
       .eq('user_id', uid)
       .order('position', { ascending: true });
-    console.log('[savedPlaces] reload() resultado:', data?.map((d) => `${d.label}:${d.position}`), error?.message);
     if (!error && data) setPlaces(data.map(rowToPlace));
     setLoading(false);
   }, []);
@@ -76,10 +74,7 @@ export function useSavedPlaces() {
   // verdad lista, igual que ya hace useVehicles para el mismo problema.
   useEffect(() => {
     reload();
-    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
-      console.log('[savedPlaces] onAuthStateChange evento:', event);
-      reload();
-    });
+    const { data: sub } = supabase.auth.onAuthStateChange(() => { reload(); });
     return () => sub.subscription.unsubscribe();
   }, [reload]);
 
@@ -126,14 +121,10 @@ export function useSavedPlaces() {
   // otras no) — se veía como si tardara o se revirtiera sola. Con upsert,
   // es una sola petición atómica.
   const reorderPlaces = useCallback(async (orderedPlaces: SavedPlace[]) => {
-    console.log('[savedPlaces] reorderPlaces() local:', orderedPlaces.map((p) => p.label));
     setPlaces(orderedPlaces);
     const { data: userData } = await supabase.auth.getUser();
     const uid = userData?.user?.id;
-    if (!uid) {
-      console.log('[savedPlaces] reorderPlaces: sin uid, abortado');
-      return;
-    }
+    if (!uid) return;
     const { error } = await supabase.from('saved_places').upsert(
       orderedPlaces.map((p, i) => ({
         id: p.id,
@@ -147,7 +138,6 @@ export function useSavedPlaces() {
         position: i,
       })),
     );
-    console.log('[savedPlaces] reorderPlaces() upsert ->', error ? `ERROR: ${error.message}` : 'OK');
     if (error) await reload();
   }, [reload]);
 

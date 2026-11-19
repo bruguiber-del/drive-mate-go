@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Plus, Trash2, Loader2, LocateFixed, Map as MapIcon, ChevronUp, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -45,6 +45,7 @@ const SavedPlaceRow = ({
   place: p,
   isFirst,
   isLast,
+  justMoved,
   onMoveUp,
   onMoveDown,
   onRemove,
@@ -52,13 +53,24 @@ const SavedPlaceRow = ({
   place: SavedPlace;
   isFirst: boolean;
   isLast: boolean;
+  /** Se acaba de mover con la flecha — un resalte breve para poder seguirlo
+   *  de un vistazo a su fila nueva antes de tocar otra vez. Sin esto, cada
+   *  toque sube/baja el sitio una fila y, si se toca varias veces seguidas
+   *  en el mismo punto de la pantalla, se acaba moviendo OTRO sitio (el
+   *  que haya quedado ahí), no el que se quería seguir moviendo. */
+  justMoved: boolean;
   onMoveUp: () => void;
   onMoveDown: () => void;
   onRemove: (id: string) => void;
 }) => {
   const Icon = getSavedPlaceIcon(p);
   return (
-    <div className="glass rounded-xl p-3 flex items-center gap-3">
+    <div
+      className={cn(
+        'glass rounded-xl p-3 flex items-center gap-3 transition-colors duration-500',
+        justMoved && 'ring-2 ring-primary bg-primary/10',
+      )}
+    >
       <div className="flex flex-col shrink-0 -my-1">
         <button
           type="button"
@@ -110,14 +122,23 @@ const SavedPlacesSheet = ({ isOpen, onClose, currentLocation, places, initialKin
   const [locating, setLocating] = useState(false);
   const [showMapPicker, setShowMapPicker] = useState(false);
 
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const highlightTimerRef = useRef<number | null>(null);
+
   const movePlace = (index: number, direction: -1 | 1) => {
     const target = index + direction;
     if (target < 0 || target >= places.places.length) return;
-    console.log('[savedPlaces] movePlace snapshot:', places.places.map((p) => p.label), 'index', index, 'target', target);
     const reordered = [...places.places];
     [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
     places.reorderPlaces(reordered);
+    if (highlightTimerRef.current != null) window.clearTimeout(highlightTimerRef.current);
+    setHighlightedId(reordered[target].id);
+    highlightTimerRef.current = window.setTimeout(() => setHighlightedId(null), 900);
   };
+
+  useEffect(() => () => {
+    if (highlightTimerRef.current != null) window.clearTimeout(highlightTimerRef.current);
+  }, []);
 
   const hasHome = places.places.some((p) => p.kind === 'home');
   const hasWork = places.places.some((p) => p.kind === 'work');
@@ -217,6 +238,7 @@ const SavedPlacesSheet = ({ isOpen, onClose, currentLocation, places, initialKin
                       place={p}
                       isFirst={i === 0}
                       isLast={i === places.places.length - 1}
+                      justMoved={highlightedId === p.id}
                       onMoveUp={() => movePlace(i, -1)}
                       onMoveDown={() => movePlace(i, 1)}
                       onRemove={places.removePlace}
