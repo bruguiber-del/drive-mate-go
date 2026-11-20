@@ -77,13 +77,19 @@ const IdentityVerification = ({ phoneConfirmed }: { phoneConfirmed: boolean }) =
   };
 
   const uploadLicense = async () => {
+    console.log("[uploadLicense] toque en Subir foto del carnet");
     const photo = await pickPhoto();
-    if (!photo) return;
+    if (!photo) {
+      console.log("[uploadLicense] pickPhoto devolvió null, no se sube nada");
+      return;
+    }
     setBusy(true);
     try {
       const result = await submitDocumentForVerification({ kind: "driver_license", file: photo });
+      console.log("[uploadLicense] resultado final:", result.status, result.reason);
       setLicenseStatus({ status: result.status, reason: result.reason });
     } catch (err) {
+      console.log("[uploadLicense] excepción:", err);
       toast({ title: "No se pudo subir la foto", description: err instanceof Error ? err.message : "Inténtalo de nuevo", duration: 4000 });
     } finally {
       setBusy(false);
