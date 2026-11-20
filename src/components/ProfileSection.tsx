@@ -162,6 +162,15 @@ const ProfileSection = ({ isOpen, onClose }: ProfileSectionProps) => {
     : draftCustomCity;
 
   const handleSave = async () => {
+    // Segundo cierre del mismo fallo que startEditing ya evita al entrar:
+    // si el perfil se quedara sin cargar DESPUÉS de haber entrado en
+    // edición (p. ej. la sesión se refresca mientras tanto), esto impide
+    // que se llegue a guardar nada sobre un perfil que no se sabe si es
+    // el real — mejor avisar que arriesgarse a borrar datos de verdad.
+    if (!profile) {
+      toast({ title: 'No se pudo guardar', description: 'Tus datos no han cargado bien — cierra y vuelve a abrir Mi Perfil.', duration: 4000 });
+      return;
+    }
     setSaving(true);
     const ok = await updateProfile({
       fullName: draftName || null,
