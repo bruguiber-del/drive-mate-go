@@ -87,11 +87,8 @@ const FINAL_ARRIVAL_RADIUS_M = 60;
 const Index = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { profile, authEmail, isAuthenticated, emailConfirmed, phoneConfirmed, driverTripCount, passengerTripCount } = useProfile();
-  // Carnet y matrícula todavía no se verifican de verdad: hasta que exista esa
-  // comprobación, el perfil no puede marcarse como verificado.
-  const DOCUMENTS_VERIFIED = false;
-  const isUserVerified = emailConfirmed && phoneConfirmed && DOCUMENTS_VERIFIED;
+  const { profile, authEmail, isAuthenticated, emailConfirmed, phoneConfirmed, licenseApproved, driverTripCount, passengerTripCount } = useProfile();
+  const isUserVerified = emailConfirmed && phoneConfirmed && licenseApproved;
   const handleLogout = useCallback(() => {
     void supabase.auth.signOut();
   }, []);

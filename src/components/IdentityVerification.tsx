@@ -113,9 +113,11 @@ const IdentityVerification = ({ phoneConfirmed }: { phoneConfirmed: boolean }) =
 
       <div className="glass rounded-xl p-4 space-y-2">
         <p className="font-medium text-foreground">Carnet de conducir</p>
-        <p className="text-xs text-muted-foreground">
-          Haz una foto legible del carnet. Se revisa con IA y, si no está clara, pasa a revisión manual.
-        </p>
+        {licenseStatus?.status !== "approved" && (
+          <p className="text-xs text-muted-foreground">
+            Haz una foto legible del carnet. Se revisa con IA y, si no está clara, pasa a revisión manual.
+          </p>
+        )}
         {licenseStatus && (
           <div className="flex items-center gap-3">
             <div className={cn(
@@ -132,9 +134,11 @@ const IdentityVerification = ({ phoneConfirmed }: { phoneConfirmed: boolean }) =
             </div>
           </div>
         )}
-        <Button size="sm" variant="outline" className="w-full" disabled={busy || licenseStatus?.status === "approved"} onClick={uploadLicense}>
-          Subir foto del carnet
-        </Button>
+        {licenseStatus?.status !== "approved" && (
+          <Button size="sm" variant="outline" className="w-full" disabled={busy} onClick={uploadLicense}>
+            Subir foto del carnet
+          </Button>
+        )}
       </div>
     </div>
   );

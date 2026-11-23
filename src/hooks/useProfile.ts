@@ -45,6 +45,7 @@ export function useProfile() {
   const [loading, setLoading] = useState(true);
   const [driverTripCount, setDriverTripCount] = useState(0);
   const [passengerTripCount, setPassengerTripCount] = useState(0);
+  const [licenseApproved, setLicenseApproved] = useState(false);
   const userIdRef = useRef<string | null>(null);
 
   const loadCounts = useCallback(async (userId: string) => {
@@ -54,6 +55,22 @@ export function useProfile() {
     ]);
     setDriverTripCount(driverRes.count ?? 0);
     setPassengerTripCount(passengerRes.count ?? 0);
+  }, []);
+
+  // Mismo criterio que ya usa IdentityVerification para pintar "Carnet
+  // verificado" — antes nadie más lo consultaba, así que el menú lateral
+  // seguía con un "DOCUMENTS_VERIFIED = false" fijo que nunca pasaba a true
+  // por mucho que el carnet estuviera aprobado de verdad.
+  const loadLicenseApproved = useCallback(async (userId: string) => {
+    const { data } = await supabase
+      .from('verification_requests')
+      .select('status')
+      .eq('user_id', userId)
+      .eq('kind', 'driver_license')
+      .eq('status', 'approved')
+      .limit(1)
+      .maybeSingle();
+    setLicenseApproved(!!data);
   }, []);
 
   useEffect(() => {
@@ -70,6 +87,7 @@ export function useProfile() {
           setPhoneConfirmed(false);
           setDriverTripCount(0);
           setPassengerTripCount(0);
+          setLicenseApproved(false);
           setLoading(false);
         }
         return;
@@ -104,6 +122,7 @@ export function useProfile() {
 
       if (!cancelled && data) setProfile(rowToProfile(data as ProfileRow));
       await loadCounts(userId);
+      await loadLicenseApproved(userId);
       if (!cancelled) setLoading(false);
     };
 
@@ -117,7 +136,7 @@ export function useProfile() {
       cancelled = true;
       sub.subscription.unsubscribe();
     };
-  }, [loadCounts]);
+  }, [loadCounts, loadLicenseApproved]);
 
   const updateProfile = useCallback(
     async (fields: Partial<Pick<Profile, 'fullName' | 'phone' | 'city' | 'country'>>): Promise<boolean> => {
@@ -148,6 +167,7 @@ export function useProfile() {
     loading,
     driverTripCount,
     passengerTripCount,
+    licenseApproved,
     updateProfile,
   };
 }
