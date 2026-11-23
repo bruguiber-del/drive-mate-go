@@ -195,6 +195,43 @@ function buildVehicleVerdict(fullText: string, logos: string[], vehicle?: { bran
 }
 
 type VisionAttempt = { verdict: Verdict; failReason?: undefined } | { verdict: null; failReason: string };
+type VisionResult = {
+  fullTextAnnotation?: { text?: string };
+  textAnnotations?: { description?: string }[];
+  logoAnnotations?: { description: string }[];
+  error?: { message?: string };
+};
+type VisionCall = { result: VisionResult; failReason?: undefined } | { result?: undefined; failReason: string };
+
+// Google Vision cobra cada función POR SEPARADO, aunque se pidan en la
+// misma llamada ("si aplicas detección de caras y de etiquetas a la misma
+// imagen, se te facturan las dos" — así lo dice su propia página de
+// precios): pedir texto Y logo siempre, para TODAS las fotos, gastaba el
+// doble de lo necesario, sobre todo porque el carnet nunca usa el logo.
+async function callVision(imageBase64: string, features: { type: string }[]): Promise<VisionCall> {
+  const apiKey = Deno.env.get("GOOGLE_VISION_API_KEY");
+  if (!apiKey) {
+    console.error("[verify-document] falta GOOGLE_VISION_API_KEY");
+    return { failReason: "Falta configurar la clave de Google Vision (GOOGLE_VISION_API_KEY)" };
+  }
+  const res = await fetch(`${VISION_URL}?key=${apiKey}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ requests: [{ image: { content: imageBase64 }, features }] }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    console.error("[verify-document] Google Vision respondió con error", { status: res.status, body: body.slice(0, 500) });
+    return { failReason: `Google Vision no pudo revisar la foto (error ${res.status} del servicio)` };
+  }
+  const data = await res.json();
+  const result = data?.responses?.[0];
+  if (result?.error) {
+    console.error("[verify-document] Google Vision devolvió un error", result.error);
+    return { failReason: result.error.message ?? "Google Vision no pudo revisar la foto" };
+  }
+  return { result };
+}
 
 // Antes, cualquier fallo aquí (clave mal puesta, límite de uso, imagen
 // demasiado grande, respuesta que no es JSON válido...) acababa en el mismo
@@ -205,37 +242,26 @@ async function askGoogleVision(
   kind: string,
   vehicle?: { brand: string; licensePlate: string },
 ): Promise<VisionAttempt> {
-  const apiKey = Deno.env.get("GOOGLE_VISION_API_KEY");
-  if (!apiKey) {
-    console.error("[verify-document] falta GOOGLE_VISION_API_KEY");
-    return { verdict: null, failReason: "Falta configurar la clave de Google Vision (GOOGLE_VISION_API_KEY)" };
-  }
-  const res = await fetch(`${VISION_URL}?key=${apiKey}`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      requests: [{
-        image: { content: imageBase64 },
-        features: [{ type: "TEXT_DETECTION" }, { type: "LOGO_DETECTION" }],
-      }],
-    }),
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    console.error("[verify-document] Google Vision respondió con error", { status: res.status, body: body.slice(0, 500) });
-    return { verdict: null, failReason: `Google Vision no pudo revisar la foto (error ${res.status} del servicio)` };
-  }
-  const data = await res.json();
-  const result = data?.responses?.[0];
-  if (result?.error) {
-    console.error("[verify-document] Google Vision devolvió un error", result.error);
-    return { verdict: null, failReason: result.error.message ?? "Google Vision no pudo revisar la foto" };
-  }
-  const fullText: string = result?.fullTextAnnotation?.text ?? result?.textAnnotations?.[0]?.description ?? "";
-  const logos: string[] = (result?.logoAnnotations ?? []).map((l: { description: string }) => l.description);
+  const textCall = await callVision(imageBase64, [{ type: "TEXT_DETECTION" }]);
+  if (textCall.failReason) return { verdict: null, failReason: textCall.failReason };
+  const fullText: string = textCall.result?.fullTextAnnotation?.text ?? textCall.result?.textAnnotations?.[0]?.description ?? "";
 
-  const verdict = kind === "driver_license" ? buildLicenseVerdict(fullText) : buildVehicleVerdict(fullText, logos, vehicle);
-  return { verdict };
+  if (kind === "driver_license") {
+    return { verdict: buildLicenseVerdict(fullText) };
+  }
+
+  // Con la matrícula leída ya basta para decidir (coincide o no coincide):
+  // el logo solo hace falta como último recurso cuando no se pudo leer
+  // ninguna matrícula, así que esa segunda función solo se pide entonces.
+  const declaredPlate = vehicle ? normalizePlate(vehicle.licensePlate) : "";
+  const readPlate = extractPlateCandidates(fullText)[0];
+  if (readPlate || !declaredPlate) {
+    return { verdict: buildVehicleVerdict(fullText, [], vehicle) };
+  }
+
+  const logoCall = await callVision(imageBase64, [{ type: "LOGO_DETECTION" }]);
+  const logos: string[] = logoCall.result?.logoAnnotations?.map((l: { description: string }) => l.description) ?? [];
+  return { verdict: buildVehicleVerdict(fullText, logos, vehicle) };
 }
 
 Deno.serve(async (req) => {
