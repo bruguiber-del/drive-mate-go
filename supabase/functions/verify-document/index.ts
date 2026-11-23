@@ -89,8 +89,7 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
-const MODEL = Deno.env.get("ANTHROPIC_MODEL") ?? "claude-sonnet-5-5";
+const VISION_URL = "https://vision.googleapis.com/v1/images:annotate";
 const MIN_CONFIDENCE = 0.85;
 
 type Verdict = {
@@ -110,68 +109,133 @@ function json(body: unknown, status = 200) {
   });
 }
 
-function promptFor(kind: string, vehicle?: { brand: string; licensePlate: string }) {
-  if (kind === "driver_license") {
-    return `Esta foto debe ser un carnet de conducir. Responde solo con JSON:
-{"is_driver_license": boolean, "name": string|null, "confidence": number entre 0 y 1, "matches": boolean, "reason": string}
-"matches" es true solo si es claramente un carnet de conducir legible.`;
-  }
-  return `Esta foto debe mostrar la matrícula de un coche y/o el logo de su marca.
-Datos declarados: marca "${vehicle?.brand}", matrícula "${vehicle?.licensePlate}".
-Responde solo con JSON:
-{"plate": string|null, "brand": string|null, "confidence": number entre 0 y 1, "matches": boolean, "reason": string}
-"matches" es true solo si la matrícula leída coincide con la declarada y el logo corresponde a la marca declarada.`;
+function stripAccents(s: string): string {
+  return s.normalize("NFD").replace(/\p{Diacritic}/gu, "");
+}
+function normalizeText(s: string): string {
+  return stripAccents(s).toUpperCase();
+}
+function normalizePlate(s: string): string {
+  return normalizeText(s).replace(/[^A-Z0-9]/g, "");
 }
 
-type ClaudeAttempt = { verdict: Verdict; failReason?: undefined } | { verdict: null; failReason: string };
+// Sin IA de verdad de por medio (Google Vision es gratis hasta 1.000 fotos
+// al mes, pero solo "lee" texto y logos — no entiende la foto): esto compara
+// lo leído contra lo que el propio usuario ya declaró al dar de alta su
+// carnet o su coche. Más flojo en casos raros que una IA de visión, pero
+// gratis y sin depender de ninguna clave de pago.
+const LICENSE_KEYWORDS = [
+  "PERMISO DE CONDUCCION",
+  "DRIVING LICENCE",
+  "DRIVING LICENSE",
+  "CARNET DE CONDUCIR",
+  "PERMIS DE CONDUIRE",
+  "FUHRERSCHEIN",
+];
+const WRONG_DOCUMENT_KEYWORDS = [
+  "DOCUMENTO NACIONAL DE IDENTIDAD",
+  "PASSPORT",
+  "PASAPORTE",
+  "TARJETA SANITARIA",
+];
+
+function buildLicenseVerdict(fullText: string): Verdict {
+  const normalized = normalizeText(fullText);
+  if (LICENSE_KEYWORDS.some((k) => normalized.includes(k))) {
+    return { matches: true, confidence: 0.9, reason: "Se detectó texto propio de un carnet de conducir.", is_driver_license: true };
+  }
+  if (WRONG_DOCUMENT_KEYWORDS.some((k) => normalized.includes(k))) {
+    return { matches: false, confidence: 0.9, reason: "La foto parece ser de otro documento (DNI, pasaporte...), no un carnet de conducir.", is_driver_license: false };
+  }
+  if (!normalized.trim()) {
+    return { matches: false, confidence: 0.3, reason: "No se detectó texto legible en la foto — hazla más de cerca y con buena luz.", is_driver_license: false };
+  }
+  return { matches: false, confidence: 0.5, reason: "No se encontraron las palabras típicas de un carnet de conducir — puede ser una foto borrosa o recortada.", is_driver_license: false };
+}
+
+// Matrícula española: formato actual (4 dígitos + 3 consonantes, sin
+// vocales ni Ñ/Q) y el antiguo (1-2 letras de provincia + 4 dígitos + 1-2
+// letras) — cubre lo que va a declarar casi cualquier usuario en España.
+function extractPlateCandidates(text: string): string[] {
+  const normalized = normalizeText(text).replace(/\n/g, " ");
+  const modern = normalized.match(/\b\d{4}\s?[B-DF-HJ-NP-TV-Z]{3}\b/g) ?? [];
+  const old = normalized.match(/\b[A-Z]{1,2}\s?\d{4}\s?[A-Z]{1,2}\b/g) ?? [];
+  return [...modern, ...old].map((p) => p.replace(/\s+/g, ""));
+}
+
+function buildVehicleVerdict(fullText: string, logos: string[], vehicle?: { brand: string; licensePlate: string }): Verdict {
+  const candidates = extractPlateCandidates(fullText);
+  const declaredPlate = vehicle ? normalizePlate(vehicle.licensePlate) : "";
+  const readPlate = candidates[0];
+
+  if (declaredPlate && candidates.some((c) => normalizePlate(c) === declaredPlate)) {
+    return { matches: true, confidence: 0.9, reason: "La matrícula leída coincide con la declarada.", plate: readPlate };
+  }
+  if (readPlate && declaredPlate) {
+    return {
+      matches: false,
+      confidence: 0.9,
+      reason: `La matrícula leída (${readPlate}) no coincide con la declarada (${vehicle!.licensePlate}).`,
+      plate: readPlate,
+    };
+  }
+  const declaredBrand = vehicle?.brand ? normalizeText(vehicle.brand) : "";
+  const logoMatch = declaredBrand && logos.some((l) => {
+    const n = normalizeText(l);
+    return n.includes(declaredBrand) || declaredBrand.includes(n);
+  });
+  if (logoMatch) {
+    return { matches: true, confidence: 0.7, reason: `Se detectó el logo de ${vehicle!.brand}, pero no se pudo leer bien la matrícula.`, brand: logos[0] };
+  }
+  return {
+    matches: false,
+    confidence: 0.3,
+    reason: "No se pudo leer ninguna matrícula en la foto, ni se reconoció el logo de la marca — hazla más de cerca y con buena luz.",
+  };
+}
+
+type VisionAttempt = { verdict: Verdict; failReason?: undefined } | { verdict: null; failReason: string };
 
 // Antes, cualquier fallo aquí (clave mal puesta, límite de uso, imagen
 // demasiado grande, respuesta que no es JSON válido...) acababa en el mismo
-// "la IA no pudo revisar la foto" tanto en los logs como en lo que veía el
+// "no se pudo revisar la foto" tanto en los logs como en lo que veía el
 // admin — había que adivinar la causa. Ahora se registra y se devuelve.
-async function askClaude(imageBase64: string, mediaType: string, prompt: string): Promise<ClaudeAttempt> {
-  const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
+async function askGoogleVision(
+  imageBase64: string,
+  kind: string,
+  vehicle?: { brand: string; licensePlate: string },
+): Promise<VisionAttempt> {
+  const apiKey = Deno.env.get("GOOGLE_VISION_API_KEY");
   if (!apiKey) {
-    console.error("[verify-document] falta ANTHROPIC_API_KEY");
-    return { verdict: null, failReason: "Falta configurar la clave de la IA (ANTHROPIC_API_KEY)" };
+    console.error("[verify-document] falta GOOGLE_VISION_API_KEY");
+    return { verdict: null, failReason: "Falta configurar la clave de Google Vision (GOOGLE_VISION_API_KEY)" };
   }
-  const res = await fetch(ANTHROPIC_URL, {
+  const res = await fetch(`${VISION_URL}?key=${apiKey}`, {
     method: "POST",
-    headers: {
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json",
-    },
+    headers: { "content-type": "application/json" },
     body: JSON.stringify({
-      model: MODEL,
-      max_tokens: 400,
-      messages: [{
-        role: "user",
-        content: [
-          { type: "image", source: { type: "base64", media_type: mediaType, data: imageBase64 } },
-          { type: "text", text: prompt },
-        ],
+      requests: [{
+        image: { content: imageBase64 },
+        features: [{ type: "TEXT_DETECTION" }, { type: "LOGO_DETECTION" }],
       }],
     }),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    console.error("[verify-document] la API de Claude respondió con error", { status: res.status, body: body.slice(0, 500) });
-    return { verdict: null, failReason: `La IA no pudo revisar la foto (error ${res.status} del servicio)` };
+    console.error("[verify-document] Google Vision respondió con error", { status: res.status, body: body.slice(0, 500) });
+    return { verdict: null, failReason: `Google Vision no pudo revisar la foto (error ${res.status} del servicio)` };
   }
   const data = await res.json();
-  const text: string = data?.content?.[0]?.text ?? "";
-  const match = text.match(/\{[\s\S]*\}/);
-  if (!match) {
-    console.error("[verify-document] la respuesta de Claude no traía JSON", { text: text.slice(0, 500) });
-    return { verdict: null, failReason: "La IA respondió con algo que no se pudo interpretar" };
+  const result = data?.responses?.[0];
+  if (result?.error) {
+    console.error("[verify-document] Google Vision devolvió un error", result.error);
+    return { verdict: null, failReason: result.error.message ?? "Google Vision no pudo revisar la foto" };
   }
-  try {
-    return { verdict: JSON.parse(match[0]) as Verdict };
-  } catch (err) {
-    console.error("[verify-document] el JSON de Claude no se pudo parsear", { raw: match[0].slice(0, 500), err: String(err) });
-    return { verdict: null, failReason: "La IA respondió con algo que no se pudo interpretar" };
-  }
+  const fullText: string = result?.fullTextAnnotation?.text ?? result?.textAnnotations?.[0]?.description ?? "";
+  const logos: string[] = (result?.logoAnnotations ?? []).map((l: { description: string }) => l.description);
+
+  const verdict = kind === "driver_license" ? buildLicenseVerdict(fullText) : buildVehicleVerdict(fullText, logos, vehicle);
+  return { verdict };
 }
 
 Deno.serve(async (req) => {
@@ -220,7 +284,7 @@ Deno.serve(async (req) => {
   // Sin desestructurar: TypeScript solo correlaciona "verdict" y "failReason"
   // como viniendo de la misma rama de la unión mientras se compruebe sobre
   // el objeto entero, no sobre variables ya separadas.
-  const attempt = await askClaude(imageBase64, file.type || "image/jpeg", promptFor(request.kind, vehicle));
+  const attempt = await askGoogleVision(imageBase64, request.kind, vehicle);
 
   let status: "approved" | "rejected" | "needs_review";
   let reason: string;
