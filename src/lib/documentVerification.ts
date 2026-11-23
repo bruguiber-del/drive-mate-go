@@ -22,13 +22,11 @@ export function pickPhoto(): Promise<File | null> {
     document.body.appendChild(input);
 
     const finish = (file: File | null) => {
-      console.log("[pickPhoto] resultado:", file ? `${file.name} ${file.type} ${file.size}b` : "null (sin archivo)");
       input.remove();
       resolve(file);
     };
     input.onchange = () => finish(input.files?.[0] ?? null);
     input.oncancel = () => finish(null);
-    console.log("[pickPhoto] abriendo selector...");
     input.click();
   });
 }
@@ -72,46 +70,28 @@ export async function submitDocumentForVerification(opts: {
   file: File;
   vehicleId?: string;
 }): Promise<{ status: DocumentVerdict; reason: string }> {
-  console.log("[submitDoc] archivo recibido:", opts.file.name, opts.file.type, opts.file.size + "b");
   if (!ALLOWED_TYPES.includes(opts.file.type)) {
     throw new Error("La foto debe ser JPG, PNG, WEBP o HEIC");
   }
   const { data: userData } = await supabase.auth.getUser();
   const userId = userData.user?.id;
   if (!userId) throw new Error("Inicia sesión para verificar");
-  console.log("[submitDoc] usuario:", userId);
 
-  const uploadBlob = await toUploadableJpeg(opts.file).catch((err) => {
-    console.log("[submitDoc] toUploadableJpeg falló, se sube el original:", err);
-    return opts.file;
-  });
-  console.log("[submitDoc] blob listo para subir:", uploadBlob.size + "b");
+  const uploadBlob = await toUploadableJpeg(opts.file).catch(() => opts.file);
   const path = `${userId}/${crypto.randomUUID()}.jpg`;
   const { error: uploadError } = await supabase.storage
     .from("verification-docs")
     .upload(path, uploadBlob, { contentType: "image/jpeg", upsert: false });
-  if (uploadError) {
-    console.log("[submitDoc] fallo al subir al storage:", uploadError.message);
-    throw uploadError;
-  }
-  console.log("[submitDoc] subido al storage en:", path);
+  if (uploadError) throw uploadError;
 
   const { data: row, error: insertError } = await supabase
     .from("verification_requests")
     .insert({ user_id: userId, kind: opts.kind, vehicle_id: opts.vehicleId ?? null, storage_path: path })
     .select("id")
     .single();
-  if (insertError || !row) {
-    console.log("[submitDoc] fallo al crear la solicitud:", insertError?.message);
-    throw insertError ?? new Error("No se pudo crear la solicitud");
-  }
-  console.log("[submitDoc] solicitud creada:", row.id, "— invocando verify-document...");
+  if (insertError || !row) throw insertError ?? new Error("No se pudo crear la solicitud");
 
   const { data, error } = await supabase.functions.invoke("verify-document", { body: { requestId: row.id } });
-  if (error) {
-    console.log("[submitDoc] fallo de verify-document:", error.message);
-    throw error;
-  }
-  console.log("[submitDoc] respuesta de verify-document:", JSON.stringify(data));
+  if (error) throw error;
   return data as { status: DocumentVerdict; reason: string };
 }

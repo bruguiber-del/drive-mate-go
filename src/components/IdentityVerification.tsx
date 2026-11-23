@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
+import { CheckCircle, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PhoneNumberInput } from "@/components/PhoneNumberInput";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
 import { pickPhoto, submitDocumentForVerification } from "@/lib/documentVerification";
 
 const E164 = /^\+[1-9]\d{7,14}$/;
@@ -77,19 +79,13 @@ const IdentityVerification = ({ phoneConfirmed }: { phoneConfirmed: boolean }) =
   };
 
   const uploadLicense = async () => {
-    console.log("[uploadLicense] toque en Subir foto del carnet");
     const photo = await pickPhoto();
-    if (!photo) {
-      console.log("[uploadLicense] pickPhoto devolvió null, no se sube nada");
-      return;
-    }
+    if (!photo) return;
     setBusy(true);
     try {
       const result = await submitDocumentForVerification({ kind: "driver_license", file: photo });
-      console.log("[uploadLicense] resultado final:", result.status, result.reason);
       setLicenseStatus({ status: result.status, reason: result.reason });
     } catch (err) {
-      console.log("[uploadLicense] excepción:", err);
       toast({ title: "No se pudo subir la foto", description: err instanceof Error ? err.message : "Inténtalo de nuevo", duration: 4000 });
     } finally {
       setBusy(false);
@@ -121,10 +117,20 @@ const IdentityVerification = ({ phoneConfirmed }: { phoneConfirmed: boolean }) =
           Haz una foto legible del carnet. Se revisa con IA y, si no está clara, pasa a revisión manual.
         </p>
         {licenseStatus && (
-          <p className="text-sm text-foreground">
-            {STATUS_TEXT[licenseStatus.status] ?? licenseStatus.status}
-            {licenseStatus.reason ? <span className="block text-xs text-muted-foreground">{licenseStatus.reason}</span> : null}
-          </p>
+          <div className="flex items-center gap-3">
+            <div className={cn(
+              "w-10 h-10 rounded-lg flex items-center justify-center shrink-0",
+              licenseStatus.status === "approved" ? "bg-success/20" : "bg-warning/20",
+            )}>
+              {licenseStatus.status === "approved"
+                ? <CheckCircle className="w-5 h-5 text-success" />
+                : <AlertCircle className="w-5 h-5 text-warning" />}
+            </div>
+            <div className="min-w-0">
+              <p className="font-medium text-foreground">{STATUS_TEXT[licenseStatus.status] ?? licenseStatus.status}</p>
+              {licenseStatus.reason && <p className="text-sm text-muted-foreground">{licenseStatus.reason}</p>}
+            </div>
+          </div>
         )}
         <Button size="sm" variant="outline" className="w-full" disabled={busy || licenseStatus?.status === "approved"} onClick={uploadLicense}>
           Subir foto del carnet
