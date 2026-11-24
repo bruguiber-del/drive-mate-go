@@ -75,8 +75,6 @@ const SavedPlaceRow = ({
       value={p}
       dragListener={false}
       dragControls={dragControls}
-      onDragStart={() => console.log('[dragHandle] arrastre INICIADO:', p.label)}
-      onDragEnd={() => console.log('[dragHandle] arrastre TERMINADO:', p.label)}
       className={cn(
         'glass rounded-xl p-3 flex items-center gap-3 transition-colors duration-500 bg-background',
         justMoved && 'ring-2 ring-primary bg-primary/10',
@@ -85,10 +83,7 @@ const SavedPlaceRow = ({
       <button
         type="button"
         data-vaul-no-drag
-        onPointerDown={(e) => {
-          console.log('[dragHandle] pointerdown en el tirador:', p.label);
-          dragControls.start(e);
-        }}
+        onPointerDown={(e) => dragControls.start(e)}
         aria-label={`Arrastrar ${p.label}`}
         className="shrink-0 -ml-1 p-2.5 text-muted-foreground/50 cursor-grab touch-none active:cursor-grabbing"
       >

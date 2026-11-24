@@ -58,7 +58,7 @@ import { useDriverTracking } from "@/hooks/useDriverTracking";
 import { useSimulatedDriverPosition } from "@/hooks/useSimulatedDriverPosition";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { useWaypoints, type Waypoint, type TripLeg } from "@/hooks/useWaypoints";
-import { usePassengerSimulation, type SimulatedPassenger, type PassengerReceipt } from "@/hooks/usePassengerSimulation";
+import type { SimulatedPassenger, PassengerReceipt } from "@/hooks/usePassengerSimulation";
 import { useIncomingRealRequests } from "@/hooks/useIncomingRealRequests";
 import { useDriverPresence } from "@/hooks/useDriverPresence";
 import { useRealDriverSearch, REAL_SEARCH_RADIUS_KM } from "@/hooks/useRealDriverSearch";
@@ -370,14 +370,6 @@ const Index = () => {
     );
   }, [vehicles.activeVehicle, fuelPricesAlongRoute]);
 
-  // Nombres de quien ya va a bordo o pendiente de recoger — para que una
-  // solicitud nueva nunca repita el nombre de alguien que ya está en el
-  // coche (antes podían coincidir y parecía la misma persona duplicada).
-  const activeSimPassengerNames = useMemo(
-    () => new Set(multiTrip.passengers.map((p) => p.passenger.name)),
-    [multiTrip.passengers],
-  );
-
   // Forma mínima de cada pasajero ya aceptado que necesita el verificador
   // de desvío real (posición de recogida/bajada + si ya está a bordo).
   const activeSimTrackedPassengers = useMemo(
@@ -392,51 +384,10 @@ const Index = () => {
     [multiTrip.passengers],
   );
 
-  // Avisa como mucho una vez por minuto si Mapbox no responde; sin esto el
-  // conductor no sabe por qué no le llegan solicitudes.
-  const lastRoutingNoticeRef = useRef(0);
-  const notifyRoutingError = useCallback(() => {
-    const now = Date.now();
-    if (now - lastRoutingNoticeRef.current < 60_000) return;
-    lastRoutingNoticeRef.current = now;
-    toast({
-      title: "Sin conexión con el mapa",
-      description: "No se pueden calcular rutas ahora mismo; reintentando.",
-      duration: 3000,
-    });
-  }, [toast]);
-
-  const { currentPassenger: simulatedFakePassenger, dismissCurrent: dismissSimFakePassenger } = usePassengerSimulation({
-    // Pasajeros ficticios desactivados: con el emparejamiento real ya
-    // funcionando, no tiene sentido que sigan apareciendo peticiones
-    // inventadas — solo deben llegar peticiones de pasajeros de verdad.
-    enabled: false,
-    userLocation: realUserLocation,
-    intervalMs: 5000,
-    driverRoute: nav.currentRoute?.coordinates ?? null,
-    driverDestination: nav.destinationCoords,
-    costPerKm: liveCostPerKm,
-    maxDetourMinutes: driverSettings.maxDetour,
-    driverPreferences: {
-      acceptsPets: driverSettings.acceptsPets,
-      hasChildSeat: driverSettings.hasChildSeat,
-      doorToDoor: driverSettings.doorToDoor,
-      genderPreference: driverSettings.genderPreference,
-    },
-    activePassengerNames: activeSimPassengerNames,
-    activeTrackedPassengers: activeSimTrackedPassengers,
-    // Línea base 100% real (nada de estimaciones): la ruta real actual, ya
-    // con las paradas aceptadas, y la ruta original de cero pasajeros —
-    // ambas calculadas de verdad por Mapbox, no geometría aproximada.
-    seats: driverSettings.seats,
-    onRoutingError: notifyRoutingError,
-  });
-
-  // Peticiones reales de pasajeros de verdad en este viaje — tienen
-  // prioridad sobre el pasajero simulado. Reutiliza exactamente la misma
-  // forma (SimulatedPassenger) para que todo lo que ya lee
-  // "simulatedPassenger" más abajo (el popup, el ticket, aceptar/rechazar)
-  // funcione igual sin tener que tocarlo.
+  // Peticiones reales de pasajeros de verdad en este viaje. Reutiliza la
+  // misma forma (SimulatedPassenger) que usaba el antiguo generador
+  // simulado, así todo lo que ya lee "simulatedPassenger" más abajo (el
+  // popup, el ticket, aceptar/rechazar) funciona igual sin tener que tocarlo.
   const incomingReal = useIncomingRealRequests({
     enabled: isDriverMode && !!driverOnlineTripId && nav.isNavigating,
     tripId: driverOnlineTripId,
@@ -460,8 +411,8 @@ const Index = () => {
       });
     },
   });
-  const simulatedPassenger = incomingReal.currentRequest ?? simulatedFakePassenger;
-  const dismissSimPassenger = incomingReal.currentRequest ? incomingReal.dismissCurrent : dismissSimFakePassenger;
+  const simulatedPassenger = incomingReal.currentRequest;
+  const dismissSimPassenger = incomingReal.dismissCurrent;
 
   // Emite tu posición aproximada + destino mientras estás online, para que
   // un pasajero real pueda descubrirte antes de que exista ningún viaje en
